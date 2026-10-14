@@ -1389,6 +1389,91 @@ return {
         end,
     },
     {
+    name = "AntiTouch",
+    desc = "antitouch | removes all touch events from your character",
+    args = false,
+    run = function(value)
+        if _G.AntiTouchActive then return end
+        _G.AntiTouchActive = true
+
+        local function stripTouches(char)
+            if not char then return end
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    pcall(function()
+                        part.CanTouch = false
+                        part.Touched:Disconnect()
+                        part.TouchEnded:Disconnect()
+                    end)
+                    for _, conn in ipairs(getconnections and getconnections(part.Touched) or {}) do
+                        pcall(function() conn:Disconnect() end)
+                    end
+                    for _, conn in ipairs(getconnections and getconnections(part.TouchEnded) or {}) do
+                        pcall(function() conn:Disconnect() end)
+                    end
+                end
+            end
+        end
+
+        stripTouches(game.Players.LocalPlayer.Character)
+
+        _G.AntiTouchAdded = game.Players.LocalPlayer.Character.DescendantAdded:Connect(function(desc)
+            if not _G.AntiTouchActive then return end
+            if desc:IsA("BasePart") then
+                task.wait()
+                pcall(function()
+                    desc.CanTouch = false
+                    desc.Touched:Disconnect()
+                    desc.TouchEnded:Disconnect()
+                end)
+                for _, conn in ipairs(getconnections and getconnections(desc.Touched) or {}) do
+                    pcall(function() conn:Disconnect() end)
+                end
+                for _, conn in ipairs(getconnections and getconnections(desc.TouchEnded) or {}) do
+                    pcall(function() conn:Disconnect() end)
+                end
+            end
+        end)
+
+        _G.AntiTouchLoop = game:GetService("RunService").Heartbeat:Connect(function()
+            if not _G.AntiTouchActive then return end
+            local c = game.Players.LocalPlayer.Character
+            if not c then return end
+            for _, part in ipairs(c:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanTouch then
+                    pcall(function() part.CanTouch = false end)
+                end
+            end
+        end)
+
+        _G.AntiTouchCharConn = game.Players.LocalPlayer.CharacterAdded:Connect(function(newChar)
+            if not _G.AntiTouchActive then return end
+            task.wait(0.5)
+            stripTouches(newChar)
+        end)
+    end,
+},
+{
+    name = "UnAntiTouch",
+    desc = "unantitouch | restores touch events",
+    args = false,
+    run = function(value)
+        _G.AntiTouchActive = false
+        if _G.AntiTouchAdded then _G.AntiTouchAdded:Disconnect(); _G.AntiTouchAdded = nil end
+        if _G.AntiTouchLoop then _G.AntiTouchLoop:Disconnect(); _G.AntiTouchLoop = nil end
+        if _G.AntiTouchCharConn then _G.AntiTouchCharConn:Disconnect(); _G.AntiTouchCharConn = nil end
+
+        local char = game.Players.LocalPlayer.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    pcall(function() part.CanTouch = true end)
+                end
+            end
+        end
+    end,
+},
+}
         name = "UnInvertForces",
         desc = "uninvertforces | restores normal forces",
         args = false,
@@ -1397,4 +1482,174 @@ return {
             if _G.InvertForcesConn then _G.InvertForcesConn:Disconnect(); _G.InvertForcesConn = nil end
         end,
     },
+    {
+    name = "Bring",
+    desc = "bring | name play | all",
+    args = true,
+    run = function(value)
+        local arg = tostring(value or "")
+        if arg == "" then return end
+
+        local me = game.Players.LocalPlayer
+        local char = me.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        local targets = {}
+        if string.lower(arg) == "all" then
+            for _, p in ipairs(game.Players:GetPlayers()) do
+                if p ~= me and p.Character then
+                    table.insert(targets, p)
+                end
+            end
+        else
+            local q = string.lower(arg)
+            for _, p in ipairs(game.Players:GetPlayers()) do
+                if p ~= me and p.Character then
+                    if string.lower(p.Name) == q or string.lower(p.DisplayName) == q
+                        or string.find(string.lower(p.Name), q, 1, true)
+                        or string.find(string.lower(p.DisplayName), q, 1, true) then
+                        table.insert(targets, p)
+                        break
+                    end
+                end
+            end
+        end
+
+        if #targets == 0 then return end
+
+        local frontPos = root.CFrame * CFrame.new(0, 0, -2)
+
+        for _, t in ipairs(targets) do
+            local tRoot = t.Character and t.Character:FindFirstChild("HumanoidRootPart")
+            if tRoot then
+                tRoot.CFrame = frontPos
+            end
+        end
+    end,
+},
+{
+    name = "LoopBring",
+    desc = "loopbring | name play | all",
+    args = true,
+    run = function(value)
+        local arg = tostring(value or "")
+        if arg == "" then return end
+
+        local me = game.Players.LocalPlayer
+        local RunService = game:GetService("RunService")
+
+        if _G.LoopBringActive then
+            _G.LoopBringActive = false
+            if _G.LoopBringThread then task.cancel(_G.LoopBringThread); _G.LoopBringThread = nil end
+            return
+        end
+
+        _G.LoopBringActive = true
+        _G.LoopBringTarget = arg
+        _G.LoopBringList = {}
+
+        if string.lower(arg) == "all" then
+            for _, p in ipairs(game.Players:GetPlayers()) do
+                if p ~= me then
+                    table.insert(_G.LoopBringList, p)
+                end
+            end
+        else
+            local q = string.lower(arg)
+            for _, p in ipairs(game.Players:GetPlayers()) do
+                if p ~= me then
+                    if string.lower(p.Name) == q or string.lower(p.DisplayName) == q
+                        or string.find(string.lower(p.Name), q, 1, true)
+                        or string.find(string.lower(p.DisplayName), q, 1, true) then
+                        table.insert(_G.LoopBringList, p)
+                        break
+                    end
+                end
+            end
+        end
+
+        if #_G.LoopBringList == 0 then
+            _G.LoopBringActive = false
+            return
+        end
+
+        _G.LoopBringThread = task.spawn(function()
+            while _G.LoopBringActive do
+                local c = me.Character
+                local r = c and c:FindFirstChild("HumanoidRootPart")
+                if r then
+                    local frontPos = r.CFrame * CFrame.new(0, 0, -2)
+                    for _, t in ipairs(_G.LoopBringList) do
+                        if t and t.Parent and t.Character then
+                            local tRoot = t.Character:FindFirstChild("HumanoidRootPart")
+                            if tRoot then
+                                pcall(function()
+                                    tRoot.CFrame = frontPos
+                                end)
+                            end
+                        end
+                    end
+                end
+                RunService.Heartbeat:Wait()
+            end
+        end)
+    end,
+},
+{
+    name = "UnLoopBring",
+    desc = "unloopbring | off",
+    args = false,
+    run = function(value)
+        _G.LoopBringActive = false
+        if _G.LoopBringThread then
+            task.cancel(_G.LoopBringThread)
+            _G.LoopBringThread = nil
+        end
+        _G.LoopBringList = {}
+    end,
+},
+{
+    name = "BreakVelocity",
+    desc = "breakvelocity | resets all velocity for 1 second",
+    args = false,
+    run = function(value)
+        if _G.BreakVelocityActive then return end
+        _G.BreakVelocityActive = true
+
+        local me = game.Players.LocalPlayer
+        local V3 = Vector3.new(0, 0, 0)
+
+        _G.BreakVelocityThread = task.spawn(function()
+            local startTime = tick()
+            while _G.BreakVelocityActive and (tick() - startTime) < 1 do
+                local char = me.Character
+                if not char then break end
+                for _, v in ipairs(char:GetDescendants()) do
+                    if v:IsA("BasePart") then
+                        v.Velocity = V3
+                        v.RotVelocity = V3
+                    end
+                end
+                task.wait()
+            end
+            _G.BreakVelocityActive = false
+        end)
+    end,
+},
+{
+    name = "UnBreakVelocity",
+    desc = "unbreakvelocity | stops break velocity",
+    args = false,
+    run = function(value)
+        _G.BreakVelocityActive = false
+        if _G.BreakVelocityThread then
+            task.cancel(_G.BreakVelocityThread)
+            _G.BreakVelocityThread = nil
+        end
+    end,
+},
+
+
 }

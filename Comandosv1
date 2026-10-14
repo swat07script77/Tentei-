@@ -1473,7 +1473,7 @@ return {
         end
     end,
 },
-}
+{
         name = "UnInvertForces",
         desc = "uninvertforces | restores normal forces",
         args = false,
@@ -1650,6 +1650,4 @@ return {
         end
     end,
 },
-
-
 }

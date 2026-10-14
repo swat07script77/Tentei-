@@ -1,11 +1,10 @@
--- commands.lua (no GitHub)
 return {
     {
         name = "SuperSpeed",
         desc = "superspeed | sets walkspeed to 100",
         args = false,
         run = function(value)
-            local char = player.Character
+            local char = game.Players.LocalPlayer.Character
             if not char then return end
             local hum = char:FindFirstChildOfClass("Humanoid")
             if hum then hum.WalkSpeed = 100 end
@@ -25,7 +24,7 @@ return {
         args = true,
         run = function(value)
             local n = tonumber(value) or 16
-            local char = player.Character
+            local char = game.Players.LocalPlayer.Character
             if not char then return end
             local hum = char:FindFirstChildOfClass("Humanoid")
             if hum then hum.WalkSpeed = n end

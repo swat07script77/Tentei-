@@ -78,7 +78,7 @@ return {
             local plr = game.Players.LocalPlayer
             plr.CameraMaxZoomDistance = plr.CameraMaxZoomDistance * mult
         end,
-        },
+    },
     {
         name = "MouseSensitivityMultiplier",
         desc = "mousesensitivitymultiplier | multiplies your mouse sensitivity",
@@ -178,6 +178,58 @@ return {
             if div == 0 then return end
             local cam = workspace.CurrentCamera
             cam.FieldOfView = cam.FieldOfView / div
+        end,
+    },
+    {
+        name = "NetLag",
+        desc = "Nameless Admin | glitches players using netless or reanimation",
+        args = true,
+        run = function(value)
+            local arg = tostring(value or "")
+            if arg == "" then return end
+
+            local q = string.lower(arg)
+            local target = nil
+            for _, p in ipairs(game.Players:GetPlayers()) do
+                if p ~= game.Players.LocalPlayer then
+                    if string.lower(p.Name) == q or string.lower(p.DisplayName) == q
+                        or string.find(string.lower(p.Name), q, 1, true)
+                        or string.find(string.lower(p.DisplayName), q, 1, true) then
+                        target = p
+                        break
+                    end
+                end
+            end
+            if not target or not target.Character then return end
+
+            local sethiddenproperty = sethiddenproperty or function() return false end
+            local RunService = game:GetService("RunService")
+
+            _G.NetLagList = _G.NetLagList or {}
+
+            table.insert(_G.NetLagList, RunService.Heartbeat:Connect(function()
+                if not target.Character then return end
+                for _, v in ipairs(target.Character:GetDescendants()) do
+                    if v:IsA("BasePart") then
+                        pcall(function()
+                            sethiddenproperty(v, "NetworkIsSleeping", true)
+                        end)
+                    end
+                end
+            end))
+        end,
+    },
+    {
+        name = "UnNetLag",
+        desc = "Nameless Admin | stops netlag",
+        args = false,
+        run = function(value)
+            if _G.NetLagList then
+                for _, conn in ipairs(_G.NetLagList) do
+                    conn:Disconnect()
+                end
+                _G.NetLagList = {}
+            end
         end,
     },
 }
@@ -812,57 +864,7 @@ return {
         loadstring(game:HttpGet("https://github.com/DigitalityScripts/roblox-scripts/raw/main/hat%20resize"))()
     end,
 },
-{
-    name = "NetLag",
-    desc = "Nameless Admin | glitches players using netless or reanimation",
-    args = true,
-    run = function(value)
-        local arg = tostring(value or "")
-        if arg == "" then return end
 
-        local q = string.lower(arg)
-        local target = nil
-        for _, p in ipairs(game.Players:GetPlayers()) do
-            if p ~= player then
-                if string.lower(p.Name) == q or string.lower(p.DisplayName) == q
-                    or string.find(string.lower(p.Name), q, 1, true)
-                    or string.find(string.lower(p.DisplayName), q, 1, true) then
-                    target = p
-                    break
-                end
-            end
-        end
-        if not target or not target.Character then return end
-
-        local sethiddenproperty = sethiddenproperty or function() return false end
-
-        _G.NetLagList = _G.NetLagList or {}
-
-        table.insert(_G.NetLagList, RunService.Heartbeat:Connect(function()
-            if not target.Character then return end
-            for _, v in ipairs(target.Character:GetDescendants()) do
-                if v:IsA("BasePart") then
-                    pcall(function()
-                        sethiddenproperty(v, "NetworkIsSleeping", true)
-                    end)
-                end
-            end
-        end))
-    end,
-},
-{
-    name = "UnNetLag",
-    desc = "Nameless Admin | stops netlag",
-    args = false,
-    run = function(value)
-        if _G.NetLagList then
-            for _, conn in ipairs(_G.NetLagList) do
-                conn:Disconnect()
-            end
-            _G.NetLagList = {}
-        end
-    end,
-},
 {
     name = "Flash",
     desc = "Nameless Admin | flashes the target's screen",

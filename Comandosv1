@@ -1585,43 +1585,349 @@ return {
         end,
     },
     {
-        name = "BreakVelocity",
-        desc = "breakvelocity | resets all velocity for 1 second",
-        args = false,
-        run = function(value)
-            if _G.BreakVelocityActive then return end
-            _G.BreakVelocityActive = true
-
-            local me = game.Players.LocalPlayer
-            local V3 = Vector3.new(0, 0, 0)
-
-            _G.BreakVelocityThread = task.spawn(function()
-                local startTime = tick()
-                while _G.BreakVelocityActive and (tick() - startTime) < 1 do
-                    local char = me.Character
-                    if not char then break end
-                    for _, v in ipairs(char:GetDescendants()) do
-                        if v:IsA("BasePart") then
-                            v.Velocity = V3
-                            v.RotVelocity = V3
-                        end
-                    end
-                    task.wait()
+    name = "antihumanoidmod",
+    desc = "antihumanoidmod | WARNING: HIGH BAN RISK! Blocks scripts from modifying your Humanoid.",
+    args = false,
+    run = function()
+        _G.AntiHumanoidActive = true
+        local player = game.Players.LocalPlayer
+        
+        local function protectCharacter(char)
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                local mt = getrawmetatable and getrawmetatable(humanoid)
+                if mt and setreadonly then
+                    pcall(function()
+                        setreadonly(mt, false)
+                        local oldNewIndex = mt.__newindex
+                        mt.__newindex = newcclosure(function(self, idx, val)
+                            if _G.AntiHumanoidActive and self == humanoid then
+                                if idx == "WalkSpeed" or idx == "JumpPower" or idx == "Health" or idx == "MaxHealth" or idx == "JumpHeight" then
+                                    return
+                                end
+                            end
+                            return oldNewIndex(self, idx, val)
+                        end)
+                        setreadonly(mt, true)
+                    end)
                 end
-                _G.BreakVelocityActive = false
-            end)
-        end,
-    },
-    {
-        name = "UnBreakVelocity",
-        desc = "unbreakvelocity | stops break velocity",
-        args = false,
-        run = function(value)
-            _G.BreakVelocityActive = false
-            if _G.BreakVelocityThread then
-                task.cancel(_G.BreakVelocityThread)
-                _G.BreakVelocityThread = nil
             end
-        end,
-    },
+        end
+        
+        if player.Character then
+            protectCharacter(player.Character)
+        end
+        
+        if not _G._AntiHumanoidCharConn then
+            _G._AntiHumanoidCharConn = player.CharacterAdded:Connect(function(char)
+                task.wait(0.5)
+                if _G.AntiHumanoidActive then
+                    protectCharacter(char)
+                end
+            end)
+        end
+    end,
+},
+{
+    name = "unantihumanoidmod",
+    desc = "unantihumanoidmod | Disables Humanoid modification protection.",
+    args = false,
+    run = function()
+        _G.AntiHumanoidActive = false
+        if _G._AntiHumanoidCharConn then
+            _G._AntiHumanoidCharConn:Disconnect()
+            _G._AntiHumanoidCharConn = nil
+        end
+    end,
+},
+{
+    name = "IY",
+    desc = "IY | loads the Infinite Yield script",
+    args = false,
+    run = function(value)
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+    end,
+},
+{
+    name = "IY",
+    desc = "IY | loads the Infinite Yield script",
+    args = false,
+    run = function(value)
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+    end,
+},
+{
+    name = "VehicleFly",
+    desc = "vehiclefly | fly your vehicle with WASD (E/Q up/down), usage: vehiclefly <speed>",
+    args = true,
+    run = function(value)
+        local me = game.Players.LocalPlayer
+        local RunService = game:GetService("RunService")
+        local UIS = game:GetService("UserInputService")
+
+        if _G.VehFlyActive then
+            _G.VehFlyActive = false
+            if _G.VehFlyConn then _G.VehFlyConn:Disconnect(); _G.VehFlyConn = nil end
+            if _G.VehFlyBg then _G.VehFlyBg:Destroy(); _G.VehFlyBg = nil end
+            if _G.VehFlyBv then _G.VehFlyBv:Destroy(); _G.VehFlyBv = nil end
+            if _G.VehFlyInputB then _G.VehFlyInputB:Disconnect(); _G.VehFlyInputB = nil end
+            if _G.VehFlyInputE then _G.VehFlyInputE:Disconnect(); _G.VehFlyInputE = nil end
+            _G.VehFlyCtrl = nil
+            _G.VehFlyUp = false
+            _G.VehFlyDown = false
+            return
+        end
+
+        local speed = tonumber(value) or 50
+        _G.VehFlySpeed = speed
+
+        local char = me.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum or not hum.SeatPart then
+            createNotification("VehicleFly", "You need to be sitting in a vehicle", CONFIG.NotifColorRed)
+            return
+        end
+
+        local seat = hum.SeatPart
+        local vehicle = seat:FindFirstAncestorWhichIsA("Model")
+        if not vehicle then return end
+
+        local root = vehicle.PrimaryPart or seat
+
+        _G.VehFlyActive = true
+        _G.VehFlyCtrl = { F = 0, B = 0, L = 0, R = 0 }
+
+        _G.VehFlyBg = Instance.new("BodyGyro")
+        _G.VehFlyBg.P = 9e4
+        _G.VehFlyBg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+        _G.VehFlyBg.CFrame = root.CFrame
+        _G.VehFlyBg.Parent = root
+
+        _G.VehFlyBv = Instance.new("BodyVelocity")
+        _G.VehFlyBv.Velocity = Vector3.new(0, 0, 0)
+        _G.VehFlyBv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        _G.VehFlyBv.Parent = root
+
+        local camera = workspace.CurrentCamera
+
+        _G.VehFlyConn = RunService.RenderStepped:Connect(function()
+            if not _G.VehFlyActive then return end
+            local r = vehicle.PrimaryPart or seat
+            if not r then return end
+
+            local move = (camera.CFrame.LookVector * (_G.VehFlyCtrl.F + _G.VehFlyCtrl.B)) +
+                ((camera.CFrame * CFrame.new(_G.VehFlyCtrl.L + _G.VehFlyCtrl.R, 0, 0).p) - camera.CFrame.p)
+            local vertical = 0
+            if _G.VehFlyUp then vertical = vertical + 1 end
+            if _G.VehFlyDown then vertical = vertical - 1 end
+            move = move + Vector3.new(0, vertical, 0)
+
+            _G.VehFlyBv.Velocity = move * speed
+            _G.VehFlyBg.CFrame = camera.CFrame
+        end)
+
+        _G.VehFlyInputB = UIS.InputBegan:Connect(function(input, gp)
+            if gp then return end
+            if input.KeyCode == Enum.KeyCode.W then _G.VehFlyCtrl.F = 1
+            elseif input.KeyCode == Enum.KeyCode.S then _G.VehFlyCtrl.B = -1
+            elseif input.KeyCode == Enum.KeyCode.A then _G.VehFlyCtrl.L = -1
+            elseif input.KeyCode == Enum.KeyCode.D then _G.VehFlyCtrl.R = 1
+            elseif input.KeyCode == Enum.KeyCode.E then _G.VehFlyUp = true
+            elseif input.KeyCode == Enum.KeyCode.Q then _G.VehFlyDown = true end
+        end)
+
+        _G.VehFlyInputE = UIS.InputEnded:Connect(function(input)
+            if input.KeyCode == Enum.KeyCode.W then _G.VehFlyCtrl.F = 0
+            elseif input.KeyCode == Enum.KeyCode.S then _G.VehFlyCtrl.B = 0
+            elseif input.KeyCode == Enum.KeyCode.A then _G.VehFlyCtrl.L = 0
+            elseif input.KeyCode == Enum.KeyCode.D then _G.VehFlyCtrl.R = 0
+            elseif input.KeyCode == Enum.KeyCode.E then _G.VehFlyUp = false
+            elseif input.KeyCode == Enum.KeyCode.Q then _G.VehFlyDown = false end
+        end)
+    end,
+},
+{
+    name = "UnVehicleFly",
+    desc = "unvehiclefly | disables vehicle fly",
+    args = false,
+    run = function(value)
+        _G.VehFlyActive = false
+        if _G.VehFlyConn then _G.VehFlyConn:Disconnect(); _G.VehFlyConn = nil end
+        if _G.VehFlyBg then _G.VehFlyBg:Destroy(); _G.VehFlyBg = nil end
+        if _G.VehFlyBv then _G.VehFlyBv:Destroy(); _G.VehFlyBv = nil end
+        if _G.VehFlyInputB then _G.VehFlyInputB:Disconnect(); _G.VehFlyInputB = nil end
+        if _G.VehFlyInputE then _G.VehFlyInputE:Disconnect(); _G.VehFlyInputE = nil end
+        _G.VehFlyCtrl = nil
+        _G.VehFlyUp = false
+        _G.VehFlyDown = false
+    end,
+},
+{
+    name = "VehicleSpeed",
+    desc = "vehiclespeed | sets the vehicle speed (engine torque / max speed)",
+    args = true,
+    run = function(value)
+        local speed = tonumber(value) or 100
+        local me = game.Players.LocalPlayer
+        local char = me.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum or not hum.SeatPart then
+            createNotification("VehicleSpeed", "You need to be sitting in a vehicle", CONFIG.NotifColorRed)
+            return
+        end
+
+        local seat = hum.SeatPart
+        local vehicle = seat:FindFirstAncestorWhichIsA("Model")
+        if not vehicle then return end
+
+        for _, v in ipairs(vehicle:GetDescendants()) do
+            if v:IsA("VehicleSeat") then
+                v.MaxSpeed = speed
+                v.Torque = speed * 100
+            end
+            if v:IsA("BodyVelocity") or v:IsA("BodyAngularVelocity") then
+                v.MaxForce = Vector3.new(speed * 1000, speed * 1000, speed * 1000)
+            end
+        end
+    end,
+},
+{
+    name = "Gemini",
+    desc = "Gemini | loads the Gemini standalone script",
+    args = false,
+    run = function(value)
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/swat07script77/Script-in-luau/refs/heads/main/Gemini"))()
+    end,
+},
+{
+    name = "ToolAttach",
+    desc = "toolattach | gives you a tool that flings players to the void on click",
+    args = false,
+    run = function(value)
+        local Players = game:GetService("Players")
+        local RunService = game:GetService("RunService")
+        local me = game.Players.LocalPlayer
+        local mouse = me:GetMouse()
+
+        task.spawn(function()
+            while true do
+                RunService.Heartbeat:Wait()
+                local char = me.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+
+                if humanoid then
+                    humanoid.MaxHealth = math.huge
+                    humanoid.Health = humanoid.MaxHealth
+                end
+
+                local destroyHeight = workspace.FallenPartsDestroyHeight or -500
+                if root and root.Position.Y < destroyHeight + 100 then
+                    root.CFrame = CFrame.new(root.Position.X, 50, root.Position.Z)
+                    root.Velocity = Vector3.new(0, 0, 0)
+                    root.RotVelocity = Vector3.new(0, 0, 0)
+                end
+            end
+        end)
+
+        local function WalkFlingVoid(state)
+            if not state then
+                _G.WalkFlingVoidActive = false
+                if _G.WalkFlingVoidThread then
+                    task.cancel(_G.WalkFlingVoidThread)
+                    _G.WalkFlingVoidThread = nil
+                end
+                local char = me.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                if root then
+                    root.Velocity = Vector3.new(0, 0, 0)
+                    root.RotVelocity = Vector3.new(0, 0, 0)
+                end
+                return
+            end
+
+            _G.WalkFlingVoidActive = true
+            _G.WalkFlingVoidThread = task.spawn(function()
+                repeat
+                    RunService.Heartbeat:Wait()
+                    if not _G.WalkFlingVoidActive then break end
+                    local character = me.Character
+                    local root = character and character:FindFirstChild("HumanoidRootPart")
+                    if not root then break end
+
+                    root.Velocity = Vector3.new(0, -10000, 0)
+                    RunService.RenderStepped:Wait()
+                    if _G.WalkFlingVoidActive and character and character.Parent and root and root.Parent then
+                        root.Velocity = Vector3.new(0, -10000, 0)
+                    end
+                    RunService.Stepped:Wait()
+                    if _G.WalkFlingVoidActive and character and character.Parent and root and root.Parent then
+                        root.Velocity = Vector3.new(0, -10000, 0)
+                    end
+                until not _G.WalkFlingVoidActive
+            end)
+        end
+
+        local function UnWalkFlingVoid()
+            WalkFlingVoid(false)
+        end
+
+        local tool = Instance.new("Tool")
+        tool.Name = "attach"
+        tool.RequiresHandle = false
+        tool.CanBeDropped = false
+
+        local isExecuting = false
+
+        local function onActivated()
+            if isExecuting then return end
+
+            local myChar = me.Character
+            local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if not myRoot then return end
+
+            local targetPart = mouse.Target
+            if not targetPart then return end
+
+            local targetChar = targetPart:FindFirstAncestorOfClass("Model")
+            local targetPlayer = Players:GetPlayerFromCharacter(targetChar)
+            local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+
+            if targetPlayer and targetPlayer ~= me and targetRoot then
+                isExecuting = true
+
+                local originalCFrame = myRoot.CFrame
+                WalkFlingVoid(true)
+
+                local startTime = tick()
+                local connection
+                connection = RunService.Heartbeat:Connect(function()
+                    if tick() - startTime < 2 and targetRoot and targetRoot.Parent and myRoot and myRoot.Parent then
+                        myRoot.CFrame = targetRoot.CFrame * CFrame.Angles(math.rad(90), 0, 0)
+                    else
+                        connection:Disconnect()
+                    end
+                end)
+
+                task.wait(2)
+
+                UnWalkFlingVoid()
+                if myRoot and myRoot.Parent then
+                    myRoot.CFrame = originalCFrame
+                    myRoot.Velocity = Vector3.new(0, 0, 0)
+                    myRoot.RotVelocity = Vector3.new(0, 0, 0)
+                end
+
+                isExecuting = false
+            end
+        end
+
+        tool.Activated:Connect(onActivated)
+        tool.GripPos = Vector3.new(0, 9e99, 0)
+        tool.Parent = me.Character or me:WaitForChild("Backpack")
+    end,
+},
+
 }

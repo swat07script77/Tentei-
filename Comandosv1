@@ -3156,14 +3156,539 @@ return {
 },
 {
     name = "AI",
-    desc = "ai | use free Kimi, Gemini, GPT, Claude, DeepSeek without API",
+    desc = "ai | use free ai (Kimi, Gemini, GPT, Claude, DeepSeek) without API",
     args = false,
     run = function(value)
-        loadstring(game:HttpGet("https://pastebin.com/raw/SRpwjFHn"))()
+        loadstring(game:HttpGet("https://pastefy.app/KoVr5wtp/raw"))()
     end,
 },
 
+{
+    name = "flingswat07",
+    desc = "flingswat07 | swat07 fling v5 supreme (anti-fling, touch, selection, 50k)",
+    args = false,
+    run = function(value)
+        local Players = game:GetService("Players")
+        local RunService = game:GetService("RunService")
+        local TweenService = game:GetService("TweenService")
+        local TextChatService = game:GetService("TextChatService")
 
+        local LocalPlayer = Players.LocalPlayer
+        local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
+        local FlingActive = false
+        local FlingBaixaActive = false
+        local Fling50KActive = false
+        local TouchFlingActive = false
+        local AntiFlingActive = false
+        local SelectedTargets = {}
+        local ModeAll = false
+        local FORCE_VALUE = 50000
+        local TARGET_DURATION = 0.4
+        local TimeOnTarget = 0
+        local CurrentTargetIndex = 1
+        local movel = 0.1
+        local Angle = 0
+        local trackedPlayers = {}
+
+        local function EnviarMensagemInjecao()
+            local msg = "/fling v5 criei Pero SWAT07_SCRIPT O MELHOR PARA JOGAR PARA BAIXO/"
+            pcall(function()
+                if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+                    local channel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
+                    if channel then channel:SendAsync(msg) end
+                else
+                    game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All")
+                end
+            end)
+        end
+        EnviarMensagemInjecao()
+
+        local function disableCollision(char)
+            if not char then return end
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = false end
+            end
+        end
+
+        local function trackPlayer(player)
+            if player == LocalPlayer then return end
+            player.CharacterAdded:Connect(disableCollision)
+            if player.Character then disableCollision(player.Character) end
+            trackedPlayers[player] = true
+        end
+        for _, p in pairs(Players:GetPlayers()) do trackPlayer(p) end
+        Players.PlayerAdded:Connect(trackPlayer)
+
+        local function SetFat(active)
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.RigType == Enum.HumanoidRigType.R15 then
+                local scale = active and 4 or 1
+                local bws = hum:FindFirstChild("BodyWidthScale")
+                local bds = hum:FindFirstChild("BodyDepthScale")
+                if bws and bds then bws.Value = scale bds.Value = scale end
+            end
+        end
+
+        local ScreenGui = Instance.new("ScreenGui", PlayerGui)
+        ScreenGui.Name = "SWAT07_V5_Gabriel_Edition"
+        ScreenGui.ResetOnSpawn = false
+
+        local Main = Instance.new("Frame", ScreenGui)
+        Main.Size = UDim2.new(0, 160, 0, 350)
+        Main.Position = UDim2.new(0.5, -80, 0.4, 0)
+        Main.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        Main.Active = true
+        Main.Draggable = true
+        Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 6)
+
+        local Grad = Instance.new("UIGradient", Main)
+        Grad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(2, 2, 2)),
+            ColorSequenceKeypoint.new(0.50, Color3.fromRGB(2, 2, 2)),
+            ColorSequenceKeypoint.new(0.51, Color3.fromRGB(25, 25, 25)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 25, 25))
+        })
+        TweenService:Create(Grad, TweenInfo.new(1.5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true), {Rotation = 180}):Play()
+
+        local Title = Instance.new("TextLabel", Main)
+        Title.Text = "SWAT07 - PREDICTION"
+        Title.Size = UDim2.new(1, 0, 0, 30)
+        Title.TextColor3 = Color3.new(1, 1, 1)
+        Title.BackgroundTransparency = 1
+        Title.Font = Enum.Font.GothamBold
+        Title.TextSize = 11
+
+        local Scroll = Instance.new("ScrollingFrame", Main)
+        Scroll.Size = UDim2.new(1, -10, 1, -40)
+        Scroll.Position = UDim2.new(0, 5, 0, 35)
+        Scroll.BackgroundTransparency = 1
+        Scroll.CanvasSize = UDim2.new(0, 0, 1.8, 0)
+        Scroll.ScrollBarThickness = 0
+        Instance.new("UIListLayout", Scroll).Padding = UDim.new(0, 7)
+
+        local TargetContainer = Instance.new("Frame", Scroll)
+        TargetContainer.Size = UDim2.new(1, 0, 0, 34)
+        TargetContainer.BackgroundTransparency = 1
+
+        local TargetBtn = Instance.new("TextButton", TargetContainer)
+        TargetBtn.Size = UDim2.new(0.65, 0, 1, 0)
+        TargetBtn.Text = "ALVO: [SEL]"
+        TargetBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        TargetBtn.TextColor3 = Color3.new(1,1,1)
+        TargetBtn.Font = Enum.Font.GothamBold
+        TargetBtn.TextSize = 9
+        Instance.new("UICorner", TargetBtn)
+
+        local NumberInput = Instance.new("TextBox", TargetContainer)
+        NumberInput.Size = UDim2.new(0.3, 0, 1, 0)
+        NumberInput.Position = UDim2.new(0.7, 0, 0, 0)
+        NumberInput.Text = "1"
+        NumberInput.BackgroundColor3 = Color3.fromRGB(60, 0, 0)
+        NumberInput.TextColor3 = Color3.new(1,1,1)
+        NumberInput.Font = Enum.Font.GothamBold
+        NumberInput.TextSize = 12
+        Instance.new("UICorner", NumberInput)
+
+        local function createBtn(txt, color)
+            local b = Instance.new("TextButton", Scroll)
+            b.Size = UDim2.new(1, 0, 0, 34)
+            b.Text = txt
+            b.BackgroundColor3 = color
+            b.TextColor3 = Color3.new(1,1,1)
+            b.Font = Enum.Font.GothamBold
+            b.TextSize = 10
+            Instance.new("UICorner", b)
+            return b
+        end
+
+        local AllBtn = createBtn("MODO: SINGLE", Color3.fromRGB(80, 0, 0))
+        local ActBtn = createBtn("ATIVAR", Color3.fromRGB(0, 150, 80))
+        local BaixaBtn = createBtn("FLINGBAIXA AUTO", Color3.fromRGB(130, 0, 0))
+        local AggBtn = createBtn("AGGRESSIVE 50K", Color3.fromRGB(180, 0, 255))
+        local TouchBtn = createBtn("TOQUE: OFF", Color3.fromRGB(60, 60, 60))
+        local AntiBtn = createBtn("ANTIFLING: OFF", Color3.fromRGB(100, 60, 0))
+
+        TargetBtn.MouseButton1Click:Connect(function()
+            if ScreenGui:FindFirstChild("ListFrame") then ScreenGui.ListFrame:Destroy() return end
+            local ListFrame = Instance.new("Frame", ScreenGui)
+            ListFrame.Name = "ListFrame"
+            ListFrame.Size = UDim2.new(0, 140, 0, 180)
+            ListFrame.Position = UDim2.new(0, Main.AbsolutePosition.X + 165, 0, Main.AbsolutePosition.Y)
+            ListFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+            Instance.new("UICorner", ListFrame)
+            local ListScroll = Instance.new("ScrollingFrame", ListFrame)
+            ListScroll.Size = UDim2.new(1, 0, 1, 0)
+            ListScroll.BackgroundTransparency = 1
+            Instance.new("UIListLayout", ListScroll)
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer then
+                    local pBtn = Instance.new("TextButton", ListScroll)
+                    pBtn.Size = UDim2.new(1, 0, 0, 25)
+                    pBtn.Text = p.Name
+                    pBtn.BackgroundColor3 = SelectedTargets[p] and Color3.fromRGB(130, 0, 255) or Color3.fromRGB(30,30,30)
+                    pBtn.TextColor3 = Color3.new(1,1,1)
+                    pBtn.MouseButton1Click:Connect(function()
+                        if SelectedTargets[p] then SelectedTargets[p] = nil pBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+                        else
+                            local count = 0 for _ in pairs(SelectedTargets) do count = count + 1 end
+                            if count < (tonumber(NumberInput.Text) or 1) then SelectedTargets[p] = p pBtn.BackgroundColor3 = Color3.fromRGB(130, 0, 255) end
+                        end
+                    end)
+                end
+            end
+        end)
+
+        AllBtn.MouseButton1Click:Connect(function()
+            ModeAll = not ModeAll
+            AllBtn.Text = ModeAll and "MODO: ALL" or "MODO: SINGLE"
+            AllBtn.BackgroundColor3 = ModeAll and Color3.fromRGB(0, 80, 150) or Color3.fromRGB(80, 0, 0)
+        end)
+
+        AggBtn.MouseButton1Click:Connect(function()
+            Fling50KActive = not Fling50KActive
+            FlingActive, FlingBaixaActive = false, false
+            SetFat(Fling50KActive)
+            AggBtn.Text = Fling50KActive and "50K: ON" or "AGGRESSIVE 50K"
+            AggBtn.BackgroundColor3 = Fling50KActive and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(180, 0, 255)
+        end)
+
+        ActBtn.MouseButton1Click:Connect(function()
+            FlingActive = not FlingActive
+            FlingBaixaActive, Fling50KActive = false, false
+            SetFat(FlingActive)
+            ActBtn.Text = FlingActive and "STOP" or "ATIVAR"
+            ActBtn.BackgroundColor3 = FlingActive and Color3.fromRGB(180, 0, 0) or Color3.fromRGB(0, 150, 80)
+        end)
+
+        BaixaBtn.MouseButton1Click:Connect(function()
+            FlingBaixaActive = not FlingBaixaActive
+            FlingActive, Fling50KActive = false, false
+            SetFat(FlingBaixaActive)
+            BaixaBtn.Text = FlingBaixaActive and "BAIXA: ON" or "FLINGBAIXA AUTO"
+            BaixaBtn.BackgroundColor3 = FlingBaixaActive and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(130, 0, 0)
+        end)
+
+        TouchBtn.MouseButton1Click:Connect(function()
+            TouchFlingActive = not TouchFlingActive
+            TouchBtn.Text = TouchFlingActive and "TOQUE: ON" or "TOQUE: OFF"
+            TouchBtn.BackgroundColor3 = TouchFlingActive and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(60, 60, 60)
+        end)
+
+        AntiBtn.MouseButton1Click:Connect(function()
+            AntiFlingActive = not AntiFlingActive
+            AntiBtn.Text = AntiFlingActive and "ANTIFLING: ON" or "ANTIFLING: OFF"
+            AntiBtn.BackgroundColor3 = AntiFlingActive and Color3.fromRGB(200, 120, 0) or Color3.fromRGB(100, 60, 0)
+        end)
+
+        RunService.PostSimulation:Connect(function(dt)
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+
+            if AntiFlingActive then
+                for p, _ in pairs(trackedPlayers) do if p.Character then disableCollision(p.Character) end end
+            end
+
+            if not (FlingActive or FlingBaixaActive or Fling50KActive) then return end
+            disableCollision(char)
+
+            local targets = {}
+            if ModeAll then
+                for _, p in pairs(Players:GetPlayers()) do
+                    if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then table.insert(targets, p) end
+                end
+            else
+                for p, _ in pairs(SelectedTargets) do
+                    if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then table.insert(targets, p) end
+                end
+            end
+
+            if #targets > 0 then
+                TimeOnTarget = TimeOnTarget + dt
+                if TimeOnTarget >= TARGET_DURATION then
+                    TimeOnTarget = 0
+                    CurrentTargetIndex = (CurrentTargetIndex % #targets) + 1
+                end
+
+                local t = targets[CurrentTargetIndex] or targets[1]
+                local tr = t.Character.HumanoidRootPart
+                local head = t.Character:FindFirstChild("Head") or tr
+
+                local Prediction = tr.Velocity * 0.12
+                local TargetPos = head.Position + Prediction
+
+                Angle = Angle + 100
+
+                if Fling50KActive then
+                    workspace.FallenPartsDestroyHeight = 0/0
+                    local sequence = {
+                        Vector3.new(0, 1.5, 0),
+                        Vector3.new(0, -1.5, 0),
+                        Vector3.new(2.5, 1.5, -2.5),
+                        Vector3.new(-2.5, -1.5, 2.5)
+                    }
+                    local currentOffset = sequence[math.floor(tick() * 15) % #sequence + 1]
+                    hrp.CFrame = CFrame.new(TargetPos + currentOffset) * CFrame.Angles(math.rad(Angle), 0, 0)
+                elseif FlingBaixaActive then
+                    hrp.CFrame = CFrame.new(TargetPos + Vector3.new(0, -1.5, 0))
+                else
+                    hrp.CFrame = CFrame.new(TargetPos + Vector3.new(0, 1.5, 0))
+                end
+
+                hrp.Velocity = Vector3.new(0, -FORCE_VALUE, 0)
+                hrp.RotVelocity = Vector3.new(FORCE_VALUE, FORCE_VALUE, FORCE_VALUE)
+            end
+        end)
+
+        task.spawn(function()
+            while true do
+                RunService.Heartbeat:Wait()
+                if TouchFlingActive then
+                    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        hrp.Velocity = hrp.Velocity * 10000 + Vector3.new(0, 10000, 0)
+                        RunService.RenderStepped:Wait()
+                        hrp.Velocity = Vector3.new(0, movel, 0)
+                        movel = movel * -1
+                    end
+                end
+            end
+        end)
+    end,
+},
+{
+    name = "OffRobux",
+    desc = "offrobux | blocks all robux purchase prompts and loading",
+    args = false,
+    run = function(value)
+        local CoreGui = game:GetService("CoreGui") local sg = Instance.new("ScreenGui") sg.Name = "OffRobuxBlock" sg.IgnoreGuiInset = true sg.ResetOnSpawn = false sg.Parent = CoreGui local blocker = Instance.new("Frame") blocker.Size = UDim2.new(1,0,1,0) blocker.BackgroundTransparency = 1 blocker.ZIndex = 9999 blocker.Parent = sg local function block(inst) if inst:IsA("ScreenGui") and (inst.Name:lower():find("purchase") or inst.Name:lower():find("robux") or inst.Name:lower():find("prompt")) then inst.Enabled = false elseif inst:IsA("TextButton") and (inst.Text:lower():find("buy") or inst.Text:lower():find("robux") or inst.Text:lower():find("purchase")) then inst.Visible = false end end for _,v in ipairs(CoreGui:GetDescendants()) do pcall(function() block(v) end) end CoreGui.DescendantAdded:Connect(function(v) pcall(function() block(v) end) end) local MarketplaceService = game:GetService("MarketplaceService") local oldProcess = MarketplaceService.ProcessReceipt MarketplaceService.ProcessReceipt = function() return Enum.ProductPurchaseDecision.NotProcessedYet end pcall(function() MarketplaceService.PromptProductPurchaseFinished = function() end end) pcall(function() MarketplaceService.PromptGamePassPurchaseFinished = function() end end) pcall(function() MarketplaceService.PromptBundlePurchaseFinished = function() end end) pcall(function() MarketplaceService.PromptSubscriptionPurchaseFinished = function() end end) game:GetService("GuiService").ErrorMessageChanged:Connect(function() end) print("[OffRobux] Ativado")
+    end,
+},
+{
+    name = "UnOffRobux",
+    desc = "unoffrobux | restores robux prompts",
+    args = false,
+    run = function(value)
+        local CoreGui = game:GetService("CoreGui") local sg = CoreGui:FindFirstChild("OffRobuxBlock") if sg then sg:Destroy() end print("[OffRobux] Desativado")
+    end,
+},
+{
+    name = "OffJump",
+    desc = "offjump | blocks your character from jumping",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false) hum.JumpPower = 0 hum.JumpHeight = 0 end
+    end,
+},
+{
+    name = "UnOffJump",
+    desc = "unoffjump | restores your jump",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true) hum.UseJumpPower = true hum.JumpPower = 50 end
+    end,
+},
+{
+    name = "OffWalk",
+    desc = "offwalk | blocks your character from walking",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum.WalkSpeed = 0 end
+    end,
+},
+{
+    name = "UnOffWalk",
+    desc = "unoffwalk | restores your walk speed",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum.WalkSpeed = 16 end
+    end,
+},
+{
+    name = "OffClimb",
+    desc = "offclimb | blocks your character from climbing",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, false) end
+    end,
+},
+{
+    name = "UnOffClimb",
+    desc = "unoffclimb | restores climbing",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, true) end
+    end,
+},
+{
+    name = "OffSwim",
+    desc = "offswim | blocks your character from swimming",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false) end
+    end,
+},
+{
+    name = "UnOffSwim",
+    desc = "unoffswim | restores swimming",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, true) end
+    end,
+},
+{
+    name = "OffFall",
+    desc = "offfall | blocks your character from falling (freezes in air)",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, false) end
+    end,
+},
+{
+    name = "UnOffFall",
+    desc = "unoffall | restores falling",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true) end
+    end,
+},
+{
+    name = "OffRun",
+    desc = "offrun | blocks your character from running",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Running, false) end
+    end,
+},
+{
+    name = "UnOffRun",
+    desc = "unoffrun | restores running",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Running, true) end
+    end,
+},
+{
+    name = "OffRotate",
+    desc = "offrotate | blocks your character from rotating",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum.AutoRotate = false end
+    end,
+},
+{
+    name = "UnOffRotate",
+    desc = "unoffrotate | restores auto rotate",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then hum.AutoRotate = true end
+    end,
+},
+{
+    name = "OffTool",
+    desc = "offtool | blocks your character from using tools",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") local bp = game.Players.LocalPlayer:FindFirstChildOfClass("Backpack") if hum then hum:UnequipTools() end if bp then for _,t in ipairs(bp:GetChildren()) do if t:IsA("Tool") then t.Enabled = false end end end
+    end,
+},
+{
+    name = "UnOffTool",
+    desc = "unofftool | restores tool usage",
+    args = false,
+    run = function(value)
+        local bp = game.Players.LocalPlayer:FindFirstChildOfClass("Backpack") if bp then for _,t in ipairs(bp:GetChildren()) do if t:IsA("Tool") then t.Enabled = true end end end
+    end,
+},
+{
+    name = "OffChat",
+    desc = "offchat | blocks you from sending chat messages",
+    args = false,
+    run = function(value)
+        local TextChatService = game:GetService("TextChatService") if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then local ch = TextChatService.TextChannels:FindFirstChild("RBXGeneral") if ch then ch:SendAsync = function() end end end
+    end,
+},
+{
+    name = "OffJumpPowerChange",
+    desc = "offjumppowerchange | blocks your jump power from being changed",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then _G.OffJPConn = hum:GetPropertyChangedSignal("JumpPower"):Connect(function() hum.JumpPower = 0 end) end
+    end,
+},
+{
+    name = "UnOffJumpPowerChange",
+    desc = "unoffjumppowerchange | restores jump power changes",
+    args = false,
+    run = function(value)
+        if _G.OffJPConn then _G.OffJPConn:Disconnect() _G.OffJPConn = nil end
+    end,
+},
+{
+    name = "OffWalkSpeedChange",
+    desc = "offwalkspeedchange | blocks your walk speed from being changed",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then _G.OffWSConn = hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function() hum.WalkSpeed = 0 end) end
+    end,
+},
+{
+    name = "UnOffWalkSpeedChange",
+    desc = "unoffwalkspeedchange | restores walk speed changes",
+    args = false,
+    run = function(value)
+        if _G.OffWSConn then _G.OffWSConn:Disconnect() _G.OffWSConn = nil end
+    end,
+},
+{
+    name = "OffHealthChange",
+    desc = "offhealthchange | blocks your health from being modified",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") if hum then local old = hum.Health _G.OffHPConn = hum.HealthChanged:Connect(function(h) if h ~= old then hum.Health = old end end) end
+    end,
+},
+{
+    name = "UnOffHealthChange",
+    desc = "unoffhealthchange | restores health changes",
+    args = false,
+    run = function(value)
+        if _G.OffHPConn then _G.OffHPConn:Disconnect() _G.OffHPConn = nil end
+    end,
+},
+{
+    name = "OffGravity",
+    desc = "offgravity | blocks workspace gravity from changing",
+    args = false,
+    run = function(value)
+        _G.OffGravityValue = workspace.Gravity _G.OffGravityConn = workspace:GetPropertyChangedSignal("Gravity"):Connect(function() if workspace.Gravity ~= _G.OffGravityValue then workspace.Gravity = _G.OffGravityValue end end)
+    end,
+},
+{
+    name = "UnOffGravity",
+    desc = "unoffgravity | restores gravity changes",
+    args = false,
+    run = function(value)
+        if _G.OffGravityConn then _G.OffGravityConn:Disconnect() _G.OffGravityConn = nil end
+    end,
+},
+{
+    name = "OffCharacterControl",
+    desc = "offcharactercontrol | locks all character controls (full freeze)",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") local root = char and char:FindFirstChild("HumanoidRootPart") if hum then hum.WalkSpeed = 0 hum.JumpPower = 0 hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false) hum.AutoRotate = false end if root then root.Anchored = true end
+    end,
+},
+{
+    name = "UnOffCharacterControl",
+    desc = "unoffcharactercontrol | restores character controls",
+    args = false,
+    run = function(value)
+        local char = game.Players.LocalPlayer.Character local hum = char and char:FindFirstChildOfClass("Humanoid") local root = char and char:FindFirstChild("HumanoidRootPart") if hum then hum.WalkSpeed = 16 hum.UseJumpPower = true hum.JumpPower = 50 hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true) hum.AutoRotate = true end if root then root.Anchored = false end
+    end,
+},
 
 }

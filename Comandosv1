@@ -3607,7 +3607,17 @@ return {
     desc = "offchat | blocks you from sending chat messages",
     args = false,
     run = function(value)
-        local TextChatService = game:GetService("TextChatService") if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then local ch = TextChatService.TextChannels:FindFirstChild("RBXGeneral") if ch then ch:SendAsync = function() end end end
+        local TextChatService = game:GetService("TextChatService")
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            local ch = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
+            if ch then
+                if hookfunction and checkclosure then
+                    pcall(function() hookfunction(ch.SendAsync, function() end) end)
+                else
+                    _G.OffChatConn = ch.MessageReceived:Connect(function() end)
+                end
+            end
+        end
     end,
 },
 {

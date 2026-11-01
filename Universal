@@ -11939,6 +11939,9 @@ AbuseTab:CreateToggle({
     end,
 })
 
+-- =============================================
+-- RAKNET DESYNC
+-- =============================================
 pcall(function()
     local raknetDesyncActive = false
     local raknetDesyncConn = nil
@@ -11956,8 +11959,6 @@ pcall(function()
             raknetDesyncTransparencies[part] = part.Transparency
         end
     end
-    -- ... resto do Raknet Desync ...
-end)
 
     local function stopRaknetDesync()
         raknetDesyncActive = false

@@ -1,4 +1,4 @@
-local MainTab = Window:CreateTab("Main", "home")
+local MainTab = Window:CreateTab("Main", "swords")
 
 local function attach(Part, TargetPart)
     if sethiddenproperty and InstanceHandle then
@@ -4023,3 +4023,1916 @@ pcall(function()
         end,
     })
 end)
+-- ============================================================
+-- GOD MODE
+-- ============================================================
+local godModeActive = false
+local godModeConnections = {}
+
+local function enableGodMode()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return false end
+    hum.MaxHealth = math.huge
+    hum.Health = math.huge
+    table.insert(godModeConnections, hum.HealthChanged:Connect(function(newHealth)
+        if not godModeActive then return end
+        if newHealth < math.huge then hum.Health = math.huge end
+    end))
+    table.insert(godModeConnections, char.ChildAdded:Connect(function(child)
+        if not godModeActive then return end
+        if child:IsA("ForceField") then child:Destroy() end
+    end))
+    local function removeDamageOverlay()
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if not playerGui then return end
+        for _, name in ipairs({"HurtOverlay", "DamageOverlay", "RedEffect", "BloodOverlay", "DamageHud"}) do
+            local overlay = playerGui:FindFirstChild(name)
+            if overlay then overlay:Destroy() end
+        end
+    end
+    removeDamageOverlay()
+    table.insert(godModeConnections, RunService.Heartbeat:Connect(function()
+        if not godModeActive then return end
+        removeDamageOverlay()
+    end))
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then part.CanTouch = false end
+    end
+    table.insert(godModeConnections, char.DescendantAdded:Connect(function(desc)
+        if not godModeActive then return end
+        if desc:IsA("BasePart") then desc.CanTouch = false end
+    end))
+    return true
+end
+
+local function disableGodMode()
+    for _, conn in ipairs(godModeConnections) do conn:Disconnect() end
+    godModeConnections = {}
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.MaxHealth = 100; hum.Health = 100 end
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanTouch = true end
+        end
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(function()
+    if godModeActive then
+        task.wait(0.1)
+        enableGodMode()
+    end
+end)
+
+MainTab:CreateToggle({
+    Title = "God Mode",
+    Default = false,
+    Callback = function(Value)
+        godModeActive = Value
+        if Value then enableGodMode() else disableGodMode() end
+    end,
+})
+
+-- ============================================================
+-- DANCE
+-- ============================================================
+local danceActive = false
+local danceTrack = nil
+local danceConn = nil
+MainTab:CreateToggle({
+    Title = "Dance",
+    Default = false,
+    Callback = function(Value)
+        danceActive = Value
+        local char = LocalPlayer.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+        if Value then
+            local animId = hum.RigType == Enum.HumanoidRigType.R6 and "rbxassetid://27789359" or "rbxassetid://4555808220"
+            local anim = Instance.new("Animation")
+            anim.AnimationId = animId
+            local track = hum:LoadAnimation(anim)
+            track.Priority = Enum.AnimationPriority.Action4
+            track.Looped = true
+            track:Play()
+            danceTrack = track
+            danceConn = RunService.RenderStepped:Connect(function()
+                if not danceActive then return end
+                if danceTrack and not danceTrack.IsPlaying then danceTrack:Play() end
+            end)
+        else
+            if danceTrack then danceTrack:Stop(); danceTrack:Destroy(); danceTrack = nil end
+            if danceConn then danceConn:Disconnect(); danceConn = nil end
+        end
+    end,
+})
+
+-- ============================================================
+-- WALK FLING VOID
+-- ============================================================
+local walkFlingVoidActive = false
+local walkFlingVoidThread = nil
+MainTab:CreateToggle({
+    Title = "WalkFlingVoid",
+    Default = false,
+    Callback = function(Value)
+        if not Value then
+            walkFlingVoidActive = false
+            if walkFlingVoidThread then task.cancel(walkFlingVoidThread); walkFlingVoidThread = nil end
+            local char = LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if root then root.Velocity = Vector3.zero; root.RotVelocity = Vector3.zero end
+            return
+        end
+        walkFlingVoidActive = true
+        walkFlingVoidThread = task.spawn(function()
+            repeat
+                RunService.Heartbeat:Wait()
+                if not walkFlingVoidActive then break end
+                local character = LocalPlayer.Character
+                local root = character and character:FindFirstChild("HumanoidRootPart")
+                if not root then break end
+                local vel = root.Velocity
+                root.Velocity = vel * -10000 + Vector3.new(0, -10000, 0)
+                RunService.RenderStepped:Wait()
+                if walkFlingVoidActive and character and character.Parent and root and root.Parent then
+                    root.Velocity = vel
+                end
+                RunService.Stepped:Wait()
+                if walkFlingVoidActive and character and character.Parent and root and root.Parent then
+                    root.Velocity = vel + Vector3.new(0, 0.1, 0)
+                end
+            until walkFlingVoidActive == false
+        end)
+    end,
+})
+
+-- ============================================================
+-- SOUND (novo - swim loop + walkfling)
+-- ============================================================
+local SoundActive = false
+local SoundConn, SoundJumpConn, SoundCharConn, SoundWalkFlingThread = nil, nil, nil, nil
+local SoundWalkFlingActive = false
+
+local function StopSound()
+    SoundActive = false
+    if SoundConn then SoundConn:Disconnect(); SoundConn = nil end
+    if SoundJumpConn then SoundJumpConn:Disconnect(); SoundJumpConn = nil end
+    if SoundCharConn then SoundCharConn:Disconnect(); SoundCharConn = nil end
+    SoundWalkFlingActive = false
+    if SoundWalkFlingThread then task.cancel(SoundWalkFlingThread); SoundWalkFlingThread = nil end
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum:ChangeState(Enum.HumanoidStateType.Running) end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then root.Velocity = Vector3.zero; root.RotVelocity = Vector3.zero end
+    end
+end
+
+MainTab:CreateToggle({
+    Title = "Sound",
+    Default = false,
+    Callback = function(Value)
+        if not Value then StopSound() return end
+        SoundActive = true
+        local char = LocalPlayer.Character
+        if not char then SoundActive = false return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not hum or not root then SoundActive = false return end
+        if SoundConn then SoundConn:Disconnect(); SoundConn = nil end
+        if SoundJumpConn then SoundJumpConn:Disconnect(); SoundJumpConn = nil end
+        if SoundCharConn then SoundCharConn:Disconnect(); SoundCharConn = nil end
+        hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
+        SoundConn = RunService.RenderStepped:Connect(function()
+            if not SoundActive then return end
+            local c = LocalPlayer.Character
+            local h = c and c:FindFirstChildOfClass("Humanoid")
+            local r = c and c:FindFirstChild("HumanoidRootPart")
+            if not h or not r then return end
+            local st = h:GetState()
+            if st == Enum.HumanoidStateType.Jumping or st == Enum.HumanoidStateType.Freefall then return end
+            if st == Enum.HumanoidStateType.Swimming then
+                h:ChangeState(Enum.HumanoidStateType.Running)
+            else
+                h:ChangeState(Enum.HumanoidStateType.Swimming)
+            end
+            r.AssemblyLinearVelocity = Vector3.new(r.AssemblyLinearVelocity.X, 0, r.AssemblyLinearVelocity.Z)
+        end)
+        SoundJumpConn = UserInputService.JumpRequest:Connect(function()
+            if not SoundActive then return end
+            local c = LocalPlayer.Character
+            local h = c and c:FindFirstChildOfClass("Humanoid")
+            local r = c and c:FindFirstChild("HumanoidRootPart")
+            if h and r then
+                h:ChangeState(Enum.HumanoidStateType.Jumping)
+                r.AssemblyLinearVelocity = Vector3.new(r.AssemblyLinearVelocity.X, h.JumpPower > 0 and h.JumpPower or 50, r.AssemblyLinearVelocity.Z)
+            end
+        end)
+        SoundWalkFlingActive = true
+        SoundWalkFlingThread = task.spawn(function()
+            repeat
+                RunService.Heartbeat:Wait()
+                if not SoundWalkFlingActive then break end
+                local character = LocalPlayer.Character
+                local root2 = character and character:FindFirstChild("HumanoidRootPart")
+                if not root2 then continue end
+                local vel = root2.Velocity
+                root2.Velocity = Vector3.new(0, 10000, 0)
+                RunService.RenderStepped:Wait()
+                if SoundWalkFlingActive and character and character.Parent and root2 and root2.Parent then
+                    root2.Velocity = vel
+                end
+                RunService.Stepped:Wait()
+                if SoundWalkFlingActive and character and character.Parent and root2 and root2.Parent then
+                    root2.Velocity = Vector3.new(vel.X, vel.Y + 0.1, vel.Z)
+                end
+            until SoundWalkFlingActive == false
+        end)
+        SoundCharConn = LocalPlayer.CharacterAdded:Connect(function()
+            StopSound()
+        end)
+    end,
+})
+
+-- ============================================================
+-- AUTO REJOIN
+-- ============================================================
+local AutoRejoinActive = false
+local AutoRejoinLast = 0
+local AutoRejoinConn = nil
+MainTab:CreateToggle({
+    Title = "Auto Rejoin",
+    Default = false,
+    Callback = function(Value)
+        AutoRejoinActive = Value
+        if AutoRejoinConn then AutoRejoinConn:Disconnect(); AutoRejoinConn = nil end
+        if not Value then return end
+        AutoRejoinLast = 0
+        AutoRejoinConn = game:GetService("GuiService").ErrorMessageChanged:Connect(function()
+            if not AutoRejoinActive then return end
+            if tick() - AutoRejoinLast < 5 then return end
+            AutoRejoinLast = tick()
+            pcall(function()
+                game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+            end)
+        end)
+    end,
+})
+
+-- ============================================================
+-- CREDIT TAB
+-- ============================================================
+local CreditTab = Window:CreateTab("Credit", "info")
+CreditTab:CreateSection("Creator")
+CreditTab:CreateLabel("Creator: swat07_script")
+CreditTab:CreateSection("Social")
+CreditTab:CreateLabel("Discord: https://discord.gg/vArYQrx4A")
+CreditTab:CreateLabel("Discord Owner: krnl")
+CreditTab:CreateLabel("Usernames: Krnl_oficial | Swat07_oficial")
+CreditTab:CreateSection("Local Info")
+pcall(function()
+    local productInfo = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
+    CreditTab:CreateLabel("Game: " .. productInfo.Name)
+end)
+CreditTab:CreateLabel("Player: " .. LocalPlayer.Name)
+CreditTab:CreateLabel("Account Age: " .. LocalPlayer.AccountAge .. " days")
+
+-- ============================================================
+-- AIM BOT TAB
+-- ============================================================
+local AimBotTab = Window:CreateTab("Aim Bot", "crosshair")
+local aimBotRunning = false
+AimBotTab:CreateButton({
+    Title = "Aim Bot",
+    Callback = function()
+        if aimBotRunning then return end
+        aimBotRunning = true
+        pcall(function()
+            loadstring(game:HttpGet("https://pastebin.com/raw/GSfCdtMX"))()
+        end)
+        task.wait(2)
+        aimBotRunning = false
+    end,
+})
+
+-- ============================================================
+-- EXTRA TAB (Fullbright / Remove Fog / Infinity Jump)
+-- ============================================================
+local ExtraTab = Window:CreateTab("Extra", "package")
+local Lighting = game:GetService("Lighting")
+local originalSettings = {
+    ClockTime = Lighting.ClockTime,
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    ColorShift_Top = Lighting.ColorShift_Top,
+    ColorShift_Bottom = Lighting.ColorShift_Bottom,
+    Brightness = Lighting.Brightness
+}
+local fullbrightActive = false
+ExtraTab:CreateToggle({
+    Title = "Fullbright",
+    Default = false,
+    Callback = function(Value)
+        fullbrightActive = Value
+        if Value then
+            originalSettings.ClockTime = Lighting.ClockTime
+            originalSettings.Ambient = Lighting.Ambient
+            originalSettings.OutdoorAmbient = Lighting.OutdoorAmbient
+            originalSettings.ColorShift_Top = Lighting.ColorShift_Top
+            originalSettings.ColorShift_Bottom = Lighting.ColorShift_Bottom
+            originalSettings.Brightness = Lighting.Brightness
+            Lighting.ClockTime = 14
+            Lighting.Ambient = Color3.fromRGB(220, 220, 220)
+            Lighting.OutdoorAmbient = Color3.fromRGB(220, 220, 220)
+            Lighting.ColorShift_Top = Color3.fromRGB(255, 255, 255)
+            Lighting.ColorShift_Bottom = Color3.fromRGB(255, 255, 255)
+        else
+            Lighting.ClockTime = originalSettings.ClockTime
+            Lighting.Ambient = originalSettings.Ambient
+            Lighting.OutdoorAmbient = originalSettings.OutdoorAmbient
+            Lighting.ColorShift_Top = originalSettings.ColorShift_Top
+            Lighting.ColorShift_Bottom = originalSettings.ColorShift_Bottom
+            Lighting.Brightness = originalSettings.Brightness
+        end
+    end,
+})
+ExtraTab:CreateSlider({
+    Title = "Light Intensity", Min = 0, Max = 8, Default = Lighting.Brightness,
+    Callback = function(Value)
+        if fullbrightActive then Lighting.Brightness = Value end
+    end,
+})
+local originalFogStart = Lighting.FogStart
+local originalFogEnd = Lighting.FogEnd
+local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+local originalAtmosphere = atmosphere and {
+    Density = atmosphere.Density, Offset = atmosphere.Offset, Decay = atmosphere.Decay,
+    Color = atmosphere.Color, Glare = atmosphere.Glare, Haze = atmosphere.Haze
+}
+ExtraTab:CreateToggle({
+    Title = "Remove Fog",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            originalFogStart = Lighting.FogStart
+            originalFogEnd = Lighting.FogEnd
+            Lighting.FogStart = 999999
+            Lighting.FogEnd = 1000000
+            if atmosphere then
+                atmosphere.Density = 0; atmosphere.Offset = 0; atmosphere.Decay = 0
+                atmosphere.Glare = 0; atmosphere.Haze = 0
+            end
+        else
+            Lighting.FogStart = originalFogStart
+            Lighting.FogEnd = originalFogEnd
+            if atmosphere and originalAtmosphere then
+                atmosphere.Density = originalAtmosphere.Density
+                atmosphere.Offset = originalAtmosphere.Offset
+                atmosphere.Decay = originalAtmosphere.Decay
+                atmosphere.Color = originalAtmosphere.Color
+                atmosphere.Glare = originalAtmosphere.Glare
+                atmosphere.Haze = originalAtmosphere.Haze
+            end
+        end
+    end,
+})
+local infinityJumpActive = false
+local jumpConnection = nil
+ExtraTab:CreateToggle({
+    Title = "Infinity Jump",
+    Default = false,
+    Callback = function(Value)
+        infinityJumpActive = Value
+        if Value then
+            if jumpConnection then jumpConnection:Disconnect() end
+            jumpConnection = UserInputService.JumpRequest:Connect(function()
+                if not infinityJumpActive then return end
+                local char = LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+            end)
+        else
+            if jumpConnection then jumpConnection:Disconnect(); jumpConnection = nil end
+        end
+    end,
+})
+do
+    if not ExtraTab then return end
+
+    local flyActive = false
+    local flyMenu = nil
+    local flySpeeds = 1
+    local flyNowe = false
+    local flyConnections = {}
+    local flyBg = nil
+    local flyBv = nil
+    local flyTpwalking = false
+    local flyCtrl = {f = 0, b = 0, l = 0, r = 0}
+    local flyLastctrl = {f = 0, b = 0, l = 0, r = 0}
+    local flyMaxspeed = 50
+    local flySpeed = 0
+    local flyTis = nil
+    local flyDis = nil
+
+    local function stopFly()
+        flyActive = false
+        flyNowe = false
+        flyTpwalking = false
+        if flyTis then flyTis:Disconnect(); flyTis = nil end
+        if flyDis then flyDis:Disconnect(); flyDis = nil end
+        for _, conn in pairs(flyConnections) do conn:Disconnect() end
+        flyConnections = {}
+        if flyBg then flyBg:Destroy(); flyBg = nil end
+        if flyBv then flyBv:Destroy(); flyBv = nil end
+        local char = player.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.PlatformStand = false
+                hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Flying, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Landed, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
+                hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
+            end
+            local animate = char:FindFirstChild("Animate")
+            if animate then animate.Disabled = false end
+        end
+        if flyMenu then flyMenu:Destroy(); flyMenu = nil end
+    end
+
+    local function createFlyMenu()
+        if flyMenu then flyMenu:Destroy() end
+        flyMenu = Instance.new("ScreenGui")
+        flyMenu.Name = "FlyMenu"
+        flyMenu.ResetOnSpawn = false
+        flyMenu.Parent = gui
+
+        local Frame = Instance.new("Frame")
+        Frame.Parent = flyMenu
+        Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+        Frame.BackgroundTransparency = 0.1
+        Frame.BorderSizePixel = 0
+        Frame.Position = UDim2.new(0.5, -75, 0.5, -75)
+        Frame.Size = UDim2.new(0, 150, 0, 150)
+        Frame.Active = true
+        Frame.Draggable = true
+        Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 12)
+        local stroke = Instance.new("UIStroke", Frame)
+        stroke.Color = Color3.fromRGB(60, 60, 65)
+        stroke.Thickness = 1.5
+
+        local closeBtn = Instance.new("TextButton")
+        closeBtn.Parent = Frame
+        closeBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+        closeBtn.BorderSizePixel = 0
+        closeBtn.Size = UDim2.new(0, 35, 0, 35)
+        closeBtn.Position = UDim2.new(1, -40, 0, 5)
+        closeBtn.Font = Enum.Font.SourceSansBold
+        closeBtn.Text = "X"
+        closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closeBtn.TextSize = 20
+        Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+        closeBtn.MouseButton1Click:Connect(function()
+            stopFly()
+            if Notify then Notify("Fly", "Desativado", 1) end
+        end)
+
+        local minusBtn = Instance.new("TextButton")
+        minusBtn.Parent = Frame
+        minusBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+        minusBtn.BorderSizePixel = 0
+        minusBtn.Size = UDim2.new(0, 50, 0, 50)
+        minusBtn.Position = UDim2.new(0, 12, 0.5, -25)
+        minusBtn.Font = Enum.Font.SourceSansBold
+        minusBtn.Text = "-"
+        minusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        minusBtn.TextSize = 30
+        Instance.new("UICorner", minusBtn).CornerRadius = UDim.new(0, 8)
+
+        local speedLabel = Instance.new("TextLabel")
+        speedLabel.Parent = Frame
+        speedLabel.BackgroundTransparency = 1
+        speedLabel.Size = UDim2.new(0, 50, 0, 50)
+        speedLabel.Position = UDim2.new(0.5, -25, 0.5, -25)
+        speedLabel.Font = Enum.Font.SourceSansBold
+        speedLabel.Text = "1"
+        speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        speedLabel.TextSize = 28
+        speedLabel.TextScaled = true
+
+        local plusBtn = Instance.new("TextButton")
+        plusBtn.Parent = Frame
+        plusBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+        plusBtn.BorderSizePixel = 0
+        plusBtn.Size = UDim2.new(0, 50, 0, 50)
+        plusBtn.Position = UDim2.new(1, -62, 0.5, -25)
+        plusBtn.Font = Enum.Font.SourceSansBold
+        plusBtn.Text = "+"
+        plusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        plusBtn.TextSize = 30
+        Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 8)
+
+        plusBtn.MouseButton1Down:Connect(function()
+            flySpeeds = flySpeeds + 1
+            speedLabel.Text = flySpeeds
+            if flyNowe == true then
+                flyTpwalking = false
+                task.wait(0.1)
+                for i = 1, flySpeeds do
+                    task.spawn(function()
+                        local hb = game:GetService("RunService").Heartbeat
+                        flyTpwalking = true
+                        local chr = player.Character
+                        local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                        while flyTpwalking and hb:Wait() and chr and hum and hum.Parent do
+                            if hum.MoveDirection.Magnitude > 0 then
+                                chr:TranslateBy(hum.MoveDirection)
+                            end
+                        end
+                    end)
+                end
+            end
+        end)
+
+        minusBtn.MouseButton1Down:Connect(function()
+            if flySpeeds > 1 then
+                flySpeeds = flySpeeds - 1
+                speedLabel.Text = flySpeeds
+                if flyNowe == true then
+                    flyTpwalking = false
+                    task.wait(0.1)
+                    for i = 1, flySpeeds do
+                        task.spawn(function()
+                            local hb = game:GetService("RunService").Heartbeat
+                            flyTpwalking = true
+                            local chr = player.Character
+                            local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                            while flyTpwalking and hb:Wait() and chr and hum and hum.Parent do
+                                if hum.MoveDirection.Magnitude > 0 then
+                                    chr:TranslateBy(hum.MoveDirection)
+                                end
+                            end
+                        end)
+                    end
+                end
+            end
+        end)
+
+        local function startFly()
+            if flyNowe == true then return end
+            flyNowe = true
+            for i = 1, flySpeeds do
+                task.spawn(function()
+                    local hb = game:GetService("RunService").Heartbeat
+                    flyTpwalking = true
+                    local chr = player.Character
+                    local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                    while flyTpwalking and hb:Wait() and chr and hum and hum.Parent do
+                        if hum.MoveDirection.Magnitude > 0 then
+                            chr:TranslateBy(hum.MoveDirection)
+                        end
+                    end
+                end)
+            end
+            local char = player.Character
+            if char then
+                local animate = char:FindFirstChild("Animate")
+                if animate then animate.Disabled = true end
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    for _, v in pairs(hum:GetPlayingAnimationTracks()) do v:AdjustSpeed(0) end
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Landed, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Running, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
+                    hum:ChangeState(Enum.HumanoidStateType.Swimming)
+                    hum.PlatformStand = true
+                end
+            end
+
+            local bodyPart
+            local charRig = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+            if charRig and charRig.RigType == Enum.HumanoidRigType.R6 then
+                bodyPart = player.Character.Torso
+            else
+                bodyPart = player.Character.UpperTorso
+            end
+            if not bodyPart then return end
+
+            flyCtrl = {f = 0, b = 0, l = 0, r = 0}
+            flyLastctrl = {f = 0, b = 0, l = 0, r = 0}
+            flyMaxspeed = 50
+            flySpeed = 0
+
+            if flyBg then flyBg:Destroy() end
+            if flyBv then flyBv:Destroy() end
+
+            flyBg = Instance.new("BodyGyro", bodyPart)
+            flyBg.P = 9e4
+            flyBg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+            flyBg.cframe = bodyPart.CFrame
+
+            flyBv = Instance.new("BodyVelocity", bodyPart)
+            flyBv.velocity = Vector3.new(0, 0.1, 0)
+            flyBv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+
+            local flyConnection = game:GetService("RunService").RenderStepped:Connect(function()
+                if not flyNowe and player.Character and player.Character.Humanoid.Health ~= 0 then return end
+                if flyCtrl.l + flyCtrl.r ~= 0 or flyCtrl.f + flyCtrl.b ~= 0 then
+                    flySpeed = flySpeed + 0.5 + (flySpeed / flyMaxspeed)
+                    if flySpeed > flyMaxspeed then flySpeed = flyMaxspeed end
+                elseif not (flyCtrl.l + flyCtrl.r ~= 0 or flyCtrl.f + flyCtrl.b ~= 0) and flySpeed ~= 0 then
+                    flySpeed = flySpeed - 1
+                    if flySpeed < 0 then flySpeed = 0 end
+                end
+                if (flyCtrl.l + flyCtrl.r) ~= 0 or (flyCtrl.f + flyCtrl.b) ~= 0 then
+                    flyBv.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (flyCtrl.f + flyCtrl.b)) +
+                        ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(flyCtrl.l + flyCtrl.r, (flyCtrl.f + flyCtrl.b) * 0.2, 0).p) -
+                        workspace.CurrentCamera.CoordinateFrame.p)) * flySpeed
+                    flyLastctrl = {f = flyCtrl.f, b = flyCtrl.b, l = flyCtrl.l, r = flyCtrl.r}
+                elseif (flyCtrl.l + flyCtrl.r) == 0 and (flyCtrl.f + flyCtrl.b) == 0 and flySpeed ~= 0 then
+                    flyBv.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (flyLastctrl.f + flyLastctrl.b)) +
+                        ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(flyLastctrl.l + flyLastctrl.r, (flyLastctrl.f + flyLastctrl.b) * 0.2, 0).p) -
+                        workspace.CurrentCamera.CoordinateFrame.p)) * flySpeed
+                else
+                    flyBv.velocity = Vector3.new(0, 0, 0)
+                end
+                flyBg.cframe = workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((flyCtrl.f + flyCtrl.b) * 50 * flySpeed / flyMaxspeed), 0, 0)
+            end)
+            table.insert(flyConnections, flyConnection)
+        end
+
+        startFly()
+        if Notify then Notify("Fly", "Ativado (Velocidade: " .. flySpeeds .. ")", 2) end
+
+        local inputBegan = game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+            if gameProcessed or not flyNowe then return end
+            if input.KeyCode == Enum.KeyCode.E then
+                flyTis = game:GetService("RunService").Heartbeat:Connect(function()
+                    if not flyNowe then if flyTis then flyTis:Disconnect(); flyTis = nil end return end
+                    local char = player.Character
+                    if char then
+                        local root = char:FindFirstChild("HumanoidRootPart")
+                        if root then root.CFrame = root.CFrame * CFrame.new(0, 1, 0) end
+                    end
+                end)
+            elseif input.KeyCode == Enum.KeyCode.Q then
+                flyDis = game:GetService("RunService").Heartbeat:Connect(function()
+                    if not flyNowe then if flyDis then flyDis:Disconnect(); flyDis = nil end return end
+                    local char = player.Character
+                    if char then
+                        local root = char:FindFirstChild("HumanoidRootPart")
+                        if root then root.CFrame = root.CFrame * CFrame.new(0, -1, 0) end
+                    end
+                end)
+            end
+        end)
+        local inputEnded = game:GetService("UserInputService").InputEnded:Connect(function(input, gameProcessed)
+            if gameProcessed then return end
+            if input.KeyCode == Enum.KeyCode.E then
+                if flyTis then flyTis:Disconnect(); flyTis = nil end
+            elseif input.KeyCode == Enum.KeyCode.Q then
+                if flyDis then flyDis:Disconnect(); flyDis = nil end
+            end
+        end)
+        table.insert(flyConnections, inputBegan)
+        table.insert(flyConnections, inputEnded)
+    end
+
+    ExtraTab:CreateToggle({
+        Title = "Fly",
+        Default = false,
+        Callback = function(value)
+            if value then
+                if flyActive then
+                    if Notify then Notify("Fly", "Já está ativo", 1) end
+                    return
+                end
+                flyActive = true
+                createFlyMenu()
+            else
+                stopFly()
+                if Notify then Notify("Fly", "Desativado", 1) end
+            end
+        end,
+    })
+end
+do
+    if not ExtraTab then return end
+
+    local lastExecution = 0
+    local cooldown = 10
+    local isExecuting = false
+
+    ExtraTab:CreateButton({
+        Title = "Super Ring",
+        Callback = function()
+            local currentTime = tick()
+            if currentTime - lastExecution < cooldown then
+                local remaining = math.ceil(cooldown - (currentTime - lastExecution))
+                if Notify then Notify("Super Ring", "Wait " .. remaining .. " seconds", 2) end
+                return
+            end
+            if isExecuting then
+                if Notify then Notify("Super Ring", "Already executing", 1) end
+                return
+            end
+            isExecuting = true
+            local success, err = pcall(function()
+                loadstring(game:HttpGet("https://pastebin.com/raw/JAANr3tJ"))()
+            end)
+            if success then
+                lastExecution = tick()
+                if Notify then Notify("Super Ring", "Script executed successfully!", 2) end
+            else
+                if Notify then Notify("Super Ring", "Error: " .. tostring(err), 3) end
+            end
+            isExecuting = false
+        end,
+    })
+end
+
+local CfgTab = Window:CreateTab("CFG", "settings")
+
+do
+    local ok = pcall(function()
+        local settings = UserSettings()
+        local gameSettings = settings.GameSettings
+        local currentVol = gameSettings.MasterVolume * 10
+        CfgTab:CreateSlider({
+            Title = "Volume", Min = 0, Max = 10, Default = currentVol,
+            Callback = function(Value)
+                gameSettings.MasterVolume = Value / 10
+            end,
+        })
+    end)
+    if not ok then
+        CfgTab:CreateSlider({ Title = "Volume", Min = 0, Max = 10, Default = 5, Callback = function() end })
+    end
+end
+
+CfgTab:CreateToggle({
+    Title = "Auto Translate", Default = false,
+    Callback = function(Value)
+        Window:Notify({ Title = "Translate", Description = Value and "On" or "Off", Duration = 1, Type = "info" })
+    end,
+})
+
+do
+    local lighting = game:GetService("Lighting")
+    local origB = lighting.Brightness
+    local origA = lighting.Ambient
+    local origO = lighting.OutdoorAmbient
+    CfgTab:CreateToggle({
+        Title = "Better Lighting", Default = false,
+        Callback = function(Value)
+            if Value then
+                lighting.Brightness = 2
+                lighting.Ambient = Color3.fromRGB(150, 150, 150)
+                lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
+            else
+                lighting.Brightness = origB
+                lighting.Ambient = origA
+                lighting.OutdoorAmbient = origO
+            end
+        end,
+    })
+end
+
+do
+    local freeCamActive = false
+    local freeCamConn = nil
+    local savedCamera = {}
+    local savedCharacter = {}
+    local camSpeed = 50
+    local MIN_SPEED = 5
+    local MAX_SPEED = 1000
+    local SPEED_STEP = 10
+    local LOOK_SENSITIVITY = 0.25
+    local yaw = 0
+    local pitch = 0
+    local camPos = Vector3.zero
+    local controlsModule = nil
+    local playerScripts = player:WaitForChild("PlayerScripts")
+
+    task.spawn(function()
+        local ok, mod = pcall(function() return require(playerScripts:WaitForChild("PlayerModule")) end)
+        if ok and mod then controlsModule = mod:GetControls() end
+    end)
+
+    local speedMenu = nil
+    local speedLabel = nil
+
+    local function createSpeedMenu()
+        if speedMenu then speedMenu:Destroy() end
+        speedMenu = Instance.new("ScreenGui")
+        speedMenu.Name = "FreeCamSpeedMenu"
+        speedMenu.ResetOnSpawn = false
+        speedMenu.Parent = gui
+        local Frame = Instance.new("Frame")
+        Frame.Size = UDim2.new(0, 220, 0, 52)
+        Frame.Position = UDim2.new(0.5, -110, 0.85, 0)
+        Frame.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+        Frame.BackgroundTransparency = 0.2
+        Frame.Active = true
+        Frame.Draggable = true
+        Frame.Parent = speedMenu
+        Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 14)
+        local st = Instance.new("UIStroke", Frame)
+        st.Color = Color3.fromRGB(80, 80, 80)
+        st.Thickness = 1.5
+        local sd = Instance.new("TextButton", Frame)
+        sd.Size = UDim2.new(0, 52, 1, 0)
+        sd.BackgroundTransparency = 1
+        sd.Text = "-"
+        sd.TextColor3 = Color3.fromRGB(255, 110, 110)
+        sd.TextSize = 30
+        sd.Font = Enum.Font.GothamBold
+        sd.MouseButton1Click:Connect(function()
+            camSpeed = math.max(camSpeed - SPEED_STEP, MIN_SPEED)
+            if speedLabel then speedLabel.Text = "Speed: " .. camSpeed end
+        end)
+        speedLabel = Instance.new("TextLabel", Frame)
+        speedLabel.Size = UDim2.new(1, -104, 1, 0)
+        speedLabel.Position = UDim2.new(0, 52, 0, 0)
+        speedLabel.BackgroundTransparency = 1
+        speedLabel.Text = "Speed: " .. camSpeed
+        speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        speedLabel.Font = Enum.Font.GothamBold
+        local su = Instance.new("TextButton", Frame)
+        su.Size = UDim2.new(0, 52, 1, 0)
+        su.Position = UDim2.new(1, -52, 0, 0)
+        su.BackgroundTransparency = 1
+        su.Text = "+"
+        su.TextColor3 = Color3.fromRGB(110, 255, 110)
+        su.TextSize = 30
+        su.Font = Enum.Font.GothamBold
+        su.MouseButton1Click:Connect(function()
+            camSpeed = math.min(camSpeed + SPEED_STEP, MAX_SPEED)
+            if speedLabel then speedLabel.Text = "Speed: " .. camSpeed end
+        end)
+    end
+
+    local function getMoveVector()
+        if controlsModule then
+            local ok, vec = pcall(function() return controlsModule:GetMoveVector() end)
+            if ok and vec then return vec end
+        end
+        return Vector3.zero
+    end
+
+    local function stopFreeCam()
+        freeCamActive = false
+        if freeCamConn then freeCamConn:Disconnect(); freeCamConn = nil end
+        local camera = workspace.CurrentCamera
+        local char = player.Character
+        if savedCamera.CameraType then camera.CameraType = savedCamera.CameraType end
+        if savedCamera.CFrame then camera.CFrame = savedCamera.CFrame end
+        if savedCamera.Focus then camera.Focus = savedCamera.Focus end
+        if savedCamera.FieldOfView then camera.FieldOfView = savedCamera.FieldOfView end
+        if savedCamera.CameraSubject then camera.CameraSubject = savedCamera.CameraSubject end
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.PlatformStand = false end
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                root.Anchored = false
+                if savedCharacter.Position then root.CFrame = CFrame.new(savedCharacter.Position) end
+            end
+        end
+        savedCamera = {}
+        savedCharacter = {}
+        if speedMenu then speedMenu:Destroy(); speedMenu = nil; speedLabel = nil end
+    end
+
+    CfgTab:CreateToggle({
+        Title = "Free Cam", Default = false,
+        Callback = function(value)
+            freeCamActive = value
+            if not value then stopFreeCam() return end
+            local camera = workspace.CurrentCamera
+            local char = player.Character
+            savedCamera = {
+                CameraType = camera.CameraType, CFrame = camera.CFrame,
+                Focus = camera.Focus, FieldOfView = camera.FieldOfView,
+                CameraSubject = camera.CameraSubject,
+            }
+            if char then
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if root then savedCharacter.Position = root.Position; root.Anchored = true end
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then hum.PlatformStand = true end
+            end
+            camera.CameraType = Enum.CameraType.Scriptable
+            camera.FieldOfView = 70
+            local cf = camera.CFrame
+            camPos = cf.Position
+            local lv = cf.LookVector
+            yaw = math.deg(math.atan2(-lv.X, -lv.Z))
+            pitch = math.deg(math.asin(math.clamp(lv.Y, -1, 1)))
+            createSpeedMenu()
+            local uis = UserInputService
+            local upHeld, downHeld = false, false
+            uis.InputBegan:Connect(function(input)
+                if input.KeyCode == Enum.KeyCode.E then upHeld = true end
+                if input.KeyCode == Enum.KeyCode.Q then downHeld = true end
+            end)
+            uis.InputEnded:Connect(function(input)
+                if input.KeyCode == Enum.KeyCode.E then upHeld = false end
+                if input.KeyCode == Enum.KeyCode.Q then downHeld = false end
+            end)
+            freeCamConn = RunService.RenderStepped:Connect(function(dt)
+                if not freeCamActive then return end
+                local vertInput = 0
+                if upHeld then vertInput = vertInput + 1 end
+                if downHeld then vertInput = vertInput - 1 end
+                local moveVector = getMoveVector()
+                local rotation = CFrame.Angles(0, math.rad(yaw), 0) * CFrame.Angles(math.rad(pitch), 0, 0)
+                local right = rotation.RightVector
+                local fwd = rotation.LookVector
+                local move = (right * moveVector.X) + (fwd * -moveVector.Z) + (Vector3.yAxis * vertInput)
+                camPos = camPos + move * camSpeed * dt
+                local md = uis:GetMouseDelta()
+                if md.X ~= 0 or md.Y ~= 0 then
+                    yaw = yaw - md.X * LOOK_SENSITIVITY
+                    pitch = math.clamp(pitch - md.Y * LOOK_SENSITIVITY, -89, 89)
+                end
+                camera.CFrame = CFrame.new(camPos) * rotation
+            end)
+        end,
+    })
+end
+
+do
+    local painelActive = false
+    local painelBillboard = nil
+    local painelFrame = nil
+    local painelTitle = nil
+    local painelStroke = nil
+    local painelFloatConn = nil
+    local painelDistanceConn = nil
+    local painelCharConn = nil
+
+    local function createPainel()
+        local char = player.Character
+        if not char then return end
+        local head = char:FindFirstChild("Head")
+        if not head then return end
+        painelBillboard = Instance.new("BillboardGui")
+        painelBillboard.Name = "c00lgui_Menu"
+        painelBillboard.Adornee = head
+        painelBillboard.Size = UDim2.new(0, 90, 0, 40)
+        painelBillboard.StudsOffset = Vector3.new(0, 2.5, 0)
+        painelBillboard.AlwaysOnTop = true
+        painelBillboard.Parent = head
+        painelFrame = Instance.new("Frame")
+        painelFrame.Size = UDim2.new(1, 0, 1, 0)
+        painelFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+        painelFrame.BorderSizePixel = 0
+        painelFrame.BackgroundTransparency = 0.1
+        painelFrame.Parent = painelBillboard
+        Instance.new("UICorner", painelFrame).CornerRadius = UDim.new(1, 0)
+        painelStroke = Instance.new("UIStroke", painelFrame)
+        painelStroke.Color = Color3.fromRGB(155, 92, 246)
+        painelStroke.Thickness = 1.5
+        painelTitle = Instance.new("TextLabel", painelFrame)
+        painelTitle.Size = UDim2.new(1, 0, 1, 0)
+        painelTitle.BackgroundTransparency = 1
+        painelTitle.Text = "c00lgui"
+        painelTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+        painelTitle.Font = Enum.Font.GothamBold
+        painelTitle.TextScaled = true
+        local function updateDistance()
+            local camera = workspace.CurrentCamera
+            local distance = (head.Position - camera.CFrame.Position).Magnitude
+            if distance > 50 then
+                painelFrame.BackgroundTransparency = 0.5
+                painelTitle.TextTransparency = 0.5
+                painelStroke.Transparency = 0.5
+            else
+                painelFrame.BackgroundTransparency = 0.1
+                painelTitle.TextTransparency = 0
+                painelStroke.Transparency = 0
+            end
+        end
+        if painelDistanceConn then painelDistanceConn:Disconnect() end
+        painelDistanceConn = RunService.RenderStepped:Connect(updateDistance)
+        local floatOffset = 0
+        if painelFloatConn then painelFloatConn:Disconnect() end
+        painelFloatConn = RunService.Heartbeat:Connect(function(delta)
+            if painelBillboard and painelBillboard.Parent then
+                floatOffset = floatOffset + (delta * 2)
+                painelBillboard.StudsOffset = Vector3.new(0, 2.5 + math.sin(floatOffset) * 0.15, 0)
+            end
+        end)
+    end
+
+    local function destroyPainel()
+        if painelFloatConn then painelFloatConn:Disconnect(); painelFloatConn = nil end
+        if painelDistanceConn then painelDistanceConn:Disconnect(); painelDistanceConn = nil end
+        if painelBillboard then pcall(function() painelBillboard:Destroy() end); painelBillboard = nil end
+        painelFrame = nil; painelTitle = nil; painelStroke = nil
+    end
+
+    CfgTab:CreateToggle({
+        Title = "Painel Lateral", Default = false,
+        Callback = function(Value)
+            painelActive = Value
+            if Value then
+                createPainel()
+                if painelCharConn then painelCharConn:Disconnect() end
+                painelCharConn = player.CharacterAdded:Connect(function()
+                    if painelActive then
+                        task.wait(0.5)
+                        destroyPainel()
+                        createPainel()
+                    end
+                end)
+            else
+                if painelCharConn then painelCharConn:Disconnect(); painelCharConn = nil end
+                destroyPainel()
+            end
+        end,
+    })
+end
+
+do
+    local antiShakeActive = false
+    local antiShakeConn = nil
+    CfgTab:CreateToggle({
+        Title = "Anti Camera Shake", Default = false,
+        Callback = function(Value)
+            antiShakeActive = Value
+            if antiShakeConn then antiShakeConn:Disconnect(); antiShakeConn = nil end
+            if Value then
+                antiShakeConn = RunService.Heartbeat:Connect(function()
+                    if not antiShakeActive then return end
+                    local camera = workspace.CurrentCamera
+                    if camera and camera.CameraType ~= Enum.CameraType.Custom then
+                        camera.CameraType = Enum.CameraType.Custom
+                    end
+                end)
+            end
+        end,
+    })
+end
+
+do
+    local originalMaxDistance = player.CameraMaxZoomDistance
+    local originalOcclusionMode = player.DevCameraOcclusionMode
+    CfgTab:CreateToggle({
+        Title = "Zoom Inf", Default = false,
+        Callback = function(value)
+            if value then
+                originalMaxDistance = player.CameraMaxZoomDistance
+                player.CameraMaxZoomDistance = math.huge
+            else
+                player.CameraMaxZoomDistance = originalMaxDistance
+            end
+        end,
+    })
+    CfgTab:CreateToggle({
+        Title = "Zoom Noclip", Default = false,
+        Callback = function(value)
+            if value then
+                originalOcclusionMode = player.DevCameraOcclusionMode
+                player.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
+            else
+                player.DevCameraOcclusionMode = originalOcclusionMode
+            end
+        end,
+    })
+end
+
+do
+    local originalSettings = {}
+    local lighting = game:GetService("Lighting")
+    local terrain = workspace:FindFirstChildWhichIsA("Terrain")
+
+    local function saveOriginalObject(obj)
+        if originalSettings[obj] then return end
+        local data = {}
+        if obj:IsA("BasePart") then
+            data.Material = obj.Material
+            data.Reflectance = obj.Reflectance
+            data.CastShadow = obj.CastShadow
+            data.BackSurface = obj.BackSurface
+            data.BottomSurface = obj.BottomSurface
+            data.FrontSurface = obj.FrontSurface
+            data.LeftSurface = obj.LeftSurface
+            data.RightSurface = obj.RightSurface
+            data.TopSurface = obj.TopSurface
+        elseif obj:IsA("Decal") then
+            data.Transparency = obj.Transparency
+            data.Texture = obj.Texture
+        elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
+            data.Lifetime = obj.Lifetime
+        elseif obj:IsA("PostEffect") then
+            data.Enabled = obj.Enabled
+        end
+        originalSettings[obj] = data
+    end
+
+    local function applyBooster()
+        if not originalSettings._global then
+            originalSettings._global = {}
+            if terrain then
+                originalSettings._global.Terrain = {
+                    WaterWaveSize = terrain.WaterWaveSize,
+                    WaterWaveSpeed = terrain.WaterWaveSpeed,
+                    WaterReflectance = terrain.WaterReflectance,
+                    WaterTransparency = terrain.WaterTransparency,
+                }
+            end
+            originalSettings._global.Lighting = {
+                GlobalShadows = lighting.GlobalShadows,
+                FogEnd = lighting.FogEnd,
+                FogStart = lighting.FogStart,
+            }
+            pcall(function() originalSettings._global.QualityLevel = settings().Rendering.QualityLevel end)
+        end
+        if terrain then
+            terrain.WaterWaveSize = 0
+            terrain.WaterWaveSpeed = 0
+            terrain.WaterReflectance = 0
+            terrain.WaterTransparency = 1
+        end
+        lighting.GlobalShadows = false
+        lighting.FogEnd = 9e9
+        lighting.FogStart = 9e9
+        pcall(function() settings().Rendering.QualityLevel = 1 end)
+        for _, v in pairs(game:GetDescendants()) do
+            pcall(function()
+                saveOriginalObject(v)
+                if v:IsA("BasePart") then
+                    v.CastShadow = false
+                    v.Material = "Plastic"
+                    v.Reflectance = 0
+                    v.BackSurface = "SmoothNoOutlines"
+                    v.BottomSurface = "SmoothNoOutlines"
+                    v.FrontSurface = "SmoothNoOutlines"
+                    v.LeftSurface = "SmoothNoOutlines"
+                    v.RightSurface = "SmoothNoOutlines"
+                    v.TopSurface = "SmoothNoOutlines"
+                elseif v:IsA("Decal") then
+                    v.Transparency = 1
+                    v.Texture = ""
+                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                    v.Lifetime = NumberRange.new(0)
+                end
+            end)
+        end
+        for _, v in pairs(lighting:GetDescendants()) do
+            pcall(function()
+                if v:IsA("PostEffect") then
+                    saveOriginalObject(v)
+                    v.Enabled = false
+                end
+            end)
+        end
+    end
+
+    local function restoreSettings()
+        local global = originalSettings._global
+        if global then
+            if global.Terrain and terrain then
+                terrain.WaterWaveSize = global.Terrain.WaterWaveSize
+                terrain.WaterWaveSpeed = global.Terrain.WaterWaveSpeed
+                terrain.WaterReflectance = global.Terrain.WaterReflectance
+                terrain.WaterTransparency = global.Terrain.WaterTransparency
+            end
+            if global.Lighting then
+                lighting.GlobalShadows = global.Lighting.GlobalShadows
+                lighting.FogEnd = global.Lighting.FogEnd
+                lighting.FogStart = global.Lighting.FogStart
+            end
+            pcall(function() settings().Rendering.QualityLevel = global.QualityLevel or 21 end)
+        end
+        for obj, data in pairs(originalSettings) do
+            if obj and obj.Parent then
+                pcall(function()
+                    if obj:IsA("BasePart") then
+                        if data.Material then obj.Material = data.Material end
+                        if data.Reflectance then obj.Reflectance = data.Reflectance end
+                        if data.CastShadow ~= nil then obj.CastShadow = data.CastShadow end
+                        if data.BackSurface then obj.BackSurface = data.BackSurface end
+                        if data.BottomSurface then obj.BottomSurface = data.BottomSurface end
+                        if data.FrontSurface then obj.FrontSurface = data.FrontSurface end
+                        if data.LeftSurface then obj.LeftSurface = data.LeftSurface end
+                        if data.RightSurface then obj.RightSurface = data.RightSurface end
+                        if data.TopSurface then obj.TopSurface = data.TopSurface end
+                    elseif obj:IsA("Decal") then
+                        if data.Transparency then obj.Transparency = data.Transparency end
+                        if data.Texture then obj.Texture = data.Texture end
+                    elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
+                        if data.Lifetime then obj.Lifetime = data.Lifetime end
+                    elseif obj:IsA("PostEffect") then
+                        if data.Enabled ~= nil then obj.Enabled = data.Enabled end
+                    end
+                end)
+            end
+        end
+        originalSettings = {}
+    end
+
+    CfgTab:CreateToggle({
+        Title = "FPS Booster", Default = false,
+        Callback = function(value)
+            if value then
+                applyBooster()
+            else
+                restoreSettings()
+            end
+        end,
+    })
+end
+
+do
+    local ok = pcall(function()
+        local cc = Instance.new("ColorCorrectionEffect")
+        cc.Parent = game:GetService("Lighting")
+        cc.Enabled = true
+        CfgTab:CreateSlider({
+            Title = "Saturation", Min = 0, Max = 2, Default = 0,
+            Callback = function(v) cc.Saturation = v end,
+        })
+    end)
+    if not ok then CfgTab:CreateLabel("Saturation (n/a)") end
+end
+
+do
+    local cam = workspace.CurrentCamera
+    local orig = cam.FieldOfView
+    CfgTab:CreateSlider({
+        Title = "FOV", Min = 70, Max = 120, Default = orig,
+        Callback = function(v) cam.FieldOfView = v end,
+    })
+end
+
+do
+    local fpsPingActive = false
+    local fpsPingGui = nil
+    local fpsPingConn = nil
+    local fpsPingFrame = nil
+    local fpsPingLabel = nil
+    local pingPingLabel = nil
+    local fpsPingDragging = false
+    local fpsPingDragStart = nil
+    local fpsPingStartPos = nil
+    local fpsPingFrameCount = 0
+    local fpsPingTimeAccumulator = 0
+
+    local function GetPing()
+        local success, result = pcall(function() return player:GetNetworkPing() end)
+        if success and result then return math.floor(result * 1000) end
+        return 0
+    end
+
+    local function GetFpsColor(v)
+        if v >= 60 then return Color3.fromRGB(0, 255, 100)
+        elseif v >= 50 then return Color3.fromRGB(0, 255, 100):Lerp(Color3.fromRGB(200, 255, 50), (v - 50) / 10)
+        elseif v >= 40 then return Color3.fromRGB(200, 255, 50):Lerp(Color3.fromRGB(255, 200, 0), (v - 40) / 10)
+        elseif v >= 30 then return Color3.fromRGB(255, 200, 0):Lerp(Color3.fromRGB(255, 100, 0), (v - 30) / 10)
+        elseif v >= 20 then return Color3.fromRGB(255, 100, 0):Lerp(Color3.fromRGB(200, 0, 0), (v - 20) / 10)
+        else return Color3.fromRGB(200, 0, 0) end
+    end
+
+    local function GetPingColor(v)
+        if v <= 50 then return Color3.fromRGB(0, 255, 100)
+        elseif v <= 100 then return Color3.fromRGB(0, 255, 100):Lerp(Color3.fromRGB(255, 200, 0), (v - 50) / 50)
+        elseif v <= 200 then return Color3.fromRGB(255, 200, 0):Lerp(Color3.fromRGB(255, 100, 0), (v - 100) / 100)
+        elseif v <= 300 then return Color3.fromRGB(255, 100, 0):Lerp(Color3.fromRGB(200, 0, 0), (v - 200) / 100)
+        else return Color3.fromRGB(200, 0, 0) end
+    end
+
+    local function CreateFPSPingUI()
+        if fpsPingGui then fpsPingGui:Destroy(); fpsPingGui = nil end
+        fpsPingGui = Instance.new("ScreenGui")
+        fpsPingGui.Name = "FPSPingDisplay"
+        fpsPingGui.ResetOnSpawn = false
+        fpsPingGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        fpsPingGui.Parent = player:WaitForChild("PlayerGui")
+        fpsPingFrame = Instance.new("Frame")
+        fpsPingFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+        fpsPingFrame.BackgroundTransparency = 0.3
+        fpsPingFrame.BorderSizePixel = 0
+        fpsPingFrame.Size = UDim2.new(0, 180, 0, 40)
+        fpsPingFrame.Position = UDim2.new(0.85, -90, 0.02, 5)
+        fpsPingFrame.Active = true
+        fpsPingFrame.ClipsDescendants = true
+        fpsPingFrame.Parent = fpsPingGui
+        Instance.new("UICorner", fpsPingFrame).CornerRadius = UDim.new(0, 8)
+        local gr = Instance.new("UIGradient", fpsPingFrame)
+        gr.Color = ColorSequence.new(Color3.fromRGB(30, 30, 45), Color3.fromRGB(15, 15, 25))
+        fpsPingLabel = Instance.new("TextLabel", fpsPingFrame)
+        fpsPingLabel.Size = UDim2.new(0.5, -10, 1, 0)
+        fpsPingLabel.Position = UDim2.new(0, 5, 0, 0)
+        fpsPingLabel.BackgroundTransparency = 1
+        fpsPingLabel.Font = Enum.Font.GothamBold
+        fpsPingLabel.Text = "FPS: 60"
+        fpsPingLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+        fpsPingLabel.TextSize = 14
+        fpsPingLabel.TextXAlignment = Enum.TextXAlignment.Left
+        pingPingLabel = Instance.new("TextLabel", fpsPingFrame)
+        pingPingLabel.Size = UDim2.new(0.5, -10, 1, 0)
+        pingPingLabel.Position = UDim2.new(0.5, 5, 0, 0)
+        pingPingLabel.BackgroundTransparency = 1
+        pingPingLabel.Font = Enum.Font.GothamBold
+        pingPingLabel.Text = "PING: 0"
+        pingPingLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+        pingPingLabel.TextSize = 14
+        pingPingLabel.TextXAlignment = Enum.TextXAlignment.Left
+        fpsPingFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                fpsPingDragging = true
+                fpsPingDragStart = input.Position
+                fpsPingStartPos = fpsPingFrame.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then fpsPingDragging = false end
+                end)
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(input)
+            if fpsPingDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local delta = input.Position - fpsPingDragStart
+                fpsPingFrame.Position = UDim2.new(
+                    fpsPingStartPos.X.Scale, fpsPingStartPos.X.Offset + delta.X,
+                    fpsPingStartPos.Y.Scale, fpsPingStartPos.Y.Offset + delta.Y
+                )
+            end
+        end)
+        fpsPingFrameCount = 0
+        fpsPingTimeAccumulator = 0
+        if fpsPingConn then fpsPingConn:Disconnect() end
+        fpsPingConn = RunService.RenderStepped:Connect(function(dt)
+            if not fpsPingActive or not fpsPingFrame or not fpsPingFrame.Parent then return end
+            fpsPingFrameCount = fpsPingFrameCount + 1
+            fpsPingTimeAccumulator = fpsPingTimeAccumulator + dt
+            if fpsPingTimeAccumulator >= 0.5 then
+                local fps = math.floor(fpsPingFrameCount / fpsPingTimeAccumulator)
+                local ping = GetPing()
+                if fpsPingLabel then
+                    fpsPingLabel.Text = "FPS: " .. fps
+                    fpsPingLabel.TextColor3 = GetFpsColor(fps)
+                end
+                if pingPingLabel then
+                    pingPingLabel.Text = "PING: " .. ping
+                    pingPingLabel.TextColor3 = GetPingColor(ping)
+                end
+                fpsPingFrameCount = 0
+                fpsPingTimeAccumulator = 0
+            end
+        end)
+    end
+
+    CfgTab:CreateToggle({
+        Title = "Show FPS Ping", Default = false,
+        Callback = function(v)
+            fpsPingActive = v
+            if v then
+                CreateFPSPingUI()
+            else
+                if fpsPingConn then fpsPingConn:Disconnect(); fpsPingConn = nil end
+                if fpsPingGui then fpsPingGui:Destroy(); fpsPingGui = nil end
+                fpsPingFrame = nil
+                fpsPingLabel = nil
+                pingPingLabel = nil
+            end
+        end,
+    })
+end
+pcall(function()
+    local painelSubDonoActive = false
+    local painelSubDonoBillboard = nil
+    local painelSubDonoFrame = nil
+    local painelSubDonoTitle = nil
+    local painelSubDonoStroke = nil
+    local painelSubDonoCorner = nil
+    local painelSubDonoFloatConn = nil
+    local painelSubDonoDistanceConn = nil
+    local painelSubDonoCharConn = nil
+    local painelSubDonoTween = nil
+    local painelSubDonoTargetPlayer = nil
+    local SUB_DONO_ID = 10687360224
+
+    local function createPainelSubDono()
+        painelSubDonoTargetPlayer = nil
+        for _, plr in pairs(game.Players:GetPlayers()) do
+            if plr.UserId == SUB_DONO_ID then
+                painelSubDonoTargetPlayer = plr
+                break
+            end
+        end
+        if not painelSubDonoTargetPlayer then
+            Notify("Painel Sub Dono", "Sub Owner not in this server", 2)
+            return
+        end
+        local char = painelSubDonoTargetPlayer.Character
+        if not char then return end
+        local head = char:FindFirstChild("Head")
+        if not head then return end
+
+        painelSubDonoBillboard = Instance.new("BillboardGui")
+        painelSubDonoBillboard.Name = "c00lgui_SubDono"
+        painelSubDonoBillboard.Adornee = head
+        painelSubDonoBillboard.Size = UDim2.new(0, 100, 0, 40)
+        painelSubDonoBillboard.StudsOffset = Vector3.new(0, 2.5, 0)
+        painelSubDonoBillboard.AlwaysOnTop = true
+        painelSubDonoBillboard.Parent = head
+
+        painelSubDonoFrame = Instance.new("Frame")
+        painelSubDonoFrame.Size = UDim2.new(1, 0, 1, 0)
+        painelSubDonoFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+        painelSubDonoFrame.BorderSizePixel = 0
+        painelSubDonoFrame.BackgroundTransparency = 0.1
+        painelSubDonoFrame.Parent = painelSubDonoBillboard
+
+        painelSubDonoCorner = Instance.new("UICorner")
+        painelSubDonoCorner.CornerRadius = UDim.new(1, 0)
+        painelSubDonoCorner.Parent = painelSubDonoFrame
+
+        painelSubDonoStroke = Instance.new("UIStroke")
+        painelSubDonoStroke.Color = Color3.fromRGB(192, 192, 192)
+        painelSubDonoStroke.Thickness = 1.5
+        painelSubDonoStroke.Parent = painelSubDonoFrame
+
+        painelSubDonoTitle = Instance.new("TextLabel")
+        painelSubDonoTitle.Size = UDim2.new(1, 0, 1, 0)
+        painelSubDonoTitle.BackgroundTransparency = 1
+        painelSubDonoTitle.Text = "⭐ SUB DONO"
+        painelSubDonoTitle.TextColor3 = Color3.fromRGB(192, 192, 192)
+        painelSubDonoTitle.Font = Enum.Font.GothamBold
+        painelSubDonoTitle.TextScaled = true
+        painelSubDonoTitle.Parent = painelSubDonoFrame
+
+        local function updateDistance()
+            local camera = workspace.CurrentCamera
+            local distance = (head.Position - camera.CFrame.Position).Magnitude
+            if distance > 50 then
+                if painelSubDonoFrame then painelSubDonoFrame.BackgroundTransparency = 0.5 end
+                if painelSubDonoTitle then painelSubDonoTitle.TextTransparency = 0.5 end
+                if painelSubDonoStroke then painelSubDonoStroke.Transparency = 0.5 end
+            else
+                if painelSubDonoFrame then painelSubDonoFrame.BackgroundTransparency = 0.1 end
+                if painelSubDonoTitle then painelSubDonoTitle.TextTransparency = 0 end
+                if painelSubDonoStroke then painelSubDonoStroke.Transparency = 0 end
+            end
+        end
+
+        if painelSubDonoDistanceConn then painelSubDonoDistanceConn:Disconnect() end
+        painelSubDonoDistanceConn = RunService.RenderStepped:Connect(updateDistance)
+
+        local floatOffset = 0
+        if painelSubDonoFloatConn then painelSubDonoFloatConn:Disconnect() end
+        painelSubDonoFloatConn = RunService.Heartbeat:Connect(function(delta)
+            if painelSubDonoBillboard and painelSubDonoBillboard.Parent then
+                floatOffset = floatOffset + (delta * 2)
+                local yPos = math.sin(floatOffset) * 0.15
+                painelSubDonoBillboard.StudsOffset = Vector3.new(0, 2.5 + yPos, 0)
+            end
+        end)
+    end
+
+    local function destroyPainelSubDono()
+        if painelSubDonoFloatConn then painelSubDonoFloatConn:Disconnect(); painelSubDonoFloatConn = nil end
+        if painelSubDonoDistanceConn then painelSubDonoDistanceConn:Disconnect(); painelSubDonoDistanceConn = nil end
+        if painelSubDonoTween then painelSubDonoTween:Cancel(); painelSubDonoTween = nil end
+        if painelSubDonoBillboard then
+            pcall(function() painelSubDonoBillboard:Destroy() end)
+            painelSubDonoBillboard = nil
+        end
+        painelSubDonoFrame = nil
+        painelSubDonoTitle = nil
+        painelSubDonoStroke = nil
+        painelSubDonoCorner = nil
+        painelSubDonoTargetPlayer = nil
+    end
+
+    CfgTab:CreateToggle({
+        Title = "Painel Sub Dono",
+        Default = false,
+        Callback = function(Value)
+            painelSubDonoActive = Value
+            if Value then
+                Notify("Painel Sub Dono", "Enabled", 2)
+                createPainelSubDono()
+                if painelSubDonoCharConn then painelSubDonoCharConn:Disconnect() end
+                painelSubDonoCharConn = player.CharacterAdded:Connect(function()
+                    if painelSubDonoActive then
+                        task.wait(0.5)
+                        destroyPainelSubDono()
+                        createPainelSubDono()
+                    end
+                end)
+            else
+                if painelSubDonoCharConn then painelSubDonoCharConn:Disconnect(); painelSubDonoCharConn = nil end
+                destroyPainelSubDono()
+                Notify("Painel Sub Dono", "Disabled", 1)
+            end
+        end,
+    })
+end)
+
+CfgTab:CreateToggle({
+    Title = "Low Performance",
+    Default = false,
+    Callback = function(v)
+        local lighting = game:GetService("Lighting")
+        if v then
+            lighting.GlobalShadows = false
+            pcall(function() settings().Rendering.QualityLevel = 1 end)
+            Notify("Low Perf", "On", 2)
+        else
+            lighting.GlobalShadows = true
+            pcall(function() settings().Rendering.QualityLevel = 3 end)
+            Notify("Low Perf", "Off", 1)
+        end
+    end,
+})
+
+CfgTab:CreateToggle({
+    Title = "Mute Music",
+    Default = false,
+    Callback = function(v)
+        pcall(function()
+            local s = UserSettings()
+            s.GameSettings.MusicVolume = v and 0 or 1
+        end)
+        Notify("Music", v and "Muted" or "Normal", v and 2 or 1)
+    end,
+})
+
+CfgTab:CreateToggle({
+    Title = "Mute SFX",
+    Default = false,
+    Callback = function(v)
+        pcall(function()
+            local s = UserSettings()
+            s.GameSettings.SoundVolume = v and 0 or 1
+        end)
+        Notify("SFX", v and "Muted" or "Normal", v and 2 or 1)
+    end,
+})
+
+CfgTab:CreateToggle({
+    Title = "Hide UI",
+    Default = false,
+    Callback = function(v)
+        game:GetService("CoreGui").Enabled = not v
+        Notify("UI", v and "Hidden" or "Visible", v and 2 or 1)
+    end,
+})
+
+CfgTab:CreateButton({
+    Title = "Reset Settings",
+    Callback = function()
+        pcall(function()
+            local s = UserSettings()
+            s.GameSettings.MasterVolume = 0.5
+            s.GameSettings.MusicVolume = 1
+            s.GameSettings.SoundVolume = 1
+        end)
+        local lighting = game:GetService("Lighting")
+        lighting.Brightness = 1
+        lighting.Ambient = Color3.fromRGB(0,0,0)
+        lighting.OutdoorAmbient = Color3.fromRGB(0,0,0)
+        lighting.GlobalShadows = true
+        for _, e in pairs(lighting:GetChildren()) do
+            if e:IsA("ColorCorrectionEffect") then e.Saturation = 0 end
+        end
+        workspace.CurrentCamera.FieldOfView = 70
+        lighting.FogStart = 0
+        lighting.FogEnd = 100000
+        game:GetService("CoreGui").Enabled = true
+        Notify("Reset", "Configurações restauradas", 3)
+    end,
+})
+
+local CfgTab = Window:CreateTab("Humanoid", "user")
+
+do
+    local active = false
+    local value = 16
+    local original = nil
+    local wsLoop = nil
+    local wsCharConn = nil
+    local wsHeartbeat = nil
+
+    local function forceWalkSpeed()
+        if not active then return end
+        local char = player.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.WalkSpeed ~= value then hum.WalkSpeed = value end
+        end
+    end
+
+    local function setupWalkSpeedLoop()
+        if wsLoop then wsLoop:Disconnect(); wsLoop = nil end
+        if wsHeartbeat then wsHeartbeat:Disconnect(); wsHeartbeat = nil end
+        local char = player.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+        wsHeartbeat = RunService.Heartbeat:Connect(forceWalkSpeed)
+        wsLoop = hum:GetPropertyChangedSignal("WalkSpeed"):Connect(forceWalkSpeed)
+    end
+
+    CfgTab:CreateToggle({
+        Title = "WalkSpeed",
+        Default = false,
+        Callback = function(v)
+            active = v
+            if v then
+                local char = player.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum then original = hum.WalkSpeed; hum.WalkSpeed = value end
+                end
+                setupWalkSpeedLoop()
+                Notify("WalkSpeed", "Enabled ("..value..")", 2)
+            else
+                if wsLoop then wsLoop:Disconnect(); wsLoop = nil end
+                if wsHeartbeat then wsHeartbeat:Disconnect(); wsHeartbeat = nil end
+                local char = player.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum and original then hum.WalkSpeed = original end
+                end
+                Notify("WalkSpeed", "Disabled", 1)
+            end
+        end,
+    })
+
+    CfgTab:CreateSlider({
+        Title = "Speed", Min = 16, Max = 1000, Default = 16,
+        Callback = function(v) value = v; if active then forceWalkSpeed() end end,
+    })
+
+    wsCharConn = player.CharacterAdded:Connect(function()
+        if active then task.wait(0.3); setupWalkSpeedLoop() end
+    end)
+end
+
+do
+    local active = false
+    local value = 50
+    local original = nil
+    local jumpLoop = nil
+    local jumpCharConn = nil
+    local jumpHeartbeat = nil
+
+    local function setJumpValue(hum, val)
+        if hum.UseJumpPower then hum.JumpPower = val else hum.JumpHeight = val end
+    end
+    local function getJumpValue(hum)
+        if hum.UseJumpPower then return hum.JumpPower else return hum.JumpHeight end
+    end
+    local function forceJump()
+        if not active then return end
+        local char = player.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and getJumpValue(hum) ~= value then setJumpValue(hum, value) end
+        end
+    end
+    local function setupJumpLoop()
+        if jumpLoop then jumpLoop:Disconnect(); jumpLoop = nil end
+        if jumpHeartbeat then jumpHeartbeat:Disconnect(); jumpHeartbeat = nil end
+        local char = player.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+        jumpHeartbeat = RunService.Heartbeat:Connect(forceJump)
+        jumpLoop = hum:GetPropertyChangedSignal("JumpPower"):Connect(forceJump)
+    end
+
+    CfgTab:CreateToggle({
+        Title = "JumpPower",
+        Default = false,
+        Callback = function(v)
+            active = v
+            if v then
+                local char = player.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum then original = getJumpValue(hum); setJumpValue(hum, value) end
+                end
+                setupJumpLoop()
+                Notify("JumpPower", "Enabled ("..value..")", 2)
+            else
+                if jumpLoop then jumpLoop:Disconnect(); jumpLoop = nil end
+                if jumpHeartbeat then jumpHeartbeat:Disconnect(); jumpHeartbeat = nil end
+                local char = player.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum and original then setJumpValue(hum, original) end
+                end
+                Notify("JumpPower", "Disabled", 1)
+            end
+        end,
+    })
+
+    CfgTab:CreateSlider({
+        Title = "Jump Power", Min = 50, Max = 1000, Default = 50,
+        Callback = function(v) value = v; if active then forceJump() end end,
+    })
+
+    jumpCharConn = player.CharacterAdded:Connect(function()
+        if active then task.wait(0.3); setupJumpLoop() end
+    end)
+end
+
+do
+    local active = false
+    local value = workspace.Gravity
+    local original = nil
+    local gravHeartbeat = nil
+
+    local function forceGravity()
+        if active and workspace.Gravity ~= value then workspace.Gravity = value end
+    end
+
+    CfgTab:CreateToggle({
+        Title = "Gravity",
+        Default = false,
+        Callback = function(v)
+            active = v
+            if v then
+                original = workspace.Gravity
+                value = original
+                workspace.Gravity = value
+                if gravHeartbeat then gravHeartbeat:Disconnect(); gravHeartbeat = nil end
+                gravHeartbeat = RunService.Heartbeat:Connect(forceGravity)
+                Notify("Gravity", "Enabled ("..math.floor(value)..")", 2)
+            else
+                if gravHeartbeat then gravHeartbeat:Disconnect(); gravHeartbeat = nil end
+                if original then workspace.Gravity = original end
+                Notify("Gravity", "Disabled", 1)
+            end
+        end,
+    })
+
+    CfgTab:CreateSlider({
+        Title = "Gravity Value", Min = 0, Max = 500, Default = workspace.Gravity,
+        Callback = function(v) value = v; if active then forceGravity() end end,
+    })
+end
+
+do
+    local active = false
+    local speedFactor = 1
+    local animLoop = nil
+    local animCharConn = nil
+    local animHeartbeat = nil
+
+    local function applyToAllAnimations(factor)
+        local char = player.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+        local animator = hum:FindFirstChildOfClass("Animator")
+        if not animator then return end
+        for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+            pcall(function() track:AdjustSpeed(factor) end)
+        end
+    end
+
+    local function forceAnimSpeed()
+        if active then applyToAllAnimations(speedFactor) end
+    end
+
+    local function setupAnimLoop()
+        if animLoop then animLoop:Disconnect(); animLoop = nil end
+        if animHeartbeat then animHeartbeat:Disconnect(); animHeartbeat = nil end
+        local char = player.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+        animHeartbeat = RunService.Heartbeat:Connect(forceAnimSpeed)
+        local animator = hum:FindFirstChildOfClass("Animator")
+        if animator then
+            animLoop = animator:GetPropertyChangedSignal("IsPlaying"):Connect(forceAnimSpeed)
+        end
+    end
+
+    CfgTab:CreateToggle({
+        Title = "AnimSpeed",
+        Default = false,
+        Callback = function(v)
+            active = v
+            if v then
+                speedFactor = 1
+                applyToAllAnimations(1)
+                setupAnimLoop()
+                Notify("AnimSpeed", "Enabled", 2)
+            else
+                if animLoop then animLoop:Disconnect(); animLoop = nil end
+                if animHeartbeat then animHeartbeat:Disconnect(); animHeartbeat = nil end
+                applyToAllAnimations(1)
+                Notify("AnimSpeed", "Disabled", 1)
+            end
+        end,
+    })
+
+    local function mapSpeed(value) return (value + 10) * 0.045454545 end
+
+    CfgTab:CreateSlider({
+        Title = "Anim Speed", Min = -10, Max = 100, Default = 0,
+        Callback = function(v)
+            speedFactor = mapSpeed(v)
+            if active then applyToAllAnimations(speedFactor) end
+        end,
+    })
+
+    animCharConn = player.CharacterAdded:Connect(function()
+        if active then task.wait(0.3); applyToAllAnimations(speedFactor) end
+    end)
+end
+
+do
+    local spinActive = false
+    local spinSpeed = 10
+    local spinConnection = nil
+    local originalAutoRotate = nil
+    local spinCharConn = nil
+
+    local function startSpin()
+        local char = player.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not root or not hum then return end
+        if originalAutoRotate == nil then originalAutoRotate = hum.AutoRotate end
+        hum.AutoRotate = false
+        if spinConnection then spinConnection:Disconnect(); spinConnection = nil end
+        spinConnection = RunService.Heartbeat:Connect(function(dt)
+            if not spinActive then return end
+            local curChar = player.Character
+            if not curChar then return end
+            local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+            if not curRoot then return end
+            local angle = math.rad(spinSpeed) * dt * 10
+            curRoot.CFrame = curRoot.CFrame * CFrame.Angles(0, angle, 0)
+        end)
+    end
+
+    CfgTab:CreateToggle({
+        Title = "Spin",
+        Default = false,
+        Callback = function(value)
+            spinActive = value
+            if value then
+                startSpin()
+                Notify("Spin", "Enabled", 2)
+            else
+                if spinConnection then spinConnection:Disconnect(); spinConnection = nil end
+                local char = player.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum and originalAutoRotate ~= nil then hum.AutoRotate = originalAutoRotate end
+                    originalAutoRotate = nil
+                end
+                Notify("Spin", "Disabled", 1)
+            end
+        end,
+    })
+
+    CfgTab:CreateSlider({
+        Title = "Spin Speed", Min = -1000, Max = 1000, Default = 10,
+        Callback = function(value) spinSpeed = value; if spinActive then startSpin() end end,
+    })
+
+    spinCharConn = player.CharacterAdded:Connect(function()
+        if spinActive then task.wait(0.5); originalAutoRotate = nil; startSpin() end
+    end)
+end

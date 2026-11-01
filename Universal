@@ -616,3 +616,1810 @@ MainTab:CreateButton({
         end)
     end,
 })
+-- ============================================================
+-- ABA: PLAY
+-- ============================================================
+local PlayTab = Window:CreateTab("Play", "play")
+
+local function attach(Part, TargetPart)
+    if sethiddenproperty and InstanceHandle then
+        pcall(sethiddenproperty, Part, "PhysicsRepRootRef", InstanceHandle.new(TargetPart or Part))
+    end
+end
+
+local function getRoot(c) return c and c:FindFirstChild("HumanoidRootPart") end
+local function getHum(c) return c and c:FindFirstChildOfClass("Humanoid") end
+
+-- ============================================================
+-- DROPDOWN DE ALVO + REFRESH
+-- ============================================================
+local PlayTarget = nil
+local PlayDropdown = nil
+
+local function GetPlayTarget()
+    if not PlayTarget or PlayTarget == "" then return nil end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name == PlayTarget then return plr end
+    end
+    return nil
+end
+
+local function RefreshPlayTargets()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
+    end
+    table.sort(list)
+    if PlayDropdown and PlayDropdown.Update then
+        pcall(function() PlayDropdown:Update({ Options = list }) end)
+    end
+end
+
+PlayDropdown = PlayTab:CreateDropdown({
+    Title = "Select Target",
+    Options = {},
+    Callback = function(Value) PlayTarget = Value end,
+})
+RefreshPlayTargets()
+
+PlayTab:CreateButton({
+    Title = "Refresh Target List",
+    Callback = function() RefreshPlayTargets() end,
+})
+
+-- ============================================================
+-- SLIDERS DE OFFSET (coordenadas globais)
+-- ============================================================
+_G.PlayOffsetX = 0
+_G.PlayOffsetY = -3
+_G.PlayOffsetZ = 0
+
+PlayTab:CreateSlider({
+    Title = "Offset X", Min = -30, Max = 30, Default = 0,
+    Callback = function(v) _G.PlayOffsetX = v end,
+})
+PlayTab:CreateSlider({
+    Title = "Offset Y", Min = -30, Max = 30, Default = -3,
+    Callback = function(v) _G.PlayOffsetY = v end,
+})
+PlayTab:CreateSlider({
+    Title = "Offset Z", Min = -30, Max = 30, Default = 0,
+    Callback = function(v) _G.PlayOffsetZ = v end,
+})
+
+local function GetOffset()
+    return Vector3.new(_G.PlayOffsetX, _G.PlayOffsetY, _G.PlayOffsetZ)
+end
+
+-- ============================================================
+-- GOTO
+-- ============================================================
+PlayTab:CreateButton({
+    Title = "Goto",
+    Callback = function()
+        local t = GetPlayTarget()
+        if not t then return end
+        local tr = getRoot(t.Character)
+        local mr = getRoot(LocalPlayer.Character)
+        if tr and mr then
+            mr.CFrame = tr.CFrame * CFrame.new(2, 0, 0)
+        end
+    end,
+})
+
+-- ============================================================
+-- FLING TARGET
+-- ============================================================
+local flingTargetRunning = false
+PlayTab:CreateButton({
+    Title = "Fling Target",
+    Callback = function()
+        if flingTargetRunning then return end
+        local t = GetPlayTarget()
+        if not t then return end
+        local tr = getRoot(t.Character)
+        local mr = getRoot(LocalPlayer.Character)
+        if not tr or not mr then return end
+        flingTargetRunning = true
+        local orig = mr.CFrame
+        local bv = Instance.new("BodyVelocity")
+        bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
+        bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+        bv.Parent = tr
+        local conn
+        conn = RunService.Heartbeat:Connect(function()
+            if not tr or not tr.Parent or not mr or not mr.Parent then
+                conn:Disconnect(); bv:Destroy(); flingTargetRunning = false; return
+            end
+            mr.CFrame = CFrame.new(tr.Position + GetOffset())
+            mr.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+            mr.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+            attach(mr, tr)
+        end)
+        task.delay(5, function()
+            if conn then conn:Disconnect() end
+            bv:Destroy()
+            if mr and mr.Parent then
+                mr.CFrame = orig
+                mr.Velocity = Vector3.zero
+                mr.RotVelocity = Vector3.zero
+            end
+            flingTargetRunning = false
+        end)
+    end,
+})
+
+-- ============================================================
+-- FLING ALL
+-- ============================================================
+PlayTab:CreateButton({
+    Title = "Fling All",
+    Callback = function()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then
+                local r = getRoot(p.Character)
+                if r then
+                    local bv = Instance.new("BodyVelocity")
+                    bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
+                    bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+                    bv.Parent = r
+                    task.delay(5, function() if bv then bv:Destroy() end end)
+                end
+            end
+        end
+    end,
+})
+
+-- ============================================================
+-- FLING ALL TOGGLE
+-- ============================================================
+PlayTab:CreateToggle({
+    Title = "Fling All Toggle",
+    Default = false,
+    Callback = function(Value)
+        if not Value then
+            for _, p in ipairs(Players:GetPlayers()) do
+                local r = getRoot(p.Character)
+                if r then
+                    local bv = r:FindFirstChild("EpixVel")
+                    if bv then bv:Destroy() end
+                end
+            end
+            return
+        end
+        local conn
+        conn = RunService.Heartbeat:Connect(function()
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer then
+                    local r = getRoot(p.Character)
+                    if r and not r:FindFirstChild("EpixVel") then
+                        local bv = Instance.new("BodyVelocity")
+                        bv.Name = "EpixVel"
+                        bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
+                        bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+                        bv.Parent = r
+                    end
+                end
+            end
+        end)
+    end,
+})
+local PlayTab = Window:CreateTab("Play", "play")
+
+local gui = Window.ScreenGui or LocalPlayer:WaitForChild("PlayerGui")
+local player = LocalPlayer
+
+local function addRedBorder(frame, thickness)
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 50, 50)
+    stroke.Thickness = thickness or 1
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent = frame
+end
+
+local function Notify(title, desc, dur)
+    Window:Notify({ Title = title, Description = desc, Duration = dur or 2, Type = "info" })
+end
+
+local function attach(Part, TargetPart)
+    if sethiddenproperty and InstanceHandle then
+        pcall(function()
+            sethiddenproperty(Part, "PhysicsRepRootRef", InstanceHandle.new(TargetPart or Part))
+        end)
+    end
+end
+
+local function detach(Part)
+    if sethiddenproperty then
+        pcall(function()
+            sethiddenproperty(Part, "PhysicsRepRootRef", nil)
+        end)
+    end
+end
+
+local function getRoot(c) return c and c:FindFirstChild("HumanoidRootPart") end
+local function getHum(c) return c and c:FindFirstChildOfClass("Humanoid") end
+
+local PlayTarget = nil
+local PlayDropdown = nil
+
+local function GetPlayTarget()
+    if not PlayTarget or PlayTarget == "" then return nil end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name == PlayTarget then return plr end
+    end
+    return nil
+end
+
+local function RefreshPlayTargets()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then table.insert(list, plr.Name) end
+    end
+    table.sort(list)
+    if PlayDropdown and PlayDropdown.Update then
+        pcall(function() PlayDropdown:Update({ Options = list }) end)
+    end
+end
+
+PlayDropdown = PlayTab:CreateDropdown({
+    Title = "Select Target",
+    Options = {},
+    Callback = function(Value) PlayTarget = Value end,
+})
+RefreshPlayTargets()
+
+PlayTab:CreateButton({
+    Title = "Refresh Target List",
+    Callback = function() RefreshPlayTargets() end,
+})
+
+PlayTab:CreateButton({
+    Title = "Goto",
+    Callback = function()
+        local t = GetPlayTarget()
+        if not t then return end
+        local tr = getRoot(t.Character)
+        local mr = getRoot(player.Character)
+        if tr and mr then
+            mr.CFrame = tr.CFrame * CFrame.new(2, 0, 0)
+        end
+    end,
+})
+
+PlayTab:CreateButton({
+    Title = "Chat Fake Target",
+    Callback = function()
+        local selectedPlayer = GetPlayTarget()
+        if not selectedPlayer then return end
+
+        local useDisplayName = false
+        local inputFrame = Instance.new("Frame")
+        inputFrame.Size = UDim2.new(0, 300, 0, 160)
+        inputFrame.Position = UDim2.new(0.5, -150, 0.5, -80)
+        inputFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+        inputFrame.BorderSizePixel = 0
+        inputFrame.Active = true
+        inputFrame.Draggable = true
+        inputFrame.Parent = gui
+        addRedBorder(inputFrame, 2)
+
+        local inputTitle = Instance.new("TextLabel")
+        inputTitle.Size = UDim2.new(1, -30, 0, 26)
+        inputTitle.Position = UDim2.new(0, 10, 0, 6)
+        inputTitle.BackgroundTransparency = 1
+        inputTitle.Text = "Message to " .. selectedPlayer.Name
+        inputTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+        inputTitle.Font = Enum.Font.GothamBold
+        inputTitle.TextSize = 13
+        inputTitle.TextXAlignment = Enum.TextXAlignment.Left
+        inputTitle.Parent = inputFrame
+
+        local closeBtn = Instance.new("TextButton")
+        closeBtn.Size = UDim2.new(0, 22, 0, 22)
+        closeBtn.Position = UDim2.new(1, -26, 0, 4)
+        closeBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        closeBtn.BorderSizePixel = 0
+        closeBtn.Text = "X"
+        closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closeBtn.Font = Enum.Font.GothamBold
+        closeBtn.TextSize = 14
+        closeBtn.Parent = inputFrame
+        addRedBorder(closeBtn, 1)
+        closeBtn.MouseButton1Click:Connect(function() inputFrame:Destroy() end)
+
+        local hasDisplayName = selectedPlayer.DisplayName and selectedPlayer.DisplayName ~= selectedPlayer.Name
+
+        local textBox = Instance.new("TextBox")
+        textBox.Size = UDim2.new(1, -20, 0, 35)
+        textBox.Position = UDim2.new(0, 10, 0, 32)
+        textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+        textBox.BorderSizePixel = 0
+        textBox.Text = ""
+        textBox.PlaceholderText = "Type your message here..."
+        textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+        textBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+        textBox.Font = Enum.Font.Gotham
+        textBox.TextSize = 14
+        textBox.ClearTextOnFocus = false
+        textBox.Parent = inputFrame
+        addRedBorder(textBox, 1)
+
+        local buttonLine = Instance.new("Frame")
+        buttonLine.Size = UDim2.new(1, -20, 0, 28)
+        buttonLine.Position = UDim2.new(0, 10, 0, 72)
+        buttonLine.BackgroundTransparency = 1
+        buttonLine.Parent = inputFrame
+
+        local fakeNameBtn = nil
+        if hasDisplayName then
+            fakeNameBtn = Instance.new("TextButton")
+            fakeNameBtn.Size = UDim2.new(0.48, 0, 1, 0)
+            fakeNameBtn.Position = UDim2.new(0, 0, 0, 0)
+            fakeNameBtn.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+            fakeNameBtn.BorderSizePixel = 0
+            fakeNameBtn.Text = "Fake Name"
+            fakeNameBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+            fakeNameBtn.Font = Enum.Font.GothamBold
+            fakeNameBtn.TextSize = 11
+            fakeNameBtn.Parent = buttonLine
+            addRedBorder(fakeNameBtn, 1)
+        end
+
+        local fakeRealNameBtn = Instance.new("TextButton")
+        fakeRealNameBtn.Size = UDim2.new(0.48, 0, 1, 0)
+        fakeRealNameBtn.Position = UDim2.new(0.52, 0, 0, 0)
+        fakeRealNameBtn.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+        fakeRealNameBtn.BorderSizePixel = 0
+        fakeRealNameBtn.Text = "Fake Real Name"
+        fakeRealNameBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+        fakeRealNameBtn.Font = Enum.Font.GothamBold
+        fakeRealNameBtn.TextSize = 11
+        fakeRealNameBtn.Parent = buttonLine
+        addRedBorder(fakeRealNameBtn, 1)
+
+        local function updateButtons()
+            if useDisplayName and hasDisplayName then
+                if fakeNameBtn then
+                    fakeNameBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+                    fakeNameBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                end
+                fakeRealNameBtn.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+                fakeRealNameBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+            else
+                if fakeNameBtn then
+                    fakeNameBtn.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+                    fakeNameBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+                end
+                fakeRealNameBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+                fakeRealNameBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            end
+        end
+
+        if fakeNameBtn then
+            fakeNameBtn.MouseButton1Click:Connect(function()
+                useDisplayName = true
+                updateButtons()
+            end)
+        end
+
+        fakeRealNameBtn.MouseButton1Click:Connect(function()
+            useDisplayName = false
+            updateButtons()
+        end)
+
+        updateButtons()
+
+        local sendBtn = Instance.new("TextButton")
+        sendBtn.Size = UDim2.new(0, 70, 0, 28)
+        sendBtn.Position = UDim2.new(0.5, -35, 0.78, 0)
+        sendBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+        sendBtn.BorderSizePixel = 0
+        sendBtn.Text = "Send"
+        sendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        sendBtn.Font = Enum.Font.GothamBold
+        sendBtn.TextSize = 13
+        sendBtn.Parent = inputFrame
+        addRedBorder(sendBtn, 1)
+
+        local hasSent = false
+        sendBtn.MouseButton1Click:Connect(function()
+            if hasSent then return end
+            local msg = textBox.Text
+            if msg:gsub(" ", "") == "" then return end
+            hasSent = true
+            sendBtn.Text = "Sent!"
+            sendBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+            local dots = "........................................................................................"
+            local nameToUse = useDisplayName and selectedPlayer.DisplayName or selectedPlayer.Name
+            local finalMsg = dots .. " " .. nameToUse .. ": " .. msg
+            pcall(function()
+                if game:GetService("TextChatService").ChatVersion == Enum.ChatVersion.TextChatService then
+                    local channel = game:GetService("TextChatService").TextChannels:FindFirstChild("RBXGeneral")
+                    if channel then channel:SendAsync(finalMsg) end
+                else
+                    game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(finalMsg, "All")
+                end
+            end)
+            task.delay(2, function() inputFrame:Destroy() end)
+        end)
+    end,
+})
+
+local flingTargetRunning = false
+PlayTab:CreateButton({
+    Title = "Fling Target",
+    Callback = function()
+        if flingTargetRunning then return end
+        local t = GetPlayTarget()
+        if not t then return end
+        local targetRoot = getRoot(t.Character)
+        local myRoot = getRoot(player.Character)
+        local myHum = getHum(player.Character)
+        if not targetRoot or not myRoot or not myHum then return end
+        flingTargetRunning = true
+        local originalCFrame = myRoot.CFrame
+        local orbitAngle = 0
+        local orbitPositions = {
+            CFrame.new(0, 1.5, 0),
+            CFrame.new(0, -1.5, 0),
+            CFrame.new(2.25, 1.5, -2.25),
+            CFrame.new(-2.25, -1.5, 2.25),
+            CFrame.new(0, 1.5, 0),
+            CFrame.new(0, -1.5, 0)
+        }
+        local orbitIndex = 1
+        local bv = Instance.new("BodyVelocity")
+        bv.Name = "EpixVel"
+        bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
+        bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+        bv.Parent = targetRoot
+        pcall(function()
+            targetRoot.Parent:FindFirstChildOfClass("Humanoid"):SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+        end)
+        workspace.FallenPartsDestroyHeight = 0/0
+        local connection
+        connection = RunService.Heartbeat:Connect(function(dt)
+            if not targetRoot or not targetRoot.Parent or not myRoot or not myRoot.Parent then
+                connection:Disconnect(); bv:Destroy(); flingTargetRunning = false; return
+            end
+            orbitIndex = orbitIndex % #orbitPositions + 1
+            orbitAngle = orbitAngle + 100 * dt
+            local offset = orbitPositions[orbitIndex]
+            local rotatedOffset = offset * CFrame.Angles(math.rad(orbitAngle), 0, 0)
+            myRoot.CFrame = CFrame.new(targetRoot.Position) * rotatedOffset
+            myRoot.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+            myRoot.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+            attach(myRoot, targetRoot)
+        end)
+        task.delay(5, function()
+            if connection then connection:Disconnect() end
+            bv:Destroy()
+            workspace.FallenPartsDestroyHeight = -500
+            if myRoot and myRoot.Parent then
+                myRoot.CFrame = originalCFrame
+                myRoot.Velocity = Vector3.zero
+                myRoot.RotVelocity = Vector3.zero
+                detach(myRoot)
+            end
+            flingTargetRunning = false
+        end)
+    end,
+})
+
+local flingAllRunning = false
+PlayTab:CreateButton({
+    Title = "Fling All",
+    Callback = function()
+        if flingAllRunning then return end
+        flingAllRunning = true
+        local targets = {}
+        for _, target in ipairs(Players:GetPlayers()) do
+            if target ~= player and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                table.insert(targets, target)
+            end
+        end
+        if #targets == 0 then flingAllRunning = false return end
+        local function processNext(index)
+            if index > #targets then flingAllRunning = false return end
+            local target = targets[index]
+            local targetRoot = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+            local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if not targetRoot or not myRoot then processNext(index + 1) return end
+            local originalCFrame = myRoot.CFrame
+            local orbitAngle = 0
+            local orbitPositions = {
+                CFrame.new(0, 1.5, 0),
+                CFrame.new(0, -1.5, 0),
+                CFrame.new(2.25, 1.5, -2.25),
+                CFrame.new(-2.25, -1.5, 2.25),
+                CFrame.new(0, 1.5, 0),
+                CFrame.new(0, -1.5, 0)
+            }
+            local orbitIndex = 1
+            local bv = Instance.new("BodyVelocity")
+            bv.Name = "EpixVel"
+            bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
+            bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+            bv.Parent = targetRoot
+            pcall(function()
+                targetRoot.Parent:FindFirstChildOfClass("Humanoid"):SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+            end)
+            workspace.FallenPartsDestroyHeight = 0/0
+            local connection
+            connection = RunService.Heartbeat:Connect(function(dt)
+                if not targetRoot or not targetRoot.Parent or not myRoot or not myRoot.Parent then
+                    connection:Disconnect(); bv:Destroy(); return
+                end
+                orbitIndex = orbitIndex % #orbitPositions + 1
+                orbitAngle = orbitAngle + 100 * dt
+                local offset = orbitPositions[orbitIndex]
+                local rotatedOffset = offset * CFrame.Angles(math.rad(orbitAngle), 0, 0)
+                myRoot.CFrame = CFrame.new(targetRoot.Position) * rotatedOffset
+                myRoot.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+                myRoot.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+                attach(myRoot, targetRoot)
+            end)
+            task.delay(5, function()
+                if connection then connection:Disconnect() end
+                bv:Destroy()
+                workspace.FallenPartsDestroyHeight = -500
+                if myRoot and myRoot.Parent then
+                    myRoot.CFrame = originalCFrame
+                    myRoot.Velocity = Vector3.zero
+                    myRoot.RotVelocity = Vector3.zero
+                    detach(myRoot)
+                end
+                processNext(index + 1)
+            end)
+        end
+        processNext(1)
+    end,
+})
+
+local flingAllToggleActive = false
+local flingAllToggleConn = nil
+local flingAllToggleIndex = 1
+local flingAllToggleOriginal = nil
+local flingAllToggleLastSwitch = 0
+local flingAllBvTable = {}
+
+PlayTab:CreateToggle({
+    Title = "Fling All Toggle",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            flingAllToggleActive = true
+            flingAllToggleIndex = 1
+            flingAllToggleLastSwitch = tick()
+            local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if myRoot then flingAllToggleOriginal = myRoot.CFrame end
+            local orbitAngle = 0
+            local orbitPositions = {
+                CFrame.new(0, 1.5, 0),
+                CFrame.new(0, -1.5, 0),
+                CFrame.new(2.25, 1.5, -2.25),
+                CFrame.new(-2.25, -1.5, 2.25),
+                CFrame.new(0, 1.5, 0),
+                CFrame.new(0, -1.5, 0)
+            }
+            local orbitIndex = 1
+            workspace.FallenPartsDestroyHeight = 0/0
+            flingAllToggleConn = RunService.Heartbeat:Connect(function(dt)
+                if not flingAllToggleActive then return end
+                local targets = {}
+                for _, target in ipairs(Players:GetPlayers()) do
+                    if target ~= player and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                        table.insert(targets, target.Character.HumanoidRootPart)
+                    end
+                end
+                if #targets == 0 then return end
+                if tick() - flingAllToggleLastSwitch >= 0.5 then
+                    flingAllToggleIndex = flingAllToggleIndex % #targets + 1
+                    flingAllToggleLastSwitch = tick()
+                end
+                orbitIndex = orbitIndex % #orbitPositions + 1
+                orbitAngle = orbitAngle + 100 * dt
+                local currentRoot = targets[flingAllToggleIndex]
+                local myRootNow = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                if not myRootNow or not currentRoot or not currentRoot.Parent then return end
+                if not flingAllBvTable[currentRoot] then
+                    local bv = Instance.new("BodyVelocity")
+                    bv.Name = "EpixVel"
+                    bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
+                    bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+                    bv.Parent = currentRoot
+                    flingAllBvTable[currentRoot] = bv
+                    pcall(function()
+                        currentRoot.Parent:FindFirstChildOfClass("Humanoid"):SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                    end)
+                end
+                local offset = orbitPositions[orbitIndex]
+                local rotatedOffset = offset * CFrame.Angles(math.rad(orbitAngle), 0, 0)
+                myRootNow.CFrame = CFrame.new(currentRoot.Position) * rotatedOffset
+                myRootNow.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+                myRootNow.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+                attach(myRootNow, currentRoot)
+            end)
+        else
+            flingAllToggleActive = false
+            if flingAllToggleConn then flingAllToggleConn:Disconnect(); flingAllToggleConn = nil end
+            for _, bv in pairs(flingAllBvTable) do pcall(function() bv:Destroy() end) end
+            flingAllBvTable = {}
+            workspace.FallenPartsDestroyHeight = -500
+            local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if myRoot and flingAllToggleOriginal then
+                myRoot.CFrame = flingAllToggleOriginal
+                myRoot.Velocity = Vector3.zero
+                myRoot.RotVelocity = Vector3.zero
+                detach(myRoot)
+            end
+        end
+    end,
+})
+
+local superFlingActive = false
+local superFlingConn = nil
+local superFlingTarget = nil
+local superFlingOriginalCFrame = nil
+local superFlingMenu = nil
+local superFlingOffset = Vector3.new(0, -3, 0)
+local superFlingBvTable = {}
+
+local function stopSuperFling()
+    superFlingActive = false
+    if superFlingConn then superFlingConn:Disconnect(); superFlingConn = nil end
+    if superFlingMenu then superFlingMenu:Destroy(); superFlingMenu = nil end
+    for _, bv in pairs(superFlingBvTable) do pcall(function() bv:Destroy() end) end
+    superFlingBvTable = {}
+    superFlingTarget = nil
+    local char = player.Character
+    if char then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if root then
+            if superFlingOriginalCFrame then root.CFrame = superFlingOriginalCFrame; superFlingOriginalCFrame = nil end
+            root.Velocity = Vector3.zero
+            root.RotVelocity = Vector3.zero
+            detach(root)
+        end
+        if hum then hum.PlatformStand = false end
+    end
+end
+
+PlayTab:CreateToggle({
+    Title = "Super Fling",
+    Default = false,
+    Callback = function(Value)
+        if not Value then stopSuperFling() return end
+        local t = GetPlayTarget()
+        if not t or not t.Character then return end
+        local char = player.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not root or not hum then return end
+        local targetRoot = t.Character:FindFirstChild("HumanoidRootPart")
+        if not targetRoot then return end
+        superFlingOriginalCFrame = root.CFrame
+        hum.PlatformStand = true
+        superFlingActive = true
+        superFlingTarget = t
+        if not superFlingBvTable[targetRoot] then
+            local bv = Instance.new("BodyVelocity")
+            bv.Name = "EpixVel"
+            bv.Velocity = Vector3.new(9e18, 9e18, 9e18)
+            bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+            bv.Parent = targetRoot
+            superFlingBvTable[targetRoot] = bv
+        end
+        pcall(function()
+            targetRoot.Parent:FindFirstChildOfClass("Humanoid"):SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+        end)
+        superFlingConn = RunService.Heartbeat:Connect(function()
+            if not superFlingActive then return end
+            local curChar = player.Character
+            local curTarget = superFlingTarget and superFlingTarget.Character
+            if not curChar or not curTarget then stopSuperFling() return end
+            local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+            local curTargetRoot = curTarget:FindFirstChild("HumanoidRootPart")
+            if not curRoot or not curTargetRoot then return end
+            curRoot.CFrame = CFrame.new(curTargetRoot.Position + superFlingOffset) * CFrame.Angles(-math.pi/2, 0, 0)
+            curRoot.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+            curRoot.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+            attach(curRoot, curTargetRoot)
+        end)
+    end,
+})
+local function attach(Part, TargetPart)
+    if sethiddenproperty and InstanceHandle then
+        pcall(function()
+            sethiddenproperty(Part, "PhysicsRepRootRef", InstanceHandle.new(TargetPart or Part))
+        end)
+    end
+end
+
+local function detach(Part)
+    if sethiddenproperty then
+        pcall(function()
+            sethiddenproperty(Part, "PhysicsRepRootRef", nil)
+        end)
+    end
+end
+
+pcall(function()
+    local bringActive = false
+    local bringTarget = nil
+    local bringOriginalCFrame = nil
+    local bringSpeeding = 60
+    local bringMaxSpeed = 75
+    local bringOffRot = CFrame.Angles(-1.5707963267948966, 0, 0)
+    local v3_0 = Vector3.new(0, 0, 0)
+
+    PlayTab:CreateSlider({
+        Title = "Bring Speed", Min = 20, Max = 200, Default = 75,
+        Callback = function(Value)
+            bringMaxSpeed = Value
+            bringSpeeding = Value * 0.8
+        end,
+    })
+
+    local function stopBring()
+        bringActive = false
+        local char = player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                if bringOriginalCFrame then
+                    root.CFrame = bringOriginalCFrame
+                    bringOriginalCFrame = nil
+                end
+                root.Velocity = v3_0
+                root.RotVelocity = v3_0
+                detach(root)
+            end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.PlatformStand = false
+                local animate = char:FindFirstChild("Animate")
+                if animate then animate.Disabled = false end
+            end
+        end
+    end
+
+    PlayTab:CreateToggle({
+        Title = "Bring Target",
+        Default = false,
+        Callback = function(Value)
+            if not Value then stopBring() return end
+            local t = GetPlayTarget()
+            if not t or not t.Character then return end
+            bringTarget = t
+            bringActive = true
+            task.spawn(function()
+                local c = player.Character
+                local c1 = bringTarget.Character
+                if not (c and c1) then stopBring() return end
+                local hrp = c:FindFirstChild("HumanoidRootPart")
+                local hrp1 = c1:FindFirstChild("HumanoidRootPart")
+                if not (hrp and hrp1) then stopBring() return end
+                local hum = c:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.PlatformStand = true
+                    local animate = c:FindFirstChild("Animate")
+                    if animate then animate.Disabled = true end
+                end
+                bringOriginalCFrame = hrp.CFrame
+                local fromP = hrp1.CFrame.Position
+                local toP = hrp.CFrame.Position
+                local to = hrp.CFrame
+                local mag = (fromP - toP).Magnitude - 3
+                local lv = CFrame.new(fromP, toP).LookVector
+                local vel = 0
+                local pos = fromP - Vector3.new(0, 2, 0)
+                toP = toP - Vector3.new(0, 2, 0)
+                local lastsine = os.clock()
+                local way = 0
+                local reachedmaxspeed = false
+                while bringActive and c:IsDescendantOf(workspace) and c1:IsDescendantOf(workspace) do
+                    local sine = os.clock()
+                    local dt = sine - lastsine
+                    lastsine = sine
+                    if reachedmaxspeed then
+                        if mag - way < reachedmaxspeed then
+                            vel = vel - dt * bringSpeeding
+                            if vel < 0 then break end
+                        end
+                    else
+                        if way > mag / 2 then
+                            vel = vel - dt * bringSpeeding
+                            if vel < 0 then break end
+                        else
+                            vel = vel + dt * bringSpeeding
+                            if vel > bringMaxSpeed then
+                                reachedmaxspeed = way
+                                vel = bringMaxSpeed
+                            end
+                        end
+                    end
+                    way = way + vel * dt
+                    if not hrp:IsGrounded() then
+                        hrp.CFrame = CFrame.new(pos + lv * way, toP) * bringOffRot
+                        hrp.Velocity = lv * (vel + 1)
+                        hrp.RotVelocity = v3_0
+                    end
+                    attach(hrp, hrp1)
+                    task.wait()
+                end
+                hrp.CFrame = to
+                hrp.Velocity = v3_0
+                hrp.RotVelocity = v3_0
+                stopBring()
+            end)
+        end,
+    })
+end)
+
+pcall(function()
+    local annoyActive = false
+    local annoyTarget = nil
+    local annoyConnection = nil
+    local posIndex = 0
+    local lastSwitch = 0
+    local positions = {
+        Vector3.new(0, 0, 0.5),
+        Vector3.new(0.5, 0, 0),
+        Vector3.new(-0.5, 0, 0),
+    }
+
+    local function stopAnnoy()
+        annoyActive = false
+        if annoyConnection then annoyConnection:Disconnect(); annoyConnection = nil end
+        annoyTarget = nil
+        local char = player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then detach(root) end
+        end
+    end
+
+    PlayTab:CreateToggle({
+        Title = "Annoy",
+        Default = false,
+        Callback = function(Value)
+            if not Value then stopAnnoy() return end
+            local t = GetPlayTarget()
+            if not t then return end
+            annoyTarget = t
+            annoyActive = true
+            posIndex = 0
+            lastSwitch = tick()
+            annoyConnection = RunService.Heartbeat:Connect(function()
+                if not annoyActive or not annoyTarget then stopAnnoy() return end
+                local targetChar = annoyTarget.Character
+                if not targetChar then stopAnnoy() return end
+                local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+                local localChar = player.Character
+                if not targetRoot or not localChar then return end
+                local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+                if not localRoot then return end
+                if tick() - lastSwitch >= 0.6 then
+                    posIndex = posIndex % #positions + 1
+                    lastSwitch = tick()
+                end
+                local currentOffset = positions[posIndex]
+                local targetVel = targetRoot.Velocity
+                local lookVec = targetRoot.CFrame.LookVector
+                local forwardSpeed = targetVel:Dot(lookVec)
+                local offset
+                if forwardSpeed > 5 then
+                    offset = Vector3.new(0, 0, -0.5)
+                else
+                    offset = currentOffset
+                end
+                local targetPos = (targetRoot.CFrame * CFrame.new(offset)).Position
+                localRoot.CFrame = CFrame.new(targetPos, targetRoot.Position)
+                attach(localRoot, targetRoot)
+            end)
+        end,
+    })
+end)
+
+pcall(function()
+    local speedReduceActive = false
+    local speedReduceConnection = nil
+    local speedReduceTarget = nil
+    local speedReduceOriginalCFrame = nil
+
+    local function stopSpeedReduce()
+        if speedReduceConnection then speedReduceConnection:Disconnect(); speedReduceConnection = nil end
+        speedReduceTarget = nil
+        local localChar = player.Character
+        if localChar then
+            local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+            if localRoot then
+                if speedReduceOriginalCFrame then
+                    localRoot.CFrame = speedReduceOriginalCFrame
+                    speedReduceOriginalCFrame = nil
+                end
+                localRoot.Velocity = Vector3.zero
+                localRoot.RotVelocity = Vector3.zero
+                detach(localRoot)
+            end
+        end
+    end
+
+    PlayTab:CreateToggle({
+        Title = "Speed Reduce",
+        Default = false,
+        Callback = function(Value)
+            if not Value then speedReduceActive = false; stopSpeedReduce() return end
+            local t = GetPlayTarget()
+            if not t or not t.Character then return end
+            local localChar = player.Character
+            if not localChar then return end
+            local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+            local targetRoot = t.Character:FindFirstChild("HumanoidRootPart")
+            if not localRoot or not targetRoot then return end
+            speedReduceTarget = t
+            speedReduceOriginalCFrame = localRoot.CFrame
+            speedReduceActive = true
+            speedReduceConnection = RunService.Heartbeat:Connect(function()
+                if not speedReduceActive then return end
+                if not speedReduceTarget or not speedReduceTarget.Character then
+                    speedReduceActive = false
+                    stopSpeedReduce()
+                    return
+                end
+                local curLocalRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                local curTargetRoot = speedReduceTarget.Character:FindFirstChild("HumanoidRootPart")
+                if not curLocalRoot or not curTargetRoot then return end
+                curLocalRoot.Velocity = Vector3.zero
+                curLocalRoot.RotVelocity = Vector3.zero
+                curLocalRoot.CFrame = curTargetRoot.CFrame * CFrame.new(0, 1.8, -0.6)
+                attach(curLocalRoot, curTargetRoot)
+            end)
+        end,
+    })
+end)
+
+pcall(function()
+    local speeds = { ["Speed 3"] = 0.8, ["Speed 7"] = 0.4, ["Speed 10"] = 0.15 }
+    for name, distance in pairs(speeds) do
+        local active = false
+        local conn = nil
+        local target = nil
+        local origCF = nil
+
+        PlayTab:CreateToggle({
+            Title = name,
+            Default = false,
+            Callback = function(Value)
+                if not Value then
+                    active = false
+                    if conn then conn:Disconnect(); conn = nil end
+                    local char = player.Character
+                    if char and origCF then
+                        local root = char:FindFirstChild("HumanoidRootPart")
+                        if root then
+                            root.CFrame = origCF
+                            detach(root)
+                        end
+                        origCF = nil
+                    end
+                    return
+                end
+                local t = GetPlayTarget()
+                if not t or not t.Character then return end
+                local char = player.Character
+                if not char then return end
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if not root then return end
+                target = t
+                origCF = root.CFrame
+                active = true
+                conn = RunService.Heartbeat:Connect(function()
+                    if not active or not target then return end
+                    local targetChar = target.Character
+                    if not targetChar then return end
+                    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+                    local localChar = player.Character
+                    if not targetRoot or not localChar then return end
+                    local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+                    if not localRoot then return end
+                    local offset = Vector3.new(0, 0, distance)
+                    local targetPos = (targetRoot.CFrame * CFrame.new(offset)).Position
+                    localRoot.CFrame = CFrame.new(targetPos, targetRoot.Position)
+                    attach(localRoot, targetRoot)
+                end)
+            end,
+        })
+    end
+end)
+
+pcall(function()
+    local modes = {
+        ["Elevator"] = Vector3.new(0, -3, 0),
+        ["Platform Fly"] = Vector3.new(0, -4, 0),
+        ["Magic Carpet"] = Vector3.new(0, -3.6, 0),
+    }
+    for name, offset in pairs(modes) do
+        local active = false
+        local conn = nil
+        local target = nil
+        local origCF = nil
+
+        PlayTab:CreateToggle({
+            Title = name,
+            Default = false,
+            Callback = function(Value)
+                if not Value then
+                    active = false
+                    if conn then conn:Disconnect(); conn = nil end
+                    local char = player.Character
+                    if char and origCF then
+                        local root = char:FindFirstChild("HumanoidRootPart")
+                        if root then
+                            root.CFrame = origCF
+                            detach(root)
+                        end
+                        origCF = nil
+                    end
+                    return
+                end
+                local t = GetPlayTarget()
+                if not t or not t.Character then return end
+                local char = player.Character
+                if not char then return end
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if not root then return end
+                target = t
+                origCF = root.CFrame
+                active = true
+                conn = RunService.Heartbeat:Connect(function()
+                    if not active or not target then return end
+                    local targetChar = target.Character
+                    if not targetChar then return end
+                    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+                    local localChar = player.Character
+                    if not targetRoot or not localChar then return end
+                    local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+                    if not localRoot then return end
+                    localRoot.CFrame = CFrame.new(targetRoot.Position + offset) * CFrame.Angles(-math.pi/2, 0, 0)
+                    localRoot.Velocity = Vector3.zero
+                    localRoot.RotVelocity = Vector3.zero
+                    attach(localRoot, targetRoot)
+                end)
+            end,
+        })
+    end
+end)
+pcall(function()
+    local rocketActive = false
+    local rocketConn = nil
+    local rocketTarget = nil
+    local rocketOriginalCFrame = nil
+    local rocketPhase = 0
+    local rocketLastSwitch = 0
+
+    local function stopRocket()
+        rocketActive = false
+        if rocketConn then rocketConn:Disconnect(); rocketConn = nil end
+        rocketTarget = nil
+        rocketPhase = 0
+        local char = player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                if rocketOriginalCFrame then
+                    root.CFrame = rocketOriginalCFrame
+                    rocketOriginalCFrame = nil
+                end
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                detach(root)
+            end
+        end
+    end
+
+    PlayTab:CreateToggle({
+        Title = "Rocket Target",
+        Default = false,
+        Callback = function(Value)
+            if not Value then stopRocket() return end
+            local t = GetPlayTarget()
+            if not t then return end
+            local char = player.Character
+            if not char then return end
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+            local targetChar = t.Character
+            if not targetChar then return end
+            local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+            if not targetRoot then return end
+            rocketTarget = t
+            rocketOriginalCFrame = root.CFrame
+            rocketActive = true
+            rocketPhase = 0
+            rocketLastSwitch = tick()
+            rocketConn = RunService.Heartbeat:Connect(function()
+                if not rocketActive then return end
+                local curChar = player.Character
+                local curTarget = rocketTarget and rocketTarget.Character
+                if not curChar or not curTarget then stopRocket() return end
+                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+                local curTargetRoot = curTarget:FindFirstChild("HumanoidRootPart")
+                if not curRoot or not curTargetRoot then return end
+                if tick() - rocketLastSwitch >= 0.5 then
+                    rocketPhase = (rocketPhase + 1) % 2
+                    rocketLastSwitch = tick()
+                end
+                local offset
+                if rocketPhase == 0 then
+                    offset = Vector3.new(0, -3, 0)
+                else
+                    offset = Vector3.new(0, 3, 0)
+                end
+                curRoot.CFrame = CFrame.new(curTargetRoot.Position + offset) * CFrame.Angles(-math.pi/2, 0, 0)
+                curRoot.Velocity = Vector3.new(0, 50, 0)
+                curRoot.RotVelocity = Vector3.zero
+                attach(curRoot, curTargetRoot)
+            end)
+        end,
+    })
+end)
+
+pcall(function()
+    local jumpTargetActive = false
+    local jumpTargetConn = nil
+    local jumpTargetOriginalCFrame = nil
+    local jumpTargetForce = 11
+
+    local function stopJumpTarget()
+        if jumpTargetConn then jumpTargetConn:Disconnect(); jumpTargetConn = nil end
+        local char = player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                if jumpTargetOriginalCFrame then
+                    root.CFrame = jumpTargetOriginalCFrame
+                    jumpTargetOriginalCFrame = nil
+                end
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                detach(root)
+            end
+        end
+    end
+
+    PlayTab:CreateButton({
+        Title = "Jump Target",
+        Callback = function()
+            local t = GetPlayTarget()
+            if not t or not t.Character then return end
+            local char = player.Character
+            if not char then return end
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not root or not hum then return end
+            local targetRoot = t.Character:FindFirstChild("HumanoidRootPart")
+            if not targetRoot then return end
+            jumpTargetOriginalCFrame = root.CFrame
+            jumpTargetActive = true
+            local startTime = tick()
+            local duration = 0.2
+            jumpTargetConn = RunService.Heartbeat:Connect(function()
+                if not jumpTargetActive or tick() - startTime >= duration then
+                    stopJumpTarget()
+                    return
+                end
+                local curChar = player.Character
+                local curTarget = t.Character
+                if not curChar or not curTarget then stopJumpTarget() return end
+                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+                local curTargetRoot = curTarget:FindFirstChild("HumanoidRootPart")
+                if not curRoot or not curTargetRoot then return end
+                local offset = Vector3.new(0, -3, 0)
+                curRoot.CFrame = CFrame.new(curTargetRoot.Position + offset) * CFrame.Angles(-math.pi/2, 0, 0)
+                curRoot.Velocity = Vector3.new(0, jumpTargetForce, 0)
+                curRoot.RotVelocity = Vector3.zero
+                attach(curRoot, curTargetRoot)
+            end)
+        end,
+    })
+end)
+
+pcall(function()
+    local superFlingButtonActive = false
+    local superFlingButtonConn = nil
+    local superFlingButtonOriginalCFrame = nil
+    local superFlingButtonOffset = Vector3.new(0, -3, 0)
+    local superFlingButtonBvTable = {}
+
+    local function stopSuperFlingButton()
+        if superFlingButtonConn then superFlingButtonConn:Disconnect(); superFlingButtonConn = nil end
+        for _, bv in pairs(superFlingButtonBvTable) do pcall(function() bv:Destroy() end) end
+        superFlingButtonBvTable = {}
+        local char = player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if root then
+                if superFlingButtonOriginalCFrame then
+                    root.CFrame = superFlingButtonOriginalCFrame
+                    superFlingButtonOriginalCFrame = nil
+                end
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                detach(root)
+            end
+            if hum then hum.PlatformStand = false end
+        end
+        superFlingButtonActive = false
+    end
+
+    PlayTab:CreateButton({
+        Title = "Super Fling",
+        Callback = function()
+            local t = GetPlayTarget()
+            if not t or not t.Character then return end
+            local char = player.Character
+            if not char then return end
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not root or not hum then return end
+            local targetRoot = t.Character:FindFirstChild("HumanoidRootPart")
+            if not targetRoot then return end
+            superFlingButtonOriginalCFrame = root.CFrame
+            hum.PlatformStand = true
+            superFlingButtonActive = true
+            if not superFlingButtonBvTable[targetRoot] then
+                local bv = Instance.new("BodyVelocity")
+                bv.Name = "EpixVel"
+                bv.Velocity = Vector3.new(9e18, 9e18, 9e18)
+                bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+                bv.Parent = targetRoot
+                superFlingButtonBvTable[targetRoot] = bv
+            end
+            pcall(function()
+                targetRoot.Parent:FindFirstChildOfClass("Humanoid"):SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+            end)
+            local startTime = tick()
+            local duration = 5
+            superFlingButtonConn = RunService.Heartbeat:Connect(function()
+                if not superFlingButtonActive or tick() - startTime >= duration then
+                    stopSuperFlingButton()
+                    return
+                end
+                local curChar = player.Character
+                local curTarget = t.Character
+                if not curChar or not curTarget then stopSuperFlingButton() return end
+                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+                local curTargetRoot = curTarget:FindFirstChild("HumanoidRootPart")
+                if not curRoot or not curTargetRoot then return end
+                curRoot.CFrame = CFrame.new(curTargetRoot.Position + superFlingButtonOffset) * CFrame.Angles(-math.pi/2, 0, 0)
+                curRoot.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+                curRoot.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+                attach(curRoot, curTargetRoot)
+            end)
+        end,
+    })
+end)
+
+pcall(function()
+    local bugActive = false
+    local bugConn = nil
+    local bugTarget = nil
+    local bugOriginalCFrame = nil
+    local bugOffset = Vector3.new(0, 0, 0)
+
+    local function stopBug()
+        bugActive = false
+        if bugConn then bugConn:Disconnect(); bugConn = nil end
+        bugTarget = nil
+        local char = player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if root then
+                if bugOriginalCFrame then
+                    root.CFrame = bugOriginalCFrame
+                    bugOriginalCFrame = nil
+                end
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                detach(root)
+            end
+            if hum then hum.PlatformStand = false end
+        end
+    end
+
+    PlayTab:CreateToggle({
+        Title = "Target Bug",
+        Default = false,
+        Callback = function(Value)
+            if not Value then stopBug() return end
+            local t = GetPlayTarget()
+            if not t or not t.Character then return end
+            local char = player.Character
+            if not char then return end
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not root or not hum then return end
+            local targetRoot = t.Character:FindFirstChild("HumanoidRootPart")
+            if not targetRoot then return end
+            bugOriginalCFrame = root.CFrame
+            hum.PlatformStand = true
+            bugTarget = t
+            bugActive = true
+            bugConn = RunService.Heartbeat:Connect(function()
+                if not bugActive then return end
+                local curChar = player.Character
+                local curTarget = bugTarget and bugTarget.Character
+                if not curChar or not curTarget then stopBug() return end
+                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+                local curTargetRoot = curTarget:FindFirstChild("HumanoidRootPart")
+                if not curRoot or not curTargetRoot then return end
+                curRoot.CFrame = CFrame.new(curTargetRoot.Position + bugOffset) * CFrame.Angles(-math.pi/2, 0, 0)
+                curRoot.Velocity = Vector3.zero
+                curRoot.RotVelocity = Vector3.zero
+                attach(curRoot, curTargetRoot)
+            end)
+        end,
+    })
+end)
+pcall(function()
+    local infiniteJumpActive = false
+    local infiniteJumpConn = nil
+    local infiniteJumpTarget = nil
+    local infiniteJumpOriginalCFrame = nil
+    local infiniteJumpOffset = Vector3.new(0, -5.75, 0)
+
+    local function stopInfiniteJump()
+        infiniteJumpActive = false
+        if infiniteJumpConn then infiniteJumpConn:Disconnect(); infiniteJumpConn = nil end
+        local char = player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                if infiniteJumpOriginalCFrame then
+                    root.CFrame = infiniteJumpOriginalCFrame
+                    infiniteJumpOriginalCFrame = nil
+                end
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                detach(root)
+            end
+        end
+    end
+
+    PlayTab:CreateToggle({
+        Title = "Infinite Jump",
+        Default = false,
+        Callback = function(Value)
+            if not Value then stopInfiniteJump() return end
+            local t = GetPlayTarget()
+            if not t then return end
+            local char = player.Character
+            if not char then return end
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+            infiniteJumpTarget = t
+            infiniteJumpActive = true
+            infiniteJumpOriginalCFrame = root.CFrame
+            infiniteJumpConn = RunService.Heartbeat:Connect(function()
+                if not infiniteJumpActive or not infiniteJumpTarget then return end
+                if not infiniteJumpTarget.Character then return end
+                local targetRoot = infiniteJumpTarget.Character:FindFirstChild("HumanoidRootPart")
+                if not targetRoot then return end
+                local curChar = player.Character
+                if not curChar then return end
+                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+                if not curRoot then return end
+                local targetPos = targetRoot.Position + infiniteJumpOffset
+                curRoot.CFrame = CFrame.new(targetPos)
+                curRoot.Velocity = Vector3.zero
+                curRoot.RotVelocity = Vector3.zero
+                attach(curRoot, targetRoot)
+            end)
+        end,
+    })
+end)
+
+pcall(function()
+    local godspeedActive = false
+    local godspeedConn = nil
+    local godspeedTarget = nil
+    local godspeedOriginalCFrame = nil
+
+    local function stopGodspeed()
+        godspeedActive = false
+        if godspeedConn then godspeedConn:Disconnect(); godspeedConn = nil end
+        local char = player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                if godspeedOriginalCFrame then
+                    root.CFrame = godspeedOriginalCFrame
+                    godspeedOriginalCFrame = nil
+                end
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                detach(root)
+            end
+        end
+    end
+
+    PlayTab:CreateButton({
+        Title = "Godspeed Rocket",
+        Callback = function()
+            if godspeedActive then return end
+            local t = GetPlayTarget()
+            if not t or not t.Character then return end
+            local char = player.Character
+            if not char then return end
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+            local targetRoot = t.Character:FindFirstChild("HumanoidRootPart")
+            if not targetRoot then return end
+            godspeedTarget = t
+            godspeedActive = true
+            godspeedOriginalCFrame = root.CFrame
+            local startTime = tick()
+            local duration = 2
+            godspeedConn = RunService.Heartbeat:Connect(function()
+                if not godspeedActive then return end
+                if tick() - startTime >= duration then stopGodspeed() return end
+                if not godspeedTarget or not godspeedTarget.Character then return end
+                local tr = godspeedTarget.Character:FindFirstChild("HumanoidRootPart")
+                if not tr then return end
+                local curChar = player.Character
+                if not curChar then return end
+                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+                if not curRoot then return end
+                local targetPos = tr.Position + Vector3.new(0, -3, 0)
+                curRoot.CFrame = CFrame.new(targetPos, targetPos + Vector3.new(0, 1, 0))
+                curRoot.Velocity = Vector3.new(0, 5000, 0)
+                curRoot.RotVelocity = Vector3.zero
+                attach(curRoot, tr)
+            end)
+        end,
+    })
+end)
+
+local orbitRadius = 5
+local orbitSpeed = 10
+
+PlayTab:CreateSlider({ Title = "Orbit Radius", Min = 0, Max = 100, Default = 5, Callback = function(v) orbitRadius = v end })
+PlayTab:CreateSlider({ Title = "Orbit Speed", Min = 1, Max = 100, Default = 10, Callback = function(v) orbitSpeed = v end })
+
+pcall(function()
+    local orbitActive = false
+    local orbitConn = nil
+    local orbitTarget = nil
+    local orbitOriginalCFrame = nil
+    local orbitAngle = 0
+
+    local function stopOrbit()
+        orbitActive = false
+        if orbitConn then orbitConn:Disconnect(); orbitConn = nil end
+        local char = player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                if orbitOriginalCFrame then
+                    root.CFrame = orbitOriginalCFrame
+                    orbitOriginalCFrame = nil
+                end
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                detach(root)
+            end
+        end
+    end
+
+    PlayTab:CreateToggle({
+        Title = "Orbit",
+        Default = false,
+        Callback = function(Value)
+            if not Value then stopOrbit() return end
+            local t = GetPlayTarget()
+            if not t or not t.Character then return end
+            local char = player.Character
+            if not char then return end
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+            orbitTarget = t
+            orbitActive = true
+            orbitOriginalCFrame = root.CFrame
+            orbitAngle = 0
+            orbitConn = RunService.Heartbeat:Connect(function()
+                if not orbitActive or not orbitTarget then return end
+                if not orbitTarget.Character then return end
+                local tr = orbitTarget.Character:FindFirstChild("HumanoidRootPart")
+                if not tr then return end
+                local curChar = player.Character
+                if not curChar then return end
+                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+                if not curRoot then return end
+                orbitAngle = orbitAngle + (orbitSpeed * 0.1)
+                local x = math.cos(orbitAngle) * orbitRadius
+                local z = math.sin(orbitAngle) * orbitRadius
+                curRoot.CFrame = CFrame.new(tr.Position + Vector3.new(x, 0, z), tr.Position)
+                curRoot.Velocity = Vector3.zero
+                curRoot.RotVelocity = Vector3.zero
+                attach(curRoot, tr)
+            end)
+        end,
+    })
+end)
+
+pcall(function()
+    local controlActive = false
+    local controlConn = nil
+    local controlTarget = nil
+    local controlSavedPos = nil
+    local controlMobileGui = nil
+    local controlRoot = nil
+    local controlHum = nil
+    local controlTargetRoot = nil
+    local controlCanAnchor = true
+    local controlReanchorId = 0
+    local controlMode = "Default"
+    local controlLastMode = "Default"
+    local keyboardBeganConn = nil
+    local keyboardEndedConn = nil
+    local VIM = game:GetService("VirtualInputManager")
+
+    local DefaultOffset = Vector3.new(0, -20, 0)
+    local Offset_W = Vector3.new(0, 0.7, 0.5)
+    local Offset_A = Vector3.new(1.7, 0.7, 0)
+    local Offset_S = Vector3.new(0, 0.7, -0.5)
+    local Offset_D = Vector3.new(-1.7, 0.7, 0)
+    local Offset_Space = Vector3.new(0, -3, 0)
+
+    local function keypress(key) pcall(function() VIM:SendKeyEvent(true, key, false, game) end) end
+    local function keyrelease(key) pcall(function() VIM:SendKeyEvent(false, key, false, game) end) end
+
+    local function setHeadAnchored(state)
+        local char = player.Character
+        if char then
+            local head = char:FindFirstChild("Head")
+            if head then head.Anchored = state end
+        end
+    end
+
+    local function beginOffsetSwitch()
+        controlReanchorId = controlReanchorId + 1
+        local thisId = controlReanchorId
+        controlCanAnchor = false
+        task.delay(0.1, function()
+            if thisId == controlReanchorId then controlCanAnchor = true end
+        end)
+    end
+
+    local function createMobileButtons(parent)
+        local buttonSize = 70
+        local btnFrame = Instance.new("Frame")
+        btnFrame.Size = UDim2.new(0, 280, 0, 240)
+        btnFrame.Position = UDim2.new(0.03, 0, 0.72, 0)
+        btnFrame.BackgroundTransparency = 1
+        btnFrame.Parent = parent
+
+        local function createButton(text, position, data)
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(0, buttonSize, 0, buttonSize)
+            btn.Position = position
+            btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            btn.Font = Enum.Font.GothamBold
+            btn.TextSize = 24
+            btn.Text = text
+            btn.BackgroundTransparency = 0.15
+            btn.BorderSizePixel = 0
+            btn.Parent = btnFrame
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0, 14)
+            corner.Parent = btn
+            local stroke = Instance.new("UIStroke")
+            stroke.Color = Color3.fromRGB(100, 100, 120)
+            stroke.Thickness = 2
+            stroke.Parent = btn
+            btn.MouseButton1Down:Connect(function()
+                if controlActive and controlTarget then
+                    btn.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+                    if data then
+                        controlMode = data.mode
+                        keypress(data.key)
+                        beginOffsetSwitch()
+                    end
+                end
+            end)
+            btn.MouseButton1Up:Connect(function()
+                if controlActive then
+                    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+                    if data then
+                        controlMode = "Default"
+                        keyrelease(data.key)
+                        beginOffsetSwitch()
+                    end
+                end
+            end)
+            return btn
+        end
+
+        createButton("W", UDim2.new(0.5, -buttonSize/2, 0, 0), { key = Enum.KeyCode.W, mode = "W" })
+        createButton("A", UDim2.new(0, 0, 0.5, -buttonSize/2 + 10), { key = Enum.KeyCode.A, mode = "A" })
+        createButton("S", UDim2.new(0.5, -buttonSize/2, 0.5, -buttonSize/2 + 10), { key = Enum.KeyCode.S, mode = "S" })
+        createButton("D", UDim2.new(1, -buttonSize, 0.5, -buttonSize/2 + 10), { key = Enum.KeyCode.D, mode = "D" })
+
+        local spaceBtn = Instance.new("TextButton")
+        spaceBtn.Size = UDim2.new(0, buttonSize * 1.2, 0, 45)
+        spaceBtn.Position = UDim2.new(0.5, -buttonSize * 0.6, 0.8, 0)
+        spaceBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+        spaceBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        spaceBtn.Font = Enum.Font.GothamBold
+        spaceBtn.TextSize = 18
+        spaceBtn.Text = "JUMP"
+        spaceBtn.BackgroundTransparency = 0.15
+        spaceBtn.BorderSizePixel = 0
+        spaceBtn.Parent = btnFrame
+        local sc = Instance.new("UICorner")
+        sc.CornerRadius = UDim.new(0, 14)
+        sc.Parent = spaceBtn
+        local ss = Instance.new("UIStroke")
+        ss.Color = Color3.fromRGB(100, 100, 120)
+        ss.Thickness = 2
+        ss.Parent = spaceBtn
+        spaceBtn.MouseButton1Down:Connect(function()
+            if controlActive and controlTarget then
+                spaceBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+                controlMode = "Space"
+                keypress(Enum.KeyCode.Space)
+                beginOffsetSwitch()
+            end
+        end)
+        spaceBtn.MouseButton1Up:Connect(function()
+            if controlActive then
+                spaceBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+                controlMode = "Default"
+                keyrelease(Enum.KeyCode.Space)
+                beginOffsetSwitch()
+            end
+        end)
+    end
+
+    local function setupKeyboardInput()
+        local inputBeganConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if gameProcessed then return end
+            if not controlActive or not controlTarget then return end
+            local key = input.KeyCode
+            if key == Enum.KeyCode.W then controlMode = "W"; beginOffsetSwitch()
+            elseif key == Enum.KeyCode.A then controlMode = "A"; beginOffsetSwitch()
+            elseif key == Enum.KeyCode.S then controlMode = "S"; beginOffsetSwitch()
+            elseif key == Enum.KeyCode.D then controlMode = "D"; beginOffsetSwitch()
+            elseif key == Enum.KeyCode.Space then controlMode = "Space"; beginOffsetSwitch()
+            end
+        end)
+        local inputEndedConn = UserInputService.InputEnded:Connect(function(input, gameProcessed)
+            if gameProcessed then return end
+            if not controlActive or not controlTarget then return end
+            local key = input.KeyCode
+            if key == Enum.KeyCode.W or key == Enum.KeyCode.A or key == Enum.KeyCode.S or key == Enum.KeyCode.D or key == Enum.KeyCode.Space then
+                controlMode = "Default"
+                beginOffsetSwitch()
+            end
+        end)
+        return inputBeganConn, inputEndedConn
+    end
+
+    local function stopControl()
+        controlActive = false
+        if controlConn then controlConn:Disconnect(); controlConn = nil end
+        if controlMobileGui then controlMobileGui:Destroy(); controlMobileGui = nil end
+        if keyboardBeganConn then keyboardBeganConn:Disconnect(); keyboardBeganConn = nil end
+        if keyboardEndedConn then keyboardEndedConn:Disconnect(); keyboardEndedConn = nil end
+        keyrelease(Enum.KeyCode.W); keyrelease(Enum.KeyCode.A)
+        keyrelease(Enum.KeyCode.S); keyrelease(Enum.KeyCode.D)
+        keyrelease(Enum.KeyCode.Space)
+        setHeadAnchored(false)
+        local char = player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                if controlSavedPos then
+                    root.CFrame = controlSavedPos
+                    controlSavedPos = nil
+                end
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                detach(root)
+            end
+            local hum = char:FindFirstChild("Humanoid")
+            if hum then workspace.CurrentCamera.CameraSubject = hum end
+        end
+        controlTarget = nil
+        controlTargetRoot = nil
+        controlRoot = nil
+        controlHum = nil
+    end
+
+    local function startControl(targetPlayer)
+        local char = player.Character
+        if not char then return end
+        controlRoot = char:FindFirstChild("HumanoidRootPart")
+        controlHum = char:FindFirstChild("Humanoid")
+        if not controlRoot or not controlHum then return end
+        controlTarget = targetPlayer
+        controlSavedPos = controlRoot.CFrame
+        controlActive = true
+        controlMode = "Default"
+        controlLastMode = "Default"
+        controlCanAnchor = true
+        controlReanchorId = 0
+        local targetChar = targetPlayer.Character
+        if targetChar then
+            controlTargetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+            if targetChar:FindFirstChild("Humanoid") then
+                workspace.CurrentCamera.CameraSubject = targetChar.Humanoid
+            end
+        end
+        controlMobileGui = Instance.new("ScreenGui")
+        controlMobileGui.Name = "ControlMobileButtons"
+        controlMobileGui.ResetOnSpawn = false
+        controlMobileGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        controlMobileGui.DisplayOrder = 2147483647
+        controlMobileGui.Parent = player:WaitForChild("PlayerGui")
+        createMobileButtons(controlMobileGui)
+        if keyboardBeganConn then keyboardBeganConn:Disconnect() end
+        if keyboardEndedConn then keyboardEndedConn:Disconnect() end
+        keyboardBeganConn, keyboardEndedConn = setupKeyboardInput()
+        controlConn = RunService.Heartbeat:Connect(function()
+            if not controlActive or not controlTarget then
+                if controlConn then controlConn:Disconnect() end
+                return
+            end
+            if not controlRoot or not controlRoot.Parent or controlHum.Health <= 0 then
+                detach(controlRoot)
+                if controlConn then controlConn:Disconnect() end
+                setHeadAnchored(false)
+                return
+            end
+            local curTargetChar = controlTarget.Character
+            if not curTargetChar then return end
+            local curTargetRoot = curTargetChar:FindFirstChild("HumanoidRootPart")
+            if not curTargetRoot then return end
+            controlTargetRoot = curTargetRoot
+            local currentPO = DefaultOffset
+            local currentRO = CFrame.Angles(0, 0, 0)
+            local mode = "Default"
+            if controlMode == "W" then currentPO = Offset_W; mode = "W"
+            elseif controlMode == "A" then currentPO = Offset_A; mode = "A"
+            elseif controlMode == "S" then currentPO = Offset_S; mode = "S"
+            elseif controlMode == "D" then currentPO = Offset_D; mode = "D"
+            elseif controlMode == "Space" then currentPO = Offset_Space; currentRO = CFrame.Angles(math.rad(-90), 0, 0); mode = "Space" end
+            if mode ~= controlLastMode then
+                controlLastMode = mode
+                beginOffsetSwitch()
+            end
+            controlRoot.CFrame = controlTargetRoot.CFrame * CFrame.new(currentPO) * currentRO
+            controlRoot.Velocity = Vector3.zero
+            controlRoot.RotVelocity = Vector3.zero
+            attach(controlRoot, controlTargetRoot)
+            if mode == "Space" then setHeadAnchored(false)
+            elseif controlCanAnchor then setHeadAnchored(true)
+            else setHeadAnchored(false) end
+        end)
+    end
+
+    PlayTab:CreateToggle({
+        Title = "Control",
+        Default = false,
+        Callback = function(Value)
+            if not Value then stopControl() return end
+            local t = GetPlayTarget()
+            if not t then return end
+            startControl(t)
+        end,
+    })
+end)

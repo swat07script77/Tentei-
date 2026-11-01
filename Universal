@@ -11792,7 +11792,61 @@ pcall(function()
     })
 end)
 local AbuseTab = Window:CreateTab("Abuse", "skull")
+-- =============================================
+-- HELPERS BASE
+-- =============================================
+local function attach(Part, TargetPart)
+    if sethiddenproperty and InstanceHandle then
+        pcall(function()
+            sethiddenproperty(Part, "PhysicsRepRootRef", InstanceHandle.new(TargetPart or Part))
+        end)
+    end
+end
 
+local function detach(Part)
+    if sethiddenproperty then
+        pcall(function()
+            sethiddenproperty(Part, "PhysicsRepRootRef", nil)
+        end)
+    end
+end
+
+-- =============================================
+-- DROPDOWN DE ALVO + REFRESH
+-- =============================================
+local PlayTarget = nil
+local PlayDropdown = nil
+
+local function GetPlayTarget()
+    if not PlayTarget or PlayTarget == "" then return nil end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name == PlayTarget then return plr end
+    end
+    return nil
+end
+
+local function RefreshPlayTargets()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then table.insert(list, plr.Name) end
+    end
+    table.sort(list)
+    if PlayDropdown and PlayDropdown.Update then
+        pcall(function() PlayDropdown:Update({ Options = list }) end)
+    end
+end
+
+PlayDropdown = AbuseTab:CreateDropdown({
+    Title    = "Select Target",
+    Options  = {},
+    Callback = function(Value) PlayTarget = Value end,
+})
+RefreshPlayTargets()
+
+AbuseTab:CreateButton({
+    Title    = "Refresh Target List",
+    Callback = function() RefreshPlayTargets() end,
+})
 -- =============================================
 -- ANTI-DAMAGE
 -- =============================================

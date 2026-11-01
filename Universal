@@ -1,381 +1,622 @@
--- ============================================================
--- ABA: MAIN SWORDS
--- ============================================================
-local MainSwordsTab = Window:CreateTab("Main Swords", "swords")
-
-local function Root(M) return M and M:FindFirstChild("HumanoidRootPart") end
-local function Hum(M) return M and M:FindFirstChildOfClass("Humanoid") end
-
-local SwordsTarget = nil
-local SwordsDropdown = nil
-
-local function GetSwordsTarget()
-    if not SwordsTarget or SwordsTarget == "" then return nil end
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Name == SwordsTarget then return plr end
-    end
-    return nil
-end
-
-local function RefreshSwords()
-    local list = {}
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
-    end
-    table.sort(list)
-    if SwordsDropdown and SwordsDropdown.Update then
-        pcall(function() SwordsDropdown:Update({ Options = list }) end)
-    end
-end
-
-SwordsDropdown = MainSwordsTab:CreateDropdown({
-    Title = "Select Target",
-    Options = {},
-    Callback = function(Value) SwordsTarget = Value end,
-})
-RefreshSwords()
-
-MainSwordsTab:CreateButton({
-    Title = "Refresh Target List",
-    Callback = function() RefreshSwords() end,
-})
-
-local function Mvmentbtn(Name, Offset, IsFling)
-    local Conn, SavedCF
-    MainSwordsTab:CreateToggle({
-        Title = Name, Default = false,
-        Callback = function(State)
-            if Conn then Conn:Disconnect(); Conn = nil end
-            local LRoot = Root(LocalPlayer.Character)
-            if not State then
-                if LRoot and SavedCF then
-                    LRoot.CFrame = SavedCF
-                    LRoot.Velocity = Vector3.zero
-                    LRoot.RotVelocity = Vector3.zero
-                    SavedCF = nil
-                end
-                return
-            end
-            if LRoot then SavedCF = LRoot.CFrame end
-            Conn = RunService.Heartbeat:Connect(function()
-                local lr = Root(LocalPlayer.Character)
-                local t = GetSwordsTarget()
-                local tr = t and Root(t.Character)
-                if not (lr and tr) then return end
-                lr.CFrame = CFrame.new(tr.Position + Offset) * CFrame.Angles(-math.pi/2, 0, 0)
-                local vel = IsFling and Vector3.new(500, 500, 500) or Vector3.zero
-                lr.Velocity = vel
-                lr.RotVelocity = vel
-            end)
-        end,
-    })
-end
-
-Mvmentbtn("Fling Player", Vector3.new(0, 0, 0), true)
-Mvmentbtn("Fling 2.0", Vector3.new(0, -2.5, 0), true)
-Mvmentbtn("Platform Fly", Vector3.new(0, -2.8, 0), false)
-Mvmentbtn("Magic Carpet", Vector3.new(0, -3.1, 0), false)
-Mvmentbtn("Elevator", Vector3.new(0, -2.6, 0), false)
-Mvmentbtn("Anti Jump", Vector3.new(0, 3.5, 0), false)
-
-local function Bind(Name, Offset)
-    local Conn
-    MainSwordsTab:CreateToggle({
-        Title = Name, Default = false,
-        Callback = function(State)
-            if Conn then Conn:Disconnect(); Conn = nil end
-            if not State then return end
-            Conn = RunService.Heartbeat:Connect(function()
-                local lr = Root(LocalPlayer.Character)
-                local t = GetSwordsTarget()
-                local tr = t and Root(t.Character)
-                if lr and tr then
-                    lr.CFrame = tr.CFrame * CFrame.new(Offset)
-                    lr.Velocity = Vector3.zero
-                end
-            end)
-        end,
-    })
-end
-
-Bind("Infinite Jump", Vector3.new(0, -5.75, 0))
-Bind("Speed Boost (slow)", Vector3.new(0, 0.7, 1))
-Bind("Speed Boost (medium)", Vector3.new(0, 0.7, 0.5))
-Bind("Speed Boost (fast)", Vector3.new(0, 0.7, 0.35))
-Bind("Movement Breaker", Vector3.new(0, 0.7, -0.8))
-
--- ============================================================
--- ABA: MAIN
--- ============================================================
 local MainTab = Window:CreateTab("Main", "home")
 
-local MainTarget = nil
-local MainDropdown = nil
+local function SetHidden(obj, prop, value)
+    if sethiddenproperty then
+        pcall(sethiddenproperty, obj, prop, value)
+    end
+end
 
-local function GetMainTarget()
-    if not MainTarget or MainTarget == "" then return nil end
+local function AttachRoot(root, targetRoot)
+    SetHidden(root, "PhysicsRepRootPart", targetRoot)
+end
+
+local TargetPlayer = nil
+local TargetDropdown = nil
+
+local function GetTarget()
+    if not TargetPlayer or TargetPlayer == "" then return nil end
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Name == MainTarget then return plr end
+        if plr.Name == TargetPlayer then return plr end
     end
     return nil
 end
 
-local function RefreshMain()
+local function RefreshTargetList()
     local list = {}
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer then table.insert(list, plr.Name) end
     end
     table.sort(list)
-    if MainDropdown and MainDropdown.Update then
-        pcall(function() MainDropdown:Update({ Options = list }) end)
+    if TargetDropdown and TargetDropdown.Update then
+        pcall(function() TargetDropdown:Update({ Options = list }) end)
     end
 end
 
-MainDropdown = MainTab:CreateDropdown({
+TargetDropdown = MainTab:CreateDropdown({
     Title = "Select Target",
     Options = {},
-    Callback = function(Value) MainTarget = Value end,
+    Callback = function(Value) TargetPlayer = Value end,
 })
-RefreshMain()
+RefreshTargetList()
 
 MainTab:CreateButton({
     Title = "Refresh Target List",
-    Callback = function() RefreshMain() end,
+    Callback = function() RefreshTargetList() end,
 })
 
-MainTab:CreateButton({
-    Title = "Goto",
-    Callback = function()
-        local t = GetMainTarget()
-        if not t then return end
-        local tr = Root(t.Character)
-        local mr = Root(LocalPlayer.Character)
-        if tr and mr then mr.CFrame = tr.CFrame * CFrame.new(2, 0, 0) end
+local killAllLoopActive = false
+local killAllLoopConnection = nil
+local currentTargetIndex = 1
+local SWITCH_INTERVAL = 0.2
+local BOBBING_SPEED = 20
+local originalLoopCFrame = nil
+
+MainTab:CreateToggle({
+    Title = "Kill All Loop",
+    Default = false,
+    Callback = function(Value)
+        killAllLoopActive = Value
+        if Value then
+            if not LocalPlayer.Character then
+                LocalPlayer.CharacterAdded:Wait()
+            end
+            local localChar = LocalPlayer.Character
+            if not localChar then return end
+
+            for _, part in pairs(localChar:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    pcall(function() part:SetNetworkOwner(LocalPlayer) end)
+                end
+            end
+
+            local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+            local localHum = localChar:FindFirstChild("Humanoid")
+            if not localRoot or not localHum then return end
+
+            originalLoopCFrame = localRoot.CFrame
+            local UP_FORCE = Vector3.new(0, 9e9, 0)
+            local lastSwitch = tick()
+
+            killAllLoopConnection = RunService.Heartbeat:Connect(function()
+                if not killAllLoopActive then return end
+                localChar = LocalPlayer.Character
+                if not localChar then return end
+                localRoot = localChar:FindFirstChild("HumanoidRootPart")
+                localHum = localChar:FindFirstChild("Humanoid")
+                if not localRoot or not localHum then return end
+
+                localHum.PlatformStand = true
+                localRoot.Velocity = Vector3.zero
+                localRoot.RotVelocity = Vector3.zero
+
+                local targets = {}
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LocalPlayer and p.Character then
+                        local head = p.Character:FindFirstChild("Head")
+                        local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                        if head and hrp then
+                            table.insert(targets, {head = head, hrp = hrp})
+                        end
+                    end
+                end
+                if #targets == 0 then return end
+
+                if tick() - lastSwitch >= SWITCH_INTERVAL then
+                    currentTargetIndex = (currentTargetIndex % #targets) + 1
+                    lastSwitch = tick()
+                end
+
+                local target = targets[currentTargetIndex]
+                if target and target.head and target.hrp then
+                    local headPos = target.head.Position
+                    local bellyPos = target.hrp.Position
+                    local cycle = (tick() * BOBBING_SPEED) % 1
+                    local y = headPos.Y + (bellyPos.Y - headPos.Y) * (0.5 - 0.5 * math.cos(cycle * 2 * math.pi))
+                    localRoot.CFrame = CFrame.new(headPos.X, y, headPos.Z)
+                    localRoot.Velocity = Vector3.zero
+                    localRoot.RotVelocity = Vector3.zero
+                    target.hrp.Velocity = UP_FORCE
+                    target.hrp.RotVelocity = Vector3.zero
+                    AttachRoot(localRoot, target.hrp)
+                end
+            end)
+        else
+            if killAllLoopConnection then killAllLoopConnection:Disconnect(); killAllLoopConnection = nil end
+            local localChar = LocalPlayer.Character
+            if localChar then
+                local hum = localChar:FindFirstChild("Humanoid")
+                local root = localChar:FindFirstChild("HumanoidRootPart")
+                if hum then hum.PlatformStand = false end
+                if root then
+                    AttachRoot(root, nil)
+                    root.Velocity = Vector3.zero
+                    root.RotVelocity = Vector3.zero
+                    if originalLoopCFrame then root.CFrame = originalLoopCFrame end
+                end
+            end
+        end
     end,
 })
 
+local killAllRunning = false
 MainTab:CreateButton({
     Title = "Kill All",
     Callback = function()
-        local c = LocalPlayer.Character
-        if not c then return end
-        local h = Hum(c)
-        local r = Root(c)
-        if not h or not r then return end
-        local orig = r.CFrame
-        local origP = h.PlatformStand
-        h.PlatformStand = true
-        local UP = Vector3.new(0, 9e9, 0)
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character then
-                local hrp = Root(p.Character)
-                if hrp then hrp.Velocity = UP; hrp.RotVelocity = Vector3.zero end
+        if killAllRunning then return end
+        local char = LocalPlayer.Character
+        if not char then return end
+        local hum = char:FindFirstChild("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not hum or not root then return end
+
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                pcall(function() part:SetNetworkOwner(LocalPlayer) end)
             end
         end
-        task.delay(1.5, function()
-            h.PlatformStand = origP
-            r.CFrame = orig
-            r.Velocity = Vector3.zero
-            r.RotVelocity = Vector3.zero
+
+        killAllRunning = true
+        local UP_FORCE = Vector3.new(0, 9e9, 0)
+        local originalCFrame = root.CFrame
+        local originalPlatformStand = hum.PlatformStand
+        hum.PlatformStand = true
+
+        local targets = {}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                local head = p.Character:FindFirstChild("Head")
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if head and hrp then
+                    table.insert(targets, {head = head, hrp = hrp})
+                end
+            end
+        end
+        if #targets == 0 then
+            hum.PlatformStand = originalPlatformStand
+            killAllRunning = false
+            return
+        end
+
+        local index = 1
+        local connection
+        connection = RunService.Heartbeat:Connect(function()
+            if index > #targets then
+                connection:Disconnect()
+                hum.PlatformStand = originalPlatformStand
+                root.CFrame = originalCFrame
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                AttachRoot(root, nil)
+                killAllRunning = false
+                return
+            end
+            local target = targets[index]
+            if target and target.head and target.hrp and target.head.Parent and target.hrp.Parent then
+                local headPos = target.head.Position
+                local bellyPos = target.hrp.Position
+                local cycle = (tick() * BOBBING_SPEED) % 1
+                local y = headPos.Y + (bellyPos.Y - headPos.Y) * (0.5 - 0.5 * math.cos(cycle * 2 * math.pi))
+                root.CFrame = CFrame.new(headPos.X, y, headPos.Z)
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                target.hrp.Velocity = UP_FORCE
+                target.hrp.RotVelocity = Vector3.zero
+                AttachRoot(root, target.hrp)
+                task.wait(0.08)
+            end
+            index = index + 1
         end)
     end,
 })
 
+local loopKillActive = false
+local loopKillConn = nil
+local loopKillOriginalCFrame = nil
+local loopKillOriginalPlatform = false
 MainTab:CreateToggle({
     Title = "Loop Kill",
     Default = false,
     Callback = function(Value)
-        if not Value then return end
-        local t = GetMainTarget()
-        if not t then
-            Window:Notify({ Title = "Loop Kill", Description = "Select a player.", Duration = 2, Type = "warning" })
+        loopKillActive = Value
+        if loopKillConn then loopKillConn:Disconnect(); loopKillConn = nil end
+        if not Value then
+            local char = LocalPlayer.Character
+            if char then
+                local hum = char:FindFirstChild("Humanoid")
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if hum then hum.PlatformStand = loopKillOriginalPlatform end
+                if root then
+                    if loopKillOriginalCFrame then root.CFrame = loopKillOriginalCFrame end
+                    root.Velocity = Vector3.zero
+                    root.RotVelocity = Vector3.zero
+                    AttachRoot(root, nil)
+                end
+            end
+            loopKillOriginalCFrame = nil
             return
         end
-        local c = LocalPlayer.Character
-        if not c then return end
-        local r = Root(c)
-        local h = Hum(c)
-        if not r or not h then return end
-        local orig = r.CFrame
-        local origP = h.PlatformStand
-        h.PlatformStand = true
-        local UP = Vector3.new(0, 9e9, 0)
-        local running = true
-        local conn
-        conn = RunService.Heartbeat:Connect(function()
-            if not running then return end
-            local tt = GetMainTarget()
-            if not tt or not tt.Character then return end
-            local tr = Root(tt.Character)
-            local head = tt.Character:FindFirstChild("Head")
-            local cr = Root(LocalPlayer.Character)
-            if not tr or not head or not cr then return end
-            local cycle = (tick() * 20) % 1
-            local y = head.Position.Y + (tr.Position.Y - head.Position.Y) * (0.5 - 0.5 * math.cos(cycle * 2 * math.pi))
-            cr.CFrame = CFrame.new(head.Position.X, y, head.Position.Z)
-            cr.Velocity = Vector3.zero
-            cr.RotVelocity = Vector3.zero
-            tr.Velocity = UP
-            tr.RotVelocity = Vector3.zero
+        local target = GetTarget()
+        if not target then return end
+        local char = LocalPlayer.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChild("Humanoid")
+        if not root or not hum then return end
+        loopKillOriginalCFrame = root.CFrame
+        loopKillOriginalPlatform = hum.PlatformStand
+        hum.PlatformStand = true
+        loopKillConn = RunService.Heartbeat:Connect(function()
+            if not loopKillActive then return end
+            local t = GetTarget()
+            if not t or not t.Character then return end
+            local tHRP = t.Character:FindFirstChild("HumanoidRootPart")
+            local tHead = t.Character:FindFirstChild("Head")
+            if not tHRP or not tHead then return end
+            local curRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local curHum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+            if not curRoot or not curHum then return end
+            curHum.PlatformStand = true
+            local headPos = tHead.Position
+            local bellyPos = tHRP.Position
+            local cycle = (tick() * BOBBING_SPEED) % 1
+            local y = headPos.Y + (bellyPos.Y - headPos.Y) * (0.5 - 0.5 * math.cos(cycle * 2 * math.pi))
+            curRoot.CFrame = CFrame.new(headPos.X, y, headPos.Z)
+            curRoot.Velocity = Vector3.zero
+            curRoot.RotVelocity = Vector3.zero
+            tHRP.Velocity = Vector3.new(0, 9e9, 0)
+            tHRP.RotVelocity = Vector3.zero
+            AttachRoot(curRoot, tHRP)
         end)
-        -- Salva conn para desligar
-        _G._LoopKillConn = conn
+    end,
+})
+
+local auraActive = false
+local auraConnection = nil
+local auraAttackConnection = nil
+local isAttacking = false
+local lastAttackTime = 0
+local auraOriginalCFrame = nil
+local AURA_DISTANCE = 2
+local ATTACK_DURATION = 2
+local COOLDOWN = 1
+
+local function restoreCharacter(originalCFrame)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChild("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if hum then hum.PlatformStand = false; hum.AutoRotate = true end
+    if root then
+        AttachRoot(root, nil)
+        root.Velocity = Vector3.zero
+        root.RotVelocity = Vector3.zero
+        if originalCFrame then root.CFrame = originalCFrame end
+    end
+end
+
+local function attackTarget(targetPlayer)
+    if isAttacking then return end
+    local myChar = LocalPlayer.Character
+    if not myChar then return end
+    local myRoot = myChar:FindFirstChild("HumanoidRootPart")
+    local myHum = myChar:FindFirstChild("Humanoid")
+    if not myRoot or not myHum then return end
+    local targetChar = targetPlayer.Character
+    if not targetChar then return end
+    local targetHead = targetChar:FindFirstChild("Head")
+    local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
+    if not targetHead or not targetHRP then return end
+    auraOriginalCFrame = myRoot.CFrame
+    myHum.PlatformStand = true
+    isAttacking = true
+    local startTime = tick()
+    auraAttackConnection = RunService.Heartbeat:Connect(function()
+        if tick() - startTime >= ATTACK_DURATION or not auraActive then
+            if auraAttackConnection then auraAttackConnection:Disconnect(); auraAttackConnection = nil end
+            restoreCharacter(auraOriginalCFrame)
+            isAttacking = false
+            lastAttackTime = tick()
+            return
+        end
+        local curChar = LocalPlayer.Character
+        local curTarget = targetPlayer.Character
+        if not curChar or not curTarget then
+            if auraAttackConnection then auraAttackConnection:Disconnect(); auraAttackConnection = nil end
+            restoreCharacter(auraOriginalCFrame)
+            isAttacking = false
+            return
+        end
+        local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+        local curHead = curTarget:FindFirstChild("Head")
+        local curHRP = curTarget:FindFirstChild("HumanoidRootPart")
+        if not curRoot or not curHead or not curHRP then
+            if auraAttackConnection then auraAttackConnection:Disconnect(); auraAttackConnection = nil end
+            restoreCharacter(auraOriginalCFrame)
+            isAttacking = false
+            return
+        end
+        local headPos = curHead.Position
+        local bellyPos = curHRP.Position
+        local cycle = (tick() * BOBBING_SPEED) % 1
+        local y = headPos.Y + (bellyPos.Y - headPos.Y) * (0.5 - 0.5 * math.cos(cycle * 2 * math.pi))
+        curRoot.CFrame = CFrame.new(headPos.X, y, headPos.Z)
+        curRoot.Velocity = Vector3.zero
+        curRoot.RotVelocity = Vector3.zero
+        curHRP.Velocity = Vector3.new(0, 9e9, 0)
+        curHRP.RotVelocity = Vector3.zero
+        AttachRoot(curRoot, curHRP)
+    end)
+end
+
+MainTab:CreateToggle({
+    Title = "Kill Aura",
+    Default = false,
+    Callback = function(Value)
+        auraActive = Value
+        if auraConnection then auraConnection:Disconnect(); auraConnection = nil end
+        if auraAttackConnection then auraAttackConnection:Disconnect(); auraAttackConnection = nil end
+        isAttacking = false
+        if Value then
+            auraConnection = RunService.Heartbeat:Connect(function()
+                if not auraActive or isAttacking then return end
+                if tick() - lastAttackTime < COOLDOWN then return end
+                local myChar = LocalPlayer.Character
+                local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                if not myRoot then return end
+                local closest = nil
+                local minDist = AURA_DISTANCE
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LocalPlayer and p.Character then
+                        local head = p.Character:FindFirstChild("Head")
+                        if head then
+                            local dist = (head.Position - myRoot.Position).Magnitude
+                            if dist < minDist then
+                                minDist = dist
+                                closest = p
+                            end
+                        end
+                    end
+                end
+                if closest then attackTarget(closest) end
+            end)
+        else
+            restoreCharacter(auraOriginalCFrame)
+        end
+    end,
+})
+
+local walkFlingEnabled = false
+local walkFlingThread = nil
+MainTab:CreateToggle({
+    Title = "WalkFling",
+    Default = false,
+    Callback = function(State)
+        walkFlingEnabled = State
+        if State then
+            local movel = 0.1
+            if walkFlingThread then task.cancel(walkFlingThread) end
+            walkFlingThread = task.spawn(function()
+                while walkFlingEnabled do
+                    RunService.Heartbeat:Wait()
+                    local char = LocalPlayer.Character
+                    local root = char and char:FindFirstChild("HumanoidRootPart")
+                    while walkFlingEnabled and not (char and char.Parent and root and root.Parent) do
+                        RunService.Heartbeat:Wait()
+                        char = LocalPlayer.Character
+                        root = char and char:FindFirstChild("HumanoidRootPart")
+                    end
+                    if not walkFlingEnabled then break end
+                    local vel = root.Velocity
+                    root.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
+                    RunService.RenderStepped:Wait()
+                    if walkFlingEnabled and char.Parent and root.Parent then
+                        root.Velocity = vel
+                    end
+                    RunService.Stepped:Wait()
+                    if walkFlingEnabled and char.Parent and root.Parent then
+                        root.Velocity = vel + Vector3.new(0, movel, 0)
+                        movel = movel * -1
+                    end
+                end
+            end)
+        else
+            walkFlingEnabled = false
+            if walkFlingThread then task.cancel(walkFlingThread); walkFlingThread = nil end
+            local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if root then root.Velocity = Vector3.zero end
+        end
+    end,
+})
+
+local spawnLockEnabled = false
+local deathPosition = nil
+local spawnLockConnection = nil
+MainTab:CreateToggle({
+    Title = "Spawn Lock",
+    Default = false,
+    Callback = function(State)
+        spawnLockEnabled = State
+        if State then
+            if spawnLockConnection then spawnLockConnection:Disconnect() end
+            spawnLockConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+                if not spawnLockEnabled then return end
+                local root = char:WaitForChild("HumanoidRootPart", 5)
+                if not root then return end
+                if deathPosition then
+                    root.CFrame = CFrame.new(deathPosition)
+                    AttachRoot(root, root)
+                end
+                local hum = char:WaitForChild("Humanoid")
+                if hum then
+                    hum.Died:Connect(function()
+                        if not spawnLockEnabled then return end
+                        local currentRoot = char:FindFirstChild("HumanoidRootPart")
+                        if currentRoot then deathPosition = currentRoot.Position end
+                    end)
+                end
+            end)
+            if LocalPlayer.Character then
+                local currentChar = LocalPlayer.Character
+                local hum = currentChar:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.Died:Connect(function()
+                        if not spawnLockEnabled then return end
+                        local root = currentChar:FindFirstChild("HumanoidRootPart")
+                        if root then deathPosition = root.Position end
+                    end)
+                end
+            end
+        else
+            if spawnLockConnection then spawnLockConnection:Disconnect(); spawnLockConnection = nil end
+            deathPosition = nil
+            local currentChar = LocalPlayer.Character
+            if currentChar then
+                local root = currentChar:FindFirstChild("HumanoidRootPart")
+                if root then AttachRoot(root, nil) end
+            end
+        end
+    end,
+})
+
+local swimActive = false
+local swimLoop = nil
+MainTab:CreateToggle({
+    Title = "Swim",
+    Default = false,
+    Callback = function(Value)
+        swimActive = Value
+        local char = LocalPlayer.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChild("Humanoid")
+        if not root or not hum then return end
+        local function cleanup()
+            if root then
+                if root:FindFirstChild("SwimVelocity") then root.SwimVelocity:Destroy() end
+                if root:FindFirstChild("SwimGyro") then root.SwimGyro:Destroy() end
+            end
+            if hum then
+                hum.PlatformStand = false
+                hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
+                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end
+            if swimLoop then swimLoop:Disconnect(); swimLoop = nil end
+        end
+        if Value then
+            local speed = 60
+            local bv = Instance.new("BodyVelocity")
+            bv.Name = "SwimVelocity"
+            bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            bv.Parent = root
+            local bg = Instance.new("BodyGyro")
+            bg.Name = "SwimGyro"
+            bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+            bg.P = 5000
+            bg.Parent = root
+            local camera = workspace.CurrentCamera
+            local uis = UserInputService
+            swimLoop = RunService.RenderStepped:Connect(function()
+                if not swimActive or not char.Parent then cleanup(); return end
+                hum:ChangeState(Enum.HumanoidStateType.Swimming)
+                local moveDir = hum.MoveDirection
+                local verticalMove = 0
+                if uis:IsKeyDown(Enum.KeyCode.Space) then verticalMove = 1
+                elseif uis:IsKeyDown(Enum.KeyCode.LeftControl) then verticalMove = -1 end
+                local totalDir = moveDir + Vector3.new(0, verticalMove, 0)
+                if totalDir.Magnitude > 0 then
+                    bv.Velocity = totalDir.Unit * speed
+                else
+                    bv.Velocity = Vector3.zero
+                end
+                bg.CFrame = camera.CFrame * CFrame.Angles(math.rad(-90), 0, 0)
+            end)
+        else
+            cleanup()
+        end
     end,
 })
 
 MainTab:CreateButton({
     Title = "Reset",
     Callback = function()
-        local c = LocalPlayer.Character
-        local h = c and Hum(c)
-        if replicatesignal then pcall(function() replicatesignal(LocalPlayer.Kill) end) end
-        if h then h:ChangeState(Enum.HumanoidStateType.Dead); h.Health = 0 end
-    end,
-})
-
--- ============================================================
--- ABA: PLAY
--- ============================================================
-local PlayTab = Window:CreateTab("Play", "play")
-
-local PlayTarget = nil
-local PlayDropdown = nil
-
-local function GetPlayTarget()
-    if not PlayTarget or PlayTarget == "" then return nil end
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Name == PlayTarget then return plr end
-    end
-    return nil
-end
-
-local function RefreshPlay()
-    local list = {}
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
-    end
-    table.sort(list)
-    if PlayDropdown and PlayDropdown.Update then
-        pcall(function() PlayDropdown:Update({ Options = list }) end)
-    end
-end
-
-PlayDropdown = PlayTab:CreateDropdown({
-    Title = "Select Target",
-    Options = {},
-    Callback = function(Value) PlayTarget = Value end,
-})
-RefreshPlay()
-
-PlayTab:CreateButton({
-    Title = "Refresh Target List",
-    Callback = function() RefreshPlay() end,
-})
-
-PlayTab:CreateButton({
-    Title = "Goto",
-    Callback = function()
-        local t = GetPlayTarget()
-        if not t then return end
-        local tr = Root(t.Character)
-        local mr = Root(LocalPlayer.Character)
-        if tr and mr then mr.CFrame = tr.CFrame * CFrame.new(2, 0, 0) end
-    end,
-})
-
-PlayTab:CreateButton({
-    Title = "Fling Target",
-    Callback = function()
-        local t = GetPlayTarget()
-        if not t then return end
-        local tr = Root(t.Character)
-        local mr = Root(LocalPlayer.Character)
-        if not tr or not mr then return end
-        local bv = Instance.new("BodyVelocity")
-        bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
-        bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-        bv.Parent = tr
-        task.delay(3, function() bv:Destroy() end)
-    end,
-})
-
-PlayTab:CreateButton({
-    Title = "Fling All",
-    Callback = function()
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer then
-                local r = Root(p.Character)
-                if r then
-                    local bv = Instance.new("BodyVelocity")
-                    bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
-                    bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-                    bv.Parent = r
-                    task.delay(3, function() bv:Destroy() end)
-                end
+        local char = LocalPlayer.Character
+        local humanoid = char and char:FindFirstChildWhichIsA("Humanoid")
+        local success = false
+        pcall(function()
+            if replicatesignal then
+                replicatesignal(LocalPlayer.Kill)
+                success = true
             end
+        end)
+        if not success and humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Dead)
+            humanoid.Health = 0
+            success = true
+        end
+        if not success and char then
+            char:BreakJoints()
         end
     end,
 })
 
-PlayTab:CreateToggle({
-    Title = "Orbit",
+local walksitOriginalAnims = {}
+MainTab:CreateToggle({
+    Title = "Walksit",
     Default = false,
     Callback = function(Value)
-        if not Value then return end
-        local ang = 0
-        local conn
-        conn = RunService.Heartbeat:Connect(function()
-            if not Value then conn:Disconnect(); return end
-            local t = GetPlayTarget()
-            if not t or not t.Character then return end
-            local tr = Root(t.Character)
-            local mr = Root(LocalPlayer.Character)
-            if not tr or not mr then return end
-            ang = ang + 0.1
-            mr.CFrame = CFrame.new(tr.Position + Vector3.new(math.cos(ang)*5, 0, math.sin(ang)*5), tr.Position)
-            mr.Velocity = Vector3.zero
-            mr.RotVelocity = Vector3.zero
-        end)
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildWhichIsA("Humanoid")
+        if not char or not hum then return end
+        local anims = char:FindFirstChild("Animate")
+        if not anims then return end
+        if Value then
+            walksitOriginalAnims = {
+                idle = anims.idle:FindFirstChildWhichIsA("Animation").AnimationId,
+                walk = anims.walk:FindFirstChildWhichIsA("Animation").AnimationId,
+                run = anims.run:FindFirstChildWhichIsA("Animation").AnimationId,
+                jump = anims.jump:FindFirstChildWhichIsA("Animation").AnimationId,
+            }
+            local sitId = anims.sit:FindFirstChildWhichIsA("Animation").AnimationId
+            anims.idle:FindFirstChildWhichIsA("Animation").AnimationId = sitId
+            anims.walk:FindFirstChildWhichIsA("Animation").AnimationId = sitId
+            anims.run:FindFirstChildWhichIsA("Animation").AnimationId = sitId
+            anims.jump:FindFirstChildWhichIsA("Animation").AnimationId = sitId
+            for _, track in pairs(hum:GetPlayingAnimationTracks()) do track:Stop() end
+            hum.HipHeight = (hum.RigType == Enum.HumanoidRigType.R15) and 1.35 or -1.45
+        else
+            if anims.idle:FindFirstChildWhichIsA("Animation") then anims.idle:FindFirstChildWhichIsA("Animation").AnimationId = walksitOriginalAnims.idle end
+            if anims.walk:FindFirstChildWhichIsA("Animation") then anims.walk:FindFirstChildWhichIsA("Animation").AnimationId = walksitOriginalAnims.walk end
+            if anims.run:FindFirstChildWhichIsA("Animation") then anims.run:FindFirstChildWhichIsA("Animation").AnimationId = walksitOriginalAnims.run end
+            if anims.jump:FindFirstChildWhichIsA("Animation") then anims.jump:FindFirstChildWhichIsA("Animation").AnimationId = walksitOriginalAnims.jump end
+            hum.HipHeight = (hum.RigType == Enum.HumanoidRigType.R15) and 2 or 0
+        end
     end,
 })
 
-PlayTab:CreateToggle({
-    Title = "View Target",
-    Default = false,
-    Callback = function(Value)
-        if not Value then
-            local mh = Hum(LocalPlayer.Character)
-            if mh then workspace.CurrentCamera.CameraSubject = mh end
-            return
+MainTab:CreateButton({
+    Title = "Re",
+    Callback = function()
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        local savedPos = root.Position
+        _G.savedPosition = savedPos
+        local hum = char:FindFirstChildWhichIsA("Humanoid")
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Dead)
+            hum.Health = 0
+        else
+            char:BreakJoints()
         end
         local conn
-        conn = RunService.Heartbeat:Connect(function()
-            if not Value then conn:Disconnect(); return end
-            local t = GetPlayTarget()
-            if not t or not t.Character then return end
-            local th = Hum(t.Character)
-            if th then
-                workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
-                workspace.CurrentCamera.CameraSubject = th
+        conn = LocalPlayer.CharacterAdded:Connect(function(newChar)
+            conn:Disconnect()
+            if not _G.savedPosition then return end
+            local newRoot = newChar:WaitForChild("HumanoidRootPart", 5)
+            if newRoot then
+                newRoot.CFrame = CFrame.new(_G.savedPosition)
             end
+            _G.savedPosition = nil
         end)
-    end,
-})
-
-PlayTab:CreateButton({
-    Title = "Copy Name",
-    Callback = function()
-        local t = GetPlayTarget()
-        if not t then return end
-        if setclipboard then setclipboard(t.Name) end
-    end,
-})
-
-PlayTab:CreateButton({
-    Title = "Copy User ID",
-    Callback = function()
-        local t = GetPlayTarget()
-        if not t then return end
-        if setclipboard then setclipboard(tostring(t.UserId)) end
     end,
 })

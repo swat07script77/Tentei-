@@ -2672,3 +2672,1354 @@ pcall(function()
         end,
     })
 end)
+local VisualTab = Window:CreateTab("Visual", "eye")
+
+local VisualTarget = nil
+local VisualDropdown = nil
+
+local function GetVisualTarget()
+    if not VisualTarget or VisualTarget == "" then return nil end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name == VisualTarget then return plr end
+    end
+    return nil
+end
+
+local function RefreshVisualTargets()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
+    end
+    table.sort(list)
+    if VisualDropdown and VisualDropdown.Update then
+        pcall(function() VisualDropdown:Update({ Options = list }) end)
+    end
+end
+
+VisualDropdown = VisualTab:CreateDropdown({
+    Title = "Select Target",
+    Options = {},
+    Callback = function(Value) VisualTarget = Value end,
+})
+RefreshVisualTargets()
+
+VisualTab:CreateButton({
+    Title = "Refresh Target List",
+    Callback = function() RefreshVisualTargets() end,
+})
+
+pcall(function()
+    local espActive = false
+    local espHighlights = {}
+    local espBillboards = {}
+    local espUpdateConn = nil
+    local espConnections = {}
+
+    local function removeEsp(plr)
+        if espHighlights[plr] then pcall(function() espHighlights[plr]:Destroy() end); espHighlights[plr] = nil end
+        if espBillboards[plr] then pcall(function() espBillboards[plr].bill:Destroy() end); espBillboards[plr] = nil end
+    end
+
+    local function addEsp(plr)
+        if plr == LocalPlayer or not plr.Character then return end
+        local highlight = Instance.new("Highlight")
+        highlight.FillTransparency = 1
+        highlight.OutlineTransparency = 0
+        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        highlight.Adornee = plr.Character
+        highlight.Parent = plr.Character
+        espHighlights[plr] = highlight
+
+        local head = plr.Character:FindFirstChild("Head")
+        if head then
+            local bill = Instance.new("BillboardGui")
+            bill.Adornee = head
+            bill.Size = UDim2.new(0, 200, 0, 50)
+            bill.StudsOffset = Vector3.new(0, 2.5, 0)
+            bill.AlwaysOnTop = true
+            bill.Parent = head
+            local label = Instance.new("TextLabel", bill)
+            label.BackgroundTransparency = 1
+            label.Size = UDim2.new(1, 0, 1, 0)
+            label.TextScaled = true
+            label.Font = Enum.Font.GothamBold
+            label.TextColor3 = Color3.fromRGB(255, 255, 255)
+            label.TextStrokeTransparency = 0.8
+            label.Text = ""
+            espBillboards[plr] = {bill = bill, label = label}
+        end
+
+        table.insert(espConnections, plr.CharacterAdded:Connect(function()
+            if espActive then task.wait(0.5); removeEsp(plr); addEsp(plr) end
+        end))
+    end
+
+    VisualTab:CreateToggle({
+        Title = "ESP",
+        Default = false,
+        Callback = function(Value)
+            espActive = Value
+            if Value then
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= LocalPlayer then addEsp(plr) end
+                end
+                table.insert(espConnections, Players.PlayerAdded:Connect(function(plr)
+                    if espActive then plr.CharacterAdded:Wait(); addEsp(plr) end
+                end))
+                table.insert(espConnections, Players.PlayerRemoving:Connect(function(plr) removeEsp(plr) end))
+                espUpdateConn = RunService.Heartbeat:Connect(function()
+                    if not espActive then return end
+                    for plr, data in pairs(espBillboards) do
+                        if plr.Character then
+                            local r = plr.Character:FindFirstChild("HumanoidRootPart")
+                            local h = plr.Character:FindFirstChildOfClass("Humanoid")
+                            local myR = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                            if r and h and myR then
+                                data.label.Text = string.format("%s | %dm | %dHP", plr.Name, math.floor((r.Position - myR.Position).Magnitude), math.floor(h.Health))
+                            end
+                        end
+                    end
+                end)
+            else
+                for plr in pairs(espHighlights) do removeEsp(plr) end
+                for _, c in ipairs(espConnections) do pcall(function() c:Disconnect() end) end
+                espConnections = {}
+                if espUpdateConn then espUpdateConn:Disconnect(); espUpdateConn = nil end
+            end
+        end,
+    })
+end)
+
+pcall(function()
+    local targetActive = false
+    local targetHl = nil
+    local targetBill = nil
+    local targetCharConn = nil
+
+    local function stopTargetEsp()
+        targetActive = false
+        if targetHl then pcall(function() targetHl:Destroy() end); targetHl = nil end
+        if targetBill then pcall(function() targetBill.bill:Destroy() end); targetBill = nil end
+        if targetCharConn then pcall(function() targetCharConn:Disconnect() end); targetCharConn = nil end
+    end
+
+    VisualTab:CreateToggle({
+        Title = "ESP Target",
+        Default = false,
+        Callback = function(Value)
+            if not Value then stopTargetEsp() return end
+            local plr = GetVisualTarget()
+            if not plr or not plr.Character then return end
+            targetActive = true
+            local highlight = Instance.new("Highlight")
+            highlight.FillTransparency = 1
+            highlight.OutlineTransparency = 0
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            highlight.Adornee = plr.Character
+            highlight.Parent = plr.Character
+            targetHl = highlight
+            local head = plr.Character:FindFirstChild("Head")
+            if head then
+                local bill = Instance.new("BillboardGui")
+                bill.Adornee = head
+                bill.Size = UDim2.new(0, 200, 0, 50)
+                bill.StudsOffset = Vector3.new(0, 2.5, 0)
+                bill.AlwaysOnTop = true
+                bill.Parent = head
+                local label = Instance.new("TextLabel", bill)
+                label.BackgroundTransparency = 1
+                label.Size = UDim2.new(1, 0, 1, 0)
+                label.TextScaled = true
+                label.Font = Enum.Font.GothamBold
+                label.TextColor3 = Color3.fromRGB(255, 255, 255)
+                label.TextStrokeTransparency = 0.8
+                label.Text = ""
+                targetBill = {bill = bill, label = label}
+            end
+            targetCharConn = plr.CharacterAdded:Connect(function()
+                if targetActive and plr == GetVisualTarget() then
+                    task.wait(0.5)
+                    if targetHl then pcall(function() targetHl:Destroy() end); targetHl = nil end
+                    if targetBill then pcall(function() targetBill.bill:Destroy() end); targetBill = nil end
+                    local c = plr.Character
+                    if c then
+                        local hl = Instance.new("Highlight")
+                        hl.FillTransparency = 1
+                        hl.OutlineTransparency = 0
+                        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                        hl.Adornee = c
+                        hl.Parent = c
+                        targetHl = hl
+                    end
+                end
+            end)
+        end,
+    })
+
+    RunService.Heartbeat:Connect(function()
+        if targetActive and targetBill then
+            local plr = GetVisualTarget()
+            if plr and plr.Character then
+                local r = plr.Character:FindFirstChild("HumanoidRootPart")
+                local h = plr.Character:FindFirstChildOfClass("Humanoid")
+                local myR = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if r and h and myR then
+                    targetBill.label.Text = string.format("%s | %dm | %dHP", plr.Name, math.floor((r.Position - myR.Position).Magnitude), math.floor(h.Health))
+                end
+            end
+        end
+    end)
+end)
+
+pcall(function()
+    local itemActive = false
+    local itemHL = {}
+    local itemConn = nil
+
+    local function isItem(name)
+        name = name:lower()
+        return name:find("item") or name:find("pickup") or name:find("collect") or name:find("weapon") or name:find("gun") or name:find("ammo")
+    end
+
+    local function addItem(obj)
+        if not obj or not obj.Parent or itemHL[obj] then return end
+        if obj:IsA("BasePart") and isItem(obj.Name) then
+            local hl = Instance.new("Highlight")
+            hl.FillTransparency = 1
+            hl.OutlineTransparency = 0
+            hl.OutlineColor = Color3.fromRGB(255, 200, 0)
+            hl.Adornee = obj
+            hl.Parent = obj
+            itemHL[obj] = hl
+        end
+    end
+
+    VisualTab:CreateToggle({
+        Title = "Item ESP",
+        Default = false,
+        Callback = function(Value)
+            itemActive = Value
+            if Value then
+                for _, obj in ipairs(workspace:GetDescendants()) do addItem(obj) end
+                itemConn = workspace.DescendantAdded:Connect(function(d) if itemActive then addItem(d) end end)
+            else
+                if itemConn then itemConn:Disconnect(); itemConn = nil end
+                for obj, hl in pairs(itemHL) do pcall(function() hl:Destroy() end) end
+                itemHL = {}
+            end
+        end,
+    })
+end)
+
+pcall(function()
+    local npcActive = false
+    local npcHL = {}
+    local npcConn = nil
+
+    local function isNpc(obj)
+        if not obj:IsA("Model") then return false end
+        if obj.Name == LocalPlayer.Name then return false end
+        if Players:GetPlayerFromCharacter(obj) then return false end
+        return obj:FindFirstChildOfClass("Humanoid") ~= nil
+    end
+
+    local function addNpc(obj)
+        if not obj or not obj.Parent or npcHL[obj] then return end
+        if isNpc(obj) then
+            local hl = Instance.new("Highlight")
+            hl.FillTransparency = 1
+            hl.OutlineTransparency = 0
+            hl.OutlineColor = Color3.fromRGB(0, 255, 255)
+            hl.Adornee = obj
+            hl.Parent = obj
+            npcHL[obj] = hl
+        end
+    end
+
+    VisualTab:CreateToggle({
+        Title = "NPC ESP",
+        Default = false,
+        Callback = function(Value)
+            npcActive = Value
+            if Value then
+                for _, obj in ipairs(workspace:GetDescendants()) do addNpc(obj) end
+                npcConn = workspace.DescendantAdded:Connect(function(d) if npcActive then addNpc(d) end end)
+            else
+                if npcConn then npcConn:Disconnect(); npcConn = nil end
+                for obj, hl in pairs(npcHL) do pcall(function() hl:Destroy() end) end
+                npcHL = {}
+            end
+        end,
+    })
+end)
+
+pcall(function()
+    local vehActive = false
+    local vehHL = {}
+    local vehConn = nil
+
+    local function addVeh(obj)
+        if not obj or not obj.Parent or vehHL[obj] then return end
+        if obj:IsA("Model") and obj:FindFirstChild("VehicleSeat") then
+            local hl = Instance.new("Highlight")
+            hl.FillTransparency = 1
+            hl.OutlineTransparency = 0
+            hl.OutlineColor = Color3.fromRGB(255, 0, 255)
+            hl.Adornee = obj
+            hl.Parent = obj
+            vehHL[obj] = hl
+        end
+    end
+
+    VisualTab:CreateToggle({
+        Title = "Vehicle ESP",
+        Default = false,
+        Callback = function(Value)
+            vehActive = Value
+            if Value then
+                for _, obj in ipairs(workspace:GetDescendants()) do addVeh(obj) end
+                vehConn = workspace.DescendantAdded:Connect(function(d) if vehActive then addVeh(d) end end)
+            else
+                if vehConn then vehConn:Disconnect(); vehConn = nil end
+                for obj, hl in pairs(vehHL) do pcall(function() hl:Destroy() end) end
+                vehHL = {}
+            end
+        end,
+    })
+end)
+
+pcall(function()
+    local lootActive = false
+    local lootHL = {}
+    local lootConn = nil
+
+    local function isLoot(name)
+        name = name:lower()
+        return name:find("chest") or name:find("loot") or name:find("crate") or name:find("box") or name:find("barrel")
+    end
+
+    local function addLoot(obj)
+        if not obj or not obj.Parent or lootHL[obj] then return end
+        if obj:IsA("BasePart") and isLoot(obj.Name) then
+            local hl = Instance.new("Highlight")
+            hl.FillTransparency = 1
+            hl.OutlineTransparency = 0
+            hl.OutlineColor = Color3.fromRGB(0, 255, 0)
+            hl.Adornee = obj
+            hl.Parent = obj
+            lootHL[obj] = hl
+        end
+    end
+
+    VisualTab:CreateToggle({
+        Title = "Chest/Loot ESP",
+        Default = false,
+        Callback = function(Value)
+            lootActive = Value
+            if Value then
+                for _, obj in ipairs(workspace:GetDescendants()) do addLoot(obj) end
+                lootConn = workspace.DescendantAdded:Connect(function(d) if lootActive then addLoot(d) end end)
+            else
+                if lootConn then lootConn:Disconnect(); lootConn = nil end
+                for obj, hl in pairs(lootHL) do pcall(function() hl:Destroy() end) end
+                lootHL = {}
+            end
+        end,
+    })
+end)
+
+pcall(function()
+    local tracerActive = false
+    local tracerConn = nil
+    local tracerLine = nil
+
+    VisualTab:CreateToggle({
+        Title = "Tracer",
+        Default = false,
+        Callback = function(Value)
+            tracerActive = Value
+            if not Value then
+                if tracerLine then pcall(function() tracerLine:Destroy() end); tracerLine = nil end
+                return
+            end
+            local plr = GetVisualTarget()
+            if not plr then return end
+            if tracerLine then pcall(function() tracerLine:Destroy() end) end
+            tracerLine = Instance.new("Part")
+            tracerLine.Name = "TracerLine"
+            tracerLine.Size = Vector3.new(0.1, 0.1, 0.1)
+            tracerLine.Anchored = true
+            tracerLine.CanCollide = false
+            tracerLine.Transparency = 0.5
+            tracerLine.Material = Enum.Material.Neon
+            tracerLine.Color = Color3.fromRGB(255, 0, 0)
+            tracerLine.Parent = workspace
+            local box = Instance.new("SelectionBox")
+            box.Adornee = tracerLine
+            box.Color3 = Color3.fromRGB(255, 0, 0)
+            box.Transparency = 0.5
+            box.Parent = tracerLine
+            if tracerConn then tracerConn:Disconnect() end
+            tracerConn = RunService.Heartbeat:Connect(function()
+                if not tracerActive then return end
+                local target = GetVisualTarget()
+                if not target or not target.Character then return end
+                local myR = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local tR = target.Character:FindFirstChild("HumanoidRootPart")
+                if not myR or not tR then return end
+                local startPos = myR.Position
+                local endPos = tR.Position
+                local midPos = (startPos + endPos) / 2
+                local distance = (endPos - startPos).Magnitude
+                if tracerLine then
+                    tracerLine.CFrame = CFrame.lookAt(startPos, endPos) * CFrame.new(0, 0, -distance / 2)
+                    tracerLine.Size = Vector3.new(0.1, 0.1, distance)
+                    tracerLine.Position = midPos
+                end
+            end)
+        end,
+    })
+end)
+
+pcall(function()
+    local active = false
+    local bills = {}
+    local conn = nil
+
+    local function add(plr)
+        if plr == LocalPlayer or not plr.Character then return end
+        local head = plr.Character:FindFirstChild("Head")
+        if not head or bills[plr] then return end
+        local bill = Instance.new("BillboardGui")
+        bill.Adornee = head
+        bill.Size = UDim2.new(0, 150, 0, 30)
+        bill.StudsOffset = Vector3.new(0, 2.5, 0)
+        bill.AlwaysOnTop = true
+        bill.Parent = head
+        local label = Instance.new("TextLabel", bill)
+        label.BackgroundTransparency = 1
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.TextScaled = true
+        label.Font = Enum.Font.GothamBold
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.Text = plr.Name
+        bills[plr] = bill
+    end
+
+    VisualTab:CreateToggle({
+        Title = "Player Name",
+        Default = false,
+        Callback = function(Value)
+            active = Value
+            if Value then
+                for _, plr in ipairs(Players:GetPlayers()) do add(plr) end
+                conn = RunService.Heartbeat:Connect(function()
+                    if not active then return end
+                    for _, plr in ipairs(Players:GetPlayers()) do add(plr) end
+                end)
+            else
+                if conn then conn:Disconnect(); conn = nil end
+                for plr, bill in pairs(bills) do pcall(function() bill:Destroy() end) end
+                bills = {}
+            end
+        end,
+    })
+end)
+
+pcall(function()
+    local active = false
+    local data = {}
+    local conn = nil
+
+    VisualTab:CreateToggle({
+        Title = "Health Bar",
+        Default = false,
+        Callback = function(Value)
+            active = Value
+            if not Value then
+                if conn then conn:Disconnect(); conn = nil end
+                for plr, d in pairs(data) do pcall(function() d.bill:Destroy() end) end
+                data = {}
+                return
+            end
+            conn = RunService.Heartbeat:Connect(function()
+                if not active then return end
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= LocalPlayer and plr.Character then
+                        local head = plr.Character:FindFirstChild("Head")
+                        local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                        if head and hum and not data[plr] then
+                            local bill = Instance.new("BillboardGui")
+                            bill.Adornee = head
+                            bill.Size = UDim2.new(0, 100, 0, 10)
+                            bill.StudsOffset = Vector3.new(0, 1.8, 0)
+                            bill.AlwaysOnTop = true
+                            bill.Parent = head
+                            local bg = Instance.new("Frame", bill)
+                            bg.Size = UDim2.new(1, 0, 1, 0)
+                            bg.BackgroundColor3 = Color3.new(0, 0, 0)
+                            bg.BackgroundTransparency = 0.5
+                            bg.BorderSizePixel = 0
+                            local fill = Instance.new("Frame", bg)
+                            fill.Size = UDim2.new(1, 0, 1, 0)
+                            fill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                            fill.BorderSizePixel = 0
+                            data[plr] = {bill = bill, fill = fill, hum = hum}
+                        end
+                        local d = data[plr]
+                        if d and d.hum and d.hum.MaxHealth > 0 then
+                            local p = math.clamp(d.hum.Health / d.hum.MaxHealth, 0, 1)
+                            d.fill.Size = UDim2.new(p, 0, 1, 0)
+                            d.fill.BackgroundColor3 = p > 0.5 and Color3.fromRGB(0, 255, 0) or (p > 0.25 and Color3.fromRGB(255, 165, 0) or Color3.fromRGB(255, 0, 0))
+                        end
+                    end
+                end
+            end)
+        end,
+    })
+end)
+
+pcall(function()
+    local active = false
+    local data = {}
+    local conn = nil
+
+    VisualTab:CreateToggle({
+        Title = "Health Number",
+        Default = false,
+        Callback = function(Value)
+            active = Value
+            if not Value then
+                if conn then conn:Disconnect(); conn = nil end
+                for plr, d in pairs(data) do pcall(function() d.bill:Destroy() end) end
+                data = {}
+                return
+            end
+            conn = RunService.Heartbeat:Connect(function()
+                if not active then return end
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= LocalPlayer and plr.Character then
+                        local head = plr.Character:FindFirstChild("Head")
+                        local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                        if head and hum and not data[plr] then
+                            local bill = Instance.new("BillboardGui")
+                            bill.Adornee = head
+                            bill.Size = UDim2.new(0, 80, 0, 20)
+                            bill.StudsOffset = Vector3.new(0, 3.2, 0)
+                            bill.AlwaysOnTop = true
+                            bill.Parent = head
+                            local label = Instance.new("TextLabel", bill)
+                            label.BackgroundTransparency = 1
+                            label.Size = UDim2.new(1, 0, 1, 0)
+                            label.TextScaled = true
+                            label.Font = Enum.Font.GothamBold
+                            label.TextColor3 = Color3.fromRGB(255, 255, 255)
+                            data[plr] = {bill = bill, label = label, hum = hum}
+                        end
+                        local d = data[plr]
+                        if d and d.hum then
+                            d.label.Text = math.floor(d.hum.Health) .. "/" .. math.floor(d.hum.MaxHealth)
+                        end
+                    end
+                end
+            end)
+        end,
+    })
+end)
+
+pcall(function()
+    local active = false
+    local data = {}
+    local conn = nil
+
+    VisualTab:CreateToggle({
+        Title = "Distance",
+        Default = false,
+        Callback = function(Value)
+            active = Value
+            if not Value then
+                if conn then conn:Disconnect(); conn = nil end
+                for plr, d in pairs(data) do pcall(function() d.bill:Destroy() end) end
+                data = {}
+                return
+            end
+            conn = RunService.Heartbeat:Connect(function()
+                if not active then return end
+                local myR = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= LocalPlayer and plr.Character then
+                        local head = plr.Character:FindFirstChild("Head")
+                        local tR = plr.Character:FindFirstChild("HumanoidRootPart")
+                        if head and tR and not data[plr] then
+                            local bill = Instance.new("BillboardGui")
+                            bill.Adornee = head
+                            bill.Size = UDim2.new(0, 80, 0, 20)
+                            bill.StudsOffset = Vector3.new(0, -1.5, 0)
+                            bill.AlwaysOnTop = true
+                            bill.Parent = head
+                            local label = Instance.new("TextLabel", bill)
+                            label.BackgroundTransparency = 1
+                            label.Size = UDim2.new(1, 0, 1, 0)
+                            label.TextScaled = true
+                            label.Font = Enum.Font.GothamBold
+                            label.TextColor3 = Color3.fromRGB(255, 255, 100)
+                            data[plr] = {bill = bill, label = label, tR = tR}
+                        end
+                        local d = data[plr]
+                        if d and myR and d.tR then
+                            d.label.Text = math.floor((d.tR.Position - myR.Position).Magnitude) .. "m"
+                        end
+                    end
+                end
+            end)
+        end,
+    })
+end)
+
+pcall(function()
+    local active = false
+    local data = {}
+    local conn = nil
+
+    VisualTab:CreateToggle({
+        Title = "Equipped Tool",
+        Default = false,
+        Callback = function(Value)
+            active = Value
+            if not Value then
+                if conn then conn:Disconnect(); conn = nil end
+                for plr, d in pairs(data) do pcall(function() d.bill:Destroy() end) end
+                data = {}
+                return
+            end
+            conn = RunService.Heartbeat:Connect(function()
+                if not active then return end
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= LocalPlayer and plr.Character then
+                        local head = plr.Character:FindFirstChild("Head")
+                        if head and not data[plr] then
+                            local bill = Instance.new("BillboardGui")
+                            bill.Adornee = head
+                            bill.Size = UDim2.new(0, 120, 0, 20)
+                            bill.StudsOffset = Vector3.new(0, 3.8, 0)
+                            bill.AlwaysOnTop = true
+                            bill.Parent = head
+                            local label = Instance.new("TextLabel", bill)
+                            label.BackgroundTransparency = 1
+                            label.Size = UDim2.new(1, 0, 1, 0)
+                            label.TextScaled = true
+                            label.Font = Enum.Font.GothamBold
+                            label.TextColor3 = Color3.fromRGB(255, 200, 0)
+                            data[plr] = {bill = bill, label = label}
+                        end
+                        local d = data[plr]
+                        if d then
+                            local tool = plr.Character:FindFirstChildOfClass("Tool")
+                            d.label.Text = "Tool: " .. (tool and tool.Name or "None")
+                        end
+                    end
+                end
+            end)
+        end,
+    })
+end)
+
+pcall(function()
+    local active = false
+    local hl = {}
+    local conn = nil
+
+    VisualTab:CreateToggle({
+        Title = "Team ESP",
+        Default = false,
+        Callback = function(Value)
+            active = Value
+            if not Value then
+                if conn then conn:Disconnect(); conn = nil end
+                for plr, h in pairs(hl) do pcall(function() h:Destroy() end) end
+                hl = {}
+                return
+            end
+            conn = RunService.Heartbeat:Connect(function()
+                if not active then return end
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= LocalPlayer and plr.Character and not hl[plr] then
+                        local color = plr.Team and plr.Team.TeamColor.Color or Color3.fromRGB(255, 255, 255)
+                        local h = Instance.new("Highlight")
+                        h.FillTransparency = 0.5
+                        h.OutlineTransparency = 0
+                        h.OutlineColor = color
+                        h.FillColor = color
+                        h.Adornee = plr.Character
+                        h.Parent = plr.Character
+                        hl[plr] = h
+                    end
+                end
+            end)
+        end,
+    })
+end)
+
+local ChatTab = Window:CreateTab("Chat", "message-circle")
+
+local function sendChatMessage(msg)
+    local ok = pcall(function()
+        local channel = game:GetService("TextChatService").TextChannels:FindFirstChild("RBXGeneral")
+        if channel then channel:SendAsync(msg) end
+    end)
+    if not ok then
+        pcall(function()
+            local sayMessage = game:GetService("ReplicatedStorage")
+                :FindFirstChild("DefaultChatSystemChatEvents")
+                and game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+            if sayMessage then sayMessage:FireServer(msg, "All") end
+        end)
+    end
+end
+
+local spamActive = false
+local spamConn = nil
+local spamIndex = 1
+local spamLast = 0
+local spamMessages = {
+    "@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ c00lgui",
+    "@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ ahahahahaha",
+    "@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ <Â§Â£{â‚¬>",
+    "@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ â€°â€°â€°â€°â€°",
+    "@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ âˆšâˆšâˆšâˆšâˆšâˆšâˆš",
+    "@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ ×—×—×—×—×—",
+}
+
+ChatTab:CreateToggle({
+    Title = "Spam",
+    Default = false,
+    Callback = function(Value)
+        spamActive = Value
+        if spamConn then spamConn:Disconnect(); spamConn = nil end
+        if not Value then return end
+        spamIndex = 1
+        spamLast = 0
+        spamConn = RunService.Heartbeat:Connect(function()
+            if not spamActive then return end
+            local now = tick()
+            if now - spamLast >= 1 then
+                spamLast = now
+                sendChatMessage(spamMessages[spamIndex])
+                spamIndex = spamIndex % #spamMessages + 1
+            end
+        end)
+    end,
+})
+
+local fakeActive = false
+local fakeConn = nil
+local fakeIndex = 1
+local fakeLast = 0
+local fakeMessages = {
+    "@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ team swat07",
+    "@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ hack owner game",
+    "@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ admin hack free",
+    "@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ vip free",
+    "@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@  pro free",
+    "@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @ @ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ @@ free admin all",
+}
+
+ChatTab:CreateToggle({
+    Title = "Fake Admin",
+    Default = false,
+    Callback = function(Value)
+        fakeActive = Value
+        if fakeConn then fakeConn:Disconnect(); fakeConn = nil end
+        if not Value then return end
+        fakeIndex = 1
+        fakeLast = 0
+        fakeConn = RunService.Heartbeat:Connect(function()
+            if not fakeActive then return end
+            local now = tick()
+            if now - fakeLast >= 1 then
+                fakeLast = now
+                sendChatMessage(fakeMessages[fakeIndex])
+                fakeIndex = fakeIndex % #fakeMessages + 1
+            end
+        end)
+    end,
+})
+
+do
+    local filterActive = false
+    local popupMenu = nil
+    local charMap = {
+        a = "ä¸¹", b = "æ—¥", c = "äº¡", d = "å¥", e = "ãƒ¨", f = "ä¹",
+        g = "å‘‚", h = "å»¾", i = "å·¥", j = "å‹¹", k = "ç‰‡", l = "ã—",
+        m = "å†Š", n = "å‡ ", o = "å›ž", p = "å°¸", q = "ç”²", r = "å°º",
+        s = "å·±", t = "åž", u = "å‡µ", v = "ãƒ¬", w = "å±±", x = "ãƒ¡",
+        y = "ã¨", z = "ä¹™",
+    }
+    local function filterText(text)
+        local result = ""
+        for i = 1, #text do
+            local c = text:sub(i, i):lower()
+            result = result .. (charMap[c] or text:sub(i, i))
+        end
+        return result
+    end
+
+    local function sendFiltered(msg)
+        local filtered = filterText(msg)
+        pcall(function()
+            local sayMessage = game:GetService("ReplicatedStorage")
+                :FindFirstChild("DefaultChatSystemChatEvents")
+                and game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+            if sayMessage then sayMessage:FireServer(filtered, "All") end
+        end)
+        pcall(function()
+            local channel = game:GetService("TextChatService").TextChannels:FindFirstChild("RBXGeneral")
+            if channel then channel:SendAsync(filtered) end
+        end)
+    end
+
+    local function closePopup()
+        if popupMenu then popupMenu:Destroy(); popupMenu = nil end
+        filterActive = false
+    end
+
+    local function createPopup()
+        if popupMenu then popupMenu:Destroy() end
+        popupMenu = Instance.new("Frame")
+        popupMenu.Size = UDim2.new(0, 350, 0, 200)
+        popupMenu.Position = UDim2.new(0.5, -175, 0.5, -100)
+        popupMenu.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+        popupMenu.BorderSizePixel = 0
+        popupMenu.Active = true
+        popupMenu.Draggable = true
+        popupMenu.Parent = gui
+        Instance.new("UICorner", popupMenu).CornerRadius = UDim.new(0, 10)
+        local stroke = Instance.new("UIStroke", popupMenu)
+        stroke.Color = Color3.fromRGB(40, 40, 40)
+        stroke.Thickness = 1.5
+
+        local title = Instance.new("TextLabel", popupMenu)
+        title.Size = UDim2.new(1, 0, 0, 35)
+        title.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
+        title.BorderSizePixel = 0
+        title.Text = "Filtrar Bypass"
+        title.TextColor3 = Color3.fromRGB(255, 255, 255)
+        title.Font = Enum.Font.GothamBold
+        title.TextSize = 16
+        Instance.new("UICorner", title).CornerRadius = UDim.new(0, 10)
+
+        local textBox = Instance.new("TextBox", popupMenu)
+        textBox.Size = UDim2.new(1, -30, 0, 45)
+        textBox.Position = UDim2.new(0, 15, 0, 50)
+        textBox.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+        textBox.BorderSizePixel = 0
+        textBox.PlaceholderText = "Digite sua mensagem..."
+        textBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+        textBox.Text = ""
+        textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+        textBox.Font = Enum.Font.Gotham
+        textBox.TextSize = 14
+        Instance.new("UICorner", textBox).CornerRadius = UDim.new(0, 8)
+        local ts = Instance.new("UIStroke", textBox)
+        ts.Color = Color3.fromRGB(50, 50, 55)
+        ts.Thickness = 1
+
+        local sendBtn = Instance.new("TextButton", popupMenu)
+        sendBtn.Size = UDim2.new(0, 120, 0, 40)
+        sendBtn.Position = UDim2.new(0.5, -60, 0, 130)
+        sendBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+        sendBtn.BorderSizePixel = 0
+        sendBtn.Text = "Send"
+        sendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        sendBtn.Font = Enum.Font.GothamBold
+        sendBtn.TextSize = 15
+        Instance.new("UICorner", sendBtn).CornerRadius = UDim.new(0, 8)
+        sendBtn.MouseButton1Click:Connect(function()
+            local msg = textBox.Text
+            if msg and msg ~= "" then
+                sendFiltered(msg)
+                textBox.Text = ""
+            end
+        end)
+
+        local closeBtn = Instance.new("TextButton", popupMenu)
+        closeBtn.Size = UDim2.new(0, 28, 0, 28)
+        closeBtn.Position = UDim2.new(1, -32, 0, 4)
+        closeBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        closeBtn.BorderSizePixel = 0
+        closeBtn.Text = "X"
+        closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closeBtn.Font = Enum.Font.GothamBold
+        closeBtn.TextSize = 16
+        Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+        closeBtn.MouseButton1Click:Connect(closePopup)
+    end
+
+    ChatTab:CreateToggle({
+        Title = "Filtrar Bypass",
+        Default = false,
+        Callback = function(Value)
+            filterActive = Value
+            if Value then
+                createPopup()
+            else
+                closePopup()
+            end
+        end,
+    })
+end
+local AntiTab = Window:CreateTab("Anti", "shield")
+
+-- ============================================================
+-- ANTI FLING
+-- ============================================================
+pcall(function()
+    local antiFling = nil
+    AntiTab:CreateToggle({
+        Title = "Anti Fling",
+        Default = false,
+        Callback = function(Value)
+            if antiFling then antiFling:Disconnect(); antiFling = nil end
+            if not Value then return end
+            antiFling = RunService.Stepped:Connect(function()
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= LocalPlayer and plr.Character then
+                        for _, v in ipairs(plr.Character:GetDescendants()) do
+                            if v:IsA("BasePart") then
+                                v.CanCollide = false
+                                v.Velocity = Vector3.zero
+                                v.RotVelocity = Vector3.zero
+                            end
+                        end
+                    end
+                end
+            end)
+        end,
+    })
+end)
+
+-- ============================================================
+-- ANTI SIT
+-- ============================================================
+pcall(function()
+    local antiSitActive = false
+    AntiTab:CreateToggle({
+        Title = "Anti Sit",
+        Default = false,
+        Callback = function(Value)
+            antiSitActive = Value
+            if not Value then return end
+            task.spawn(function()
+                while antiSitActive do
+                    local char = LocalPlayer.Character
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        hum.Sit = false
+                        hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                    end
+                    task.wait(0.1)
+                end
+            end)
+        end,
+    })
+end)
+
+-- ============================================================
+-- ANTI STUN
+-- ============================================================
+pcall(function()
+    local antiStunActive = false
+    local antiStunConn = nil
+    local originalWalkSpeed = 16
+    local originalJumpPower = 50
+    local lastMoveTime = tick()
+    local isJumping = false
+    local lastGroundTime = tick()
+    local STUN_STATES = {
+        [Enum.HumanoidStateType.Physics] = true,
+        [Enum.HumanoidStateType.Ragdoll] = true,
+        [Enum.HumanoidStateType.FallingDown] = true,
+        [Enum.HumanoidStateType.PlatformStanding] = true,
+        [Enum.HumanoidStateType.StrafingNoPhysics] = true,
+    }
+
+    AntiTab:CreateToggle({
+        Title = "Anti Stun",
+        Default = false,
+        Callback = function(state)
+            antiStunActive = state
+            if state then
+                local char = LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    originalWalkSpeed = hum.WalkSpeed
+                    originalJumpPower = hum.JumpPower
+                    hum.AutoRotate = true
+                end
+                antiStunConn = RunService.Heartbeat:Connect(function()
+                    pcall(function()
+                        if not antiStunActive then return end
+                        local curChar = LocalPlayer.Character
+                        local curHum = curChar and curChar:FindFirstChildOfClass("Humanoid")
+                        if not curHum then return end
+                        local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+                        if curHum.WalkSpeed < 1 then curHum.WalkSpeed = originalWalkSpeed end
+                        if curHum.JumpPower < 1 then curHum.JumpPower = originalJumpPower end
+                        if not curHum.AutoRotate then curHum.AutoRotate = true end
+                        if curHum.PlatformStand and (not curRoot or not curRoot:FindFirstChild("StompBP")) then
+                            curHum.PlatformStand = false
+                        end
+                        local currentState = curHum:GetState()
+                        local isInAir = currentState == Enum.HumanoidStateType.Freefall or currentState == Enum.HumanoidStateType.Jumping
+                        if isInAir then
+                            isJumping = true
+                            lastGroundTime = tick()
+                        elseif currentState == Enum.HumanoidStateType.Running or currentState == Enum.HumanoidStateType.Landed then
+                            isJumping = false
+                            lastGroundTime = tick()
+                        end
+                        if not isInAir and STUN_STATES[currentState] and currentState ~= Enum.HumanoidStateType.Freefall then
+                            pcall(function() curHum:ChangeState(Enum.HumanoidStateType.Running) end)
+                        end
+                        if curRoot then
+                            for _, child in ipairs(curRoot:GetChildren()) do
+                                if child:IsA("BodyPosition") or child:IsA("BodyVelocity")
+                                or child:IsA("BodyGyro") or child:IsA("AlignPosition")
+                                or child:IsA("AlignOrientation") or child:IsA("AngularVelocity")
+                                or child:IsA("RocketPropulsion") or child:IsA("BallSocketConstraint")
+                                or child:IsA("HingeConstraint") or child:IsA("SpringConstraint")
+                                or child:IsA("RopeConstraint") or child:IsA("CylindricalConstraint")
+                                or child:IsA("PrismaticConstraint") or child:IsA("UniversalConstraint") then
+                                    if child.Name ~= "StompBP" and child.Name ~= "StompBV" then
+                                        child:Destroy()
+                                    end
+                                end
+                            end
+                            pcall(function() curRoot:SetNetworkOwner(LocalPlayer) end)
+                        end
+                        for _, part in ipairs(curChar:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                local hasStomp = part:FindFirstChild("StompBP") or part:FindFirstChild("StompBV")
+                                for _, child in ipairs(part:GetChildren()) do
+                                    if child:IsA("Torque") and not hasStomp then child:Destroy() end
+                                    if child:IsA("Attachment") then
+                                        local other = child.Attachment0 or child.Attachment1
+                                        if other and other:IsA("Attachment") then
+                                            local otherPart = other.Parent
+                                            if otherPart and otherPart:IsA("BasePart") and not otherPart:IsDescendantOf(curChar) then
+                                                child:Destroy()
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        if curRoot then
+                            if curHum.MoveDirection.Magnitude > 0 then
+                                lastMoveTime = tick()
+                            elseif tick() - lastMoveTime > 1.5 and not isJumping and tick() - lastGroundTime > 1 then
+                                pcall(function() curHum:ChangeState(Enum.HumanoidStateType.Running) end)
+                                curRoot.Velocity = Vector3.zero
+                                curRoot.RotVelocity = Vector3.zero
+                                lastMoveTime = tick()
+                            end
+                        end
+                        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+                        if playerGui then
+                            local badOverlays = {"StunOverlay", "StunGui", "FreezeOverlay", "FreezeGui",
+                                                 "IceOverlay", "ParalyzeGui", "StunEffect", "StunScreen",
+                                                 "FrozenGui", "FrozenEffect", "FreezeEffect", "IceEffect"}
+                            for _, name in ipairs(badOverlays) do
+                                local overlay = playerGui:FindFirstChild(name)
+                                if overlay then overlay:Destroy() end
+                            end
+                        end
+                        local camera = workspace.CurrentCamera
+                        if camera and camera.CameraType ~= Enum.CameraType.Custom then
+                            camera.CameraType = Enum.CameraType.Custom
+                            camera.CameraSubject = curHum
+                        end
+                    end)
+                end)
+            else
+                if antiStunConn then antiStunConn:Disconnect(); antiStunConn = nil end
+                local char = LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.WalkSpeed = originalWalkSpeed
+                    hum.JumpPower = originalJumpPower
+                end
+            end
+        end,
+    })
+end)
+
+-- ============================================================
+-- ANTI AFK
+-- ============================================================
+pcall(function()
+    local antiAFKActive = false
+    local antiAFKConn = nil
+    local virtualUser = nil
+    pcall(function() virtualUser = game:GetService("VirtualUser") end)
+
+    AntiTab:CreateToggle({
+        Title = "Anti AFK",
+        Default = false,
+        Callback = function(Value)
+            antiAFKActive = Value
+            if Value then
+                if getconnections then
+                    for _, conn in ipairs(getconnections(LocalPlayer.Idled)) do
+                        if conn["Disable"] then conn["Disable"](conn)
+                        elseif conn["Disconnect"] then conn["Disconnect"](conn) end
+                    end
+                elseif virtualUser then
+                    antiAFKConn = LocalPlayer.Idled:Connect(function()
+                        virtualUser:CaptureController()
+                        virtualUser:ClickButton2(Vector2.new())
+                    end)
+                end
+            else
+                if antiAFKConn then antiAFKConn:Disconnect(); antiAFKConn = nil end
+            end
+        end,
+    })
+end)
+
+-- ============================================================
+-- ANTI BANG
+-- ============================================================
+pcall(function()
+    local ANTI_BANG_ANIMS = {"148840371", "5918726674"}
+    local ANTI_BANG_RANGE = 15
+    local antiBangInProgress = false
+    local antiBangToggleActive = false
+    local antiBangDetectionConn = nil
+
+    local function isPlayerBanging(targetPlayer)
+        if not targetPlayer.Character then return false end
+        local hum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if not hum then return false end
+        local animator = hum:FindFirstChildOfClass("Animator")
+        if not animator then return false end
+        for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+            if track.Animation then
+                local id = track.Animation.AnimationId
+                for _, bangId in ipairs(ANTI_BANG_ANIMS) do
+                    if id:find(bangId) then return true end
+                end
+            end
+        end
+        return false
+    end
+
+    local function getBangPlayerWithinRange()
+        local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not myRoot then return nil end
+        for _, targetPlayer in ipairs(Players:GetPlayers()) do
+            if targetPlayer ~= LocalPlayer and targetPlayer.Character then
+                local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if targetRoot and (targetRoot.Position - myRoot.Position).Magnitude <= ANTI_BANG_RANGE then
+                    if isPlayerBanging(targetPlayer) then return targetPlayer end
+                end
+            end
+        end
+        return nil
+    end
+
+    local function doAntiBangTeleport()
+        if antiBangInProgress then return end
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        antiBangInProgress = true
+        local lastCFrame = root.CFrame
+        pcall(function() workspace.FallenPartsDestroyHeight = -1000 end)
+        root.CFrame = CFrame.new(0, -500, 0)
+        task.wait(0.7)
+        if root and root.Parent then root.CFrame = lastCFrame end
+        pcall(function() workspace.FallenPartsDestroyHeight = -500 end)
+        antiBangInProgress = false
+    end
+
+    AntiTab:CreateToggle({
+        Title = "Anti Bang",
+        Default = false,
+        Callback = function(Value)
+            antiBangToggleActive = Value
+            if Value then
+                if antiBangDetectionConn then antiBangDetectionConn:Disconnect() end
+                antiBangDetectionConn = RunService.Heartbeat:Connect(function()
+                    if not antiBangToggleActive or antiBangInProgress then return end
+                    if getBangPlayerWithinRange() then doAntiBangTeleport() end
+                end)
+            else
+                if antiBangDetectionConn then antiBangDetectionConn:Disconnect(); antiBangDetectionConn = nil end
+            end
+        end,
+    })
+
+    AntiTab:CreateButton({
+        Title = "Bang Escape",
+        Callback = function()
+            if antiBangInProgress then return end
+            if not getBangPlayerWithinRange() then return end
+            doAntiBangTeleport()
+        end,
+    })
+end)
+
+-- ============================================================
+-- ANTI VOID (simples - FallenPartsDestroyHeight = -math.huge)
+-- ============================================================
+pcall(function()
+    local DEFAULT_FALL = workspace.FallenPartsDestroyHeight
+    AntiTab:CreateToggle({
+        Title = "Anti Void",
+        Default = false,
+        Callback = function(state)
+            if state then
+                pcall(function()
+                    workspace.FallenPartsDestroyHeight = -math.huge
+                end)
+            else
+                pcall(function()
+                    workspace.FallenPartsDestroyHeight = DEFAULT_FALL
+                end)
+            end
+        end,
+    })
+end)
+
+-- ============================================================
+-- ANTI FALL DAMAGE
+-- ============================================================
+pcall(function()
+    local antiFallActive = false
+    local antiFallConn = nil
+    local originalGravity = 196.2
+    local fallSpeed = 0
+
+    AntiTab:CreateToggle({
+        Title = "Anti Fall Damage",
+        Default = false,
+        Callback = function(state)
+            antiFallActive = state
+            if state then
+                originalGravity = workspace.Gravity
+                if antiFallConn then antiFallConn:Disconnect() end
+                antiFallConn = RunService.Heartbeat:Connect(function()
+                    if not antiFallActive then return end
+                    local char = LocalPlayer.Character
+                    local root = char and char:FindFirstChild("HumanoidRootPart")
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if not root or not hum then return end
+                    local vel = root.Velocity
+                    if vel.Y < -0.5 and hum.FloorMaterial == Enum.Material.Air then
+                        fallSpeed = math.abs(vel.Y)
+                        if fallSpeed > 20 then
+                            root.Velocity = Vector3.new(vel.X, -fallSpeed * 0.5, vel.Z)
+                        end
+                    else
+                        if antiFallActive then workspace.Gravity = originalGravity end
+                        fallSpeed = 0
+                    end
+                end)
+            else
+                if antiFallConn then antiFallConn:Disconnect(); antiFallConn = nil end
+                workspace.Gravity = originalGravity
+            end
+        end,
+    })
+end)
+
+-- ============================================================
+-- ANTI ITEM FLING
+-- ============================================================
+pcall(function()
+    local antiItemFlingEnabled = false
+    local conns = {}
+    local processed = {}
+
+    local function ghostifyTool(tool)
+        if processed[tool] then return end
+        processed[tool] = true
+        for _, part in ipairs(tool:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+        tool.Destroying:Connect(function() processed[tool] = nil end)
+    end
+
+    AntiTab:CreateToggle({
+        Title = "Anti Item Fling",
+        Default = false,
+        Callback = function(state)
+            antiItemFlingEnabled = state
+            if state then
+                for _, tool in ipairs(workspace:GetDescendants()) do
+                    if tool:IsA("Tool") then
+                        local owner = tool.Parent
+                        if owner ~= LocalPlayer.Character and owner ~= LocalPlayer:FindFirstChild("Backpack") then
+                            ghostifyTool(tool)
+                        end
+                    end
+                end
+                table.insert(conns, workspace.DescendantAdded:Connect(function(desc)
+                    if not antiItemFlingEnabled then return end
+                    if desc:IsA("Tool") then
+                        local owner = desc.Parent
+                        if owner ~= LocalPlayer.Character and owner ~= LocalPlayer:FindFirstChild("Backpack") then
+                            ghostifyTool(desc)
+                        end
+                    end
+                end))
+            else
+                for _, c in ipairs(conns) do c:Disconnect() end
+                conns = {}
+                processed = {}
+            end
+        end,
+    })
+end)
+
+-- ============================================================
+-- ANTI RING
+-- ============================================================
+pcall(function()
+    local antiRingActive = false
+    local antiRingConn = nil
+    local noclipParts = {}
+
+    local function setNoClipOnPart(part)
+        if part:IsA("BasePart") and not noclipParts[part] then
+            if not part.Anchored and part:FindFirstAncestorOfClass("Model") ~= LocalPlayer.Character then
+                noclipParts[part] = true
+                part.CanCollide = false
+            end
+        end
+    end
+
+    AntiTab:CreateToggle({
+        Title = "Anti Ring",
+        Default = false,
+        Callback = function(state)
+            antiRingActive = state
+            if state then
+                for _, part in ipairs(workspace:GetDescendants()) do
+                    setNoClipOnPart(part)
+                end
+                antiRingConn = workspace.DescendantAdded:Connect(function(desc)
+                    if not antiRingActive then return end
+                    if desc:IsA("BasePart") then setNoClipOnPart(desc) end
+                end)
+            else
+                if antiRingConn then antiRingConn:Disconnect(); antiRingConn = nil end
+                for part, _ in pairs(noclipParts) do
+                    if part and part.Parent then part.CanCollide = true end
+                end
+                noclipParts = {}
+            end
+        end,
+    })
+end)

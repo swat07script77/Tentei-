@@ -808,58 +808,56 @@ pcall(function()
     })
 
     PlayTab:CreateButton({
-        Title = "Fling All",
-        Callback = function()
-            local targets = {}
+    Title = "Fling All",
+    Callback = function()
+        local targets = {}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then
+                local r = Root(p.Character)
+                if r then table.insert(targets, r) end
+            end
+        end
+        for _, tr in ipairs(targets) do
+            local bv = Instance.new("BodyVelocity")
+            bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
+            bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+            bv.Parent = tr
+            task.delay(5, function() if bv then bv:Destroy() end end)
+        end
+    end,
+})
+
+PlayTab:CreateToggle({
+    Title = "Fling All Toggle",
+    Default = false,
+    Callback = function(Value)
+        if not Value then
+            for _, p in ipairs(Players:GetPlayers()) do
+                local r = Root(p.Character)
+                if r then
+                    local bv = r:FindFirstChild("EpixVel")
+                    if bv then bv:Destroy() end
+                end
+            end
+            return
+        end
+        local conn
+        conn = RunService.Heartbeat:Connect(function()
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= LocalPlayer then
                     local r = Root(p.Character)
-                    if r then table.insert(targets, r
-                                        if r then table.insert(targets, r) end
-                end
-            end
-            for _, tr in ipairs(targets) do
-                local bv = Instance.new("BodyVelocity")
-                bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
-                bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-                bv.Parent = tr
-                task.delay(5, function() if bv then bv:Destroy() end end)
-            end
-        end,
-    })
-
-    PlayTab:CreateToggle({
-        Title = "Fling All Toggle",
-        Default = false,
-        Callback = function(Value)
-            if not Value then
-                for _, p in ipairs(Players:GetPlayers()) do
-                    local r = Root(p.Character)
-                    if r then
-                        local bv = r:FindFirstChild("EpixVel")
-                        if bv then bv:Destroy() end
+                    if r and not r:FindFirstChild("EpixVel") then
+                        local bv = Instance.new("BodyVelocity")
+                        bv.Name = "EpixVel"
+                        bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
+                        bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+                        bv.Parent = r
                     end
                 end
-                return
             end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p ~= LocalPlayer then
-                        local r = Root(p.Character)
-                        if r and not r:FindFirstChild("EpixVel") then
-                            local bv = Instance.new("BodyVelocity")
-                            bv.Name = "EpixVel"
-                            bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
-                            bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-                            bv.Parent = r
-                        end
-                    end
-                end
-            end)
-        end,
-    })
-
+        end)
+    end,
+})
     local superFlingActive = false
     PlayTab:CreateToggle({
         Title = "Super Fling",

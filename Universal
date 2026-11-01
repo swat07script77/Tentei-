@@ -11792,9 +11792,7 @@ pcall(function()
     })
 end)
 local AbuseTab = Window:CreateTab("Abuse", "skull")
--- =============================================
--- HELPERS BASE
--- =============================================
+
 local function attach(Part, TargetPart)
     if sethiddenproperty and InstanceHandle then
         pcall(function()
@@ -11811,42 +11809,46 @@ local function detach(Part)
     end
 end
 
+local function getRoot(c) return c and c:FindFirstChild("HumanoidRootPart") end
+local function getHum(c) return c and c:FindFirstChildOfClass("Humanoid") end
+
 -- =============================================
 -- DROPDOWN DE ALVO + REFRESH
 -- =============================================
-local PlayTarget = nil
-local PlayDropdown = nil
+local AbuseTarget = nil
+local AbuseDropdown = nil
 
-local function GetPlayTarget()
-    if not PlayTarget or PlayTarget == "" then return nil end
+local function GetAbuseTarget()
+    if not AbuseTarget or AbuseTarget == "" then return nil end
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Name == PlayTarget then return plr end
+        if plr.Name == AbuseTarget then return plr end
     end
     return nil
 end
 
-local function RefreshPlayTargets()
+local function RefreshAbuseTargets()
     local list = {}
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= player then table.insert(list, plr.Name) end
+        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
     end
     table.sort(list)
-    if PlayDropdown and PlayDropdown.Update then
-        pcall(function() PlayDropdown:Update({ Options = list }) end)
+    if AbuseDropdown and AbuseDropdown.Update then
+        pcall(function() AbuseDropdown:Update({ Options = list }) end)
     end
 end
 
-PlayDropdown = AbuseTab:CreateDropdown({
-    Title    = "Select Target",
-    Options  = {},
-    Callback = function(Value) PlayTarget = Value end,
+AbuseDropdown = AbuseTab:CreateDropdown({
+    Title = "Select Target",
+    Options = {},
+    Callback = function(Value) AbuseTarget = Value end,
 })
-RefreshPlayTargets()
+RefreshAbuseTargets()
 
 AbuseTab:CreateButton({
-    Title    = "Refresh Target List",
-    Callback = function() RefreshPlayTargets() end,
+    Title = "Refresh Target List",
+    Callback = function() RefreshAbuseTargets() end,
 })
+
 -- =============================================
 -- ANTI-DAMAGE
 -- =============================================
@@ -11867,13 +11869,13 @@ local function antiDamageFazerClone(character)
     if not Human then antiDamageJaClonado = false; return end
     local nHuman = Human:Clone()
     nHuman.Parent = Char
-    player.Character = nil
+    LocalPlayer.Character = nil
     nHuman:SetStateEnabled(15, false)
     nHuman:SetStateEnabled(1, false)
     nHuman:SetStateEnabled(0, false)
     nHuman.BreakJointsOnDeath = true
     Human:Destroy()
-    player.Character = Char
+    LocalPlayer.Character = Char
     Cam.CameraSubject = nHuman
     Cam.CFrame = Pos
     nHuman.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
@@ -11886,7 +11888,7 @@ end
 
 local function setupAntiDamageMonitor()
     if antiDamageHealthConn then antiDamageHealthConn:Disconnect(); antiDamageHealthConn = nil end
-    local char = player.Character
+    local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
@@ -11898,7 +11900,7 @@ local function setupAntiDamageMonitor()
         if newHealth < lastHealth then
             antiDamageLastActivation = tick()
             antiDamageJaClonado = false
-            local curChar = player.Character
+            local curChar = LocalPlayer.Character
             if curChar then antiDamageFazerClone(curChar) end
         end
         lastHealth = newHealth
@@ -11914,21 +11916,21 @@ local function stopAntiDamage()
 end
 
 AbuseTab:CreateToggle({
-    Title = "Anti Damage | 20% functionality",
+    Title = "Anti Damage",
     Default = false,
     Callback = function(Value)
         antiDamageActive = Value
         if Value then
-            antiDamageCharConn = player.CharacterAdded:Connect(function()
+            antiDamageCharConn = LocalPlayer.CharacterAdded:Connect(function()
                 task.wait(0.5)
                 if antiDamageActive then
-                    antiDamageFazerClone(player.Character)
+                    antiDamageFazerClone(LocalPlayer.Character)
                     setupAntiDamageMonitor()
                 end
             end)
-            if player.Character then
+            if LocalPlayer.Character then
                 task.wait(0.1)
-                antiDamageFazerClone(player.Character)
+                antiDamageFazerClone(LocalPlayer.Character)
                 setupAntiDamageMonitor()
             end
         else
@@ -11962,7 +11964,7 @@ local function stopRaknetDesync()
     if raknetDesyncConn then raknetDesyncConn:Disconnect(); raknetDesyncConn = nil end
     if raknetDesyncDiedConn then raknetDesyncDiedConn:Disconnect(); raknetDesyncDiedConn = nil end
     if raknetDesyncClone then pcall(function() raknetDesyncClone:Destroy() end); raknetDesyncClone = nil end
-    local char = player.Character
+    local char = LocalPlayer.Character
     if char then
         for _, v in pairs(char:GetDescendants()) do
             if v:IsA("BasePart") then
@@ -11994,7 +11996,7 @@ AbuseTab:CreateToggle({
     Callback = function(Value)
         raknetDesyncActive = Value
         if Value then
-            local char = player.Character or player.CharacterAdded:Wait()
+            local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
             local rootPart = char:WaitForChild("HumanoidRootPart")
             local humanoid = char:WaitForChild("Humanoid")
             raknetDesyncOriginalCF = rootPart.CFrame
@@ -12073,11 +12075,11 @@ pcall(function()
     local bypassSuperFlingBvTable = {}
 
     local function resetCharacter()
-        local char = player.Character
+        local char = LocalPlayer.Character
         local humanoid = char and char:FindFirstChildWhichIsA("Humanoid")
         local success = false
         pcall(function()
-            if replicatesignal then replicatesignal(player.Kill); success = true end
+            if replicatesignal then replicatesignal(LocalPlayer.Kill); success = true end
         end)
         if not success and humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Dead); humanoid.Health = 0 end
     end
@@ -12089,7 +12091,7 @@ pcall(function()
         for _, bv in pairs(bypassSuperFlingBvTable) do pcall(function() bv:Destroy() end) end
         bypassSuperFlingBvTable = {}
         bypassSuperFlingTarget = nil
-        local char = player.Character
+        local char = LocalPlayer.Character
         if char then
             local root = char:FindFirstChild("HumanoidRootPart")
             local hum = char:FindFirstChildOfClass("Humanoid")
@@ -12108,7 +12110,7 @@ pcall(function()
         bypassSuperFlingTarget = plr
         bypassSuperFlingActive = true
         local function setupAttack()
-            local char = player.Character or player.CharacterAdded:Wait()
+            local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
             local root = char:WaitForChild("HumanoidRootPart", 5)
             local hum = char:WaitForChild("Humanoid", 5)
             if not root or not hum then return end
@@ -12132,7 +12134,7 @@ pcall(function()
             local resetTimer = 1.5
             bypassSuperFlingConn = RunService.Heartbeat:Connect(function(dt)
                 if not bypassSuperFlingActive then return end
-                local curChar = player.Character
+                local curChar = LocalPlayer.Character
                 if not curChar then return end
                 local curRoot = curChar:FindFirstChild("HumanoidRootPart")
                 local curHum = curChar:FindFirstChildOfClass("Humanoid")
@@ -12151,7 +12153,7 @@ pcall(function()
         end
         setupAttack()
         if not bypassSuperFlingCharConn then
-            bypassSuperFlingCharConn = player.CharacterAdded:Connect(function()
+            bypassSuperFlingCharConn = LocalPlayer.CharacterAdded:Connect(function()
                 if bypassSuperFlingActive and bypassSuperFlingTarget then
                     task.wait(0.2)
                     setupAttack()
@@ -12165,7 +12167,7 @@ pcall(function()
         Default = false,
         Callback = function(Value)
             if not Value then stopBypassSuperFling() return end
-            local t = GetPlayTarget()
+            local t = GetAbuseTarget()
             if not t then return end
             startBypassSuperFling(t)
         end,
@@ -12190,7 +12192,7 @@ pcall(function()
         workspace.FallenPartsDestroyHeight = -500
         for _, bv in pairs(bypassFlingBvTable) do pcall(function() bv:Destroy() end) end
         bypassFlingBvTable = {}
-        local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if myRoot then
             if bypassFlingOriginalCFrame then myRoot.CFrame = bypassFlingOriginalCFrame; bypassFlingOriginalCFrame = nil end
             myRoot.Velocity = Vector3.zero
@@ -12207,7 +12209,7 @@ pcall(function()
         local orbitAngle = 0
         local orbitRadius = 0.3
         local function setupFlingLoop()
-            local char = player.Character or player.CharacterAdded:Wait()
+            local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
             local root = char:WaitForChild("HumanoidRootPart", 5)
             if not root then return end
             local targetChar = targetPlayer.Character
@@ -12233,8 +12235,8 @@ pcall(function()
                 if not curTarget or not curTarget.Character then return end
                 local curTargetRoot = curTarget.Character:FindFirstChild("HumanoidRootPart")
                 if not curTargetRoot then return end
-                local myRootNow = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-                local myHumNow = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+                local myRootNow = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local myHumNow = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
                 if not myRootNow or not myHumNow or myHumNow.Health <= 0 then return end
                 if not bypassFlingBvTable[curTargetRoot] then
                     local bv = Instance.new("BodyVelocity")
@@ -12256,11 +12258,11 @@ pcall(function()
                 resetTimer = resetTimer - dt
                 if resetTimer <= 0 then
                     resetTimer = 1.5
-                    local curChar = player.Character
+                    local curChar = LocalPlayer.Character
                     local humanoid = curChar and curChar:FindFirstChildWhichIsA("Humanoid")
                     local success = false
                     pcall(function()
-                        if replicatesignal then replicatesignal(player.Kill); success = true end
+                        if replicatesignal then replicatesignal(LocalPlayer.Kill); success = true end
                     end)
                     if not success and humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Dead); humanoid.Health = 0 end
                 end
@@ -12268,7 +12270,7 @@ pcall(function()
         end
         setupFlingLoop()
         if not bypassFlingCharConn then
-            bypassFlingCharConn = player.CharacterAdded:Connect(function()
+            bypassFlingCharConn = LocalPlayer.CharacterAdded:Connect(function()
                 if bypassFlingActive and bypassFlingTarget then
                     task.wait(0.2)
                     setupFlingLoop()
@@ -12282,265 +12284,243 @@ pcall(function()
         Default = false,
         Callback = function(Value)
             if not Value then stopBypassFling() return end
-            local t = GetPlayTarget()
+            local t = GetAbuseTarget()
             if not t then return end
             startBypassFling(t)
         end,
     })
 end)
 
-AbuseTab:CreateToggle({
-    Title = "Stun Play V2",
-    Default = false,
-    Callback = function(Value)
-        if not Value then stopStunV2() return end
-        local t = GetPlayTarget()
-        if not t or not t.Character then return end
+-- =============================================
+-- STUN PLAY V2
+-- =============================================
+pcall(function()
+    local stunV2Active = false
+    local stunV2Conn = nil
+    local stunV2Target = nil
+    local stunV2OriginalCFrame = nil
+    local stunV2ForceTimer = 0
+    local stunV2IsImpactPhase = true
+    local stunV2ActiveDuration = 0.5
+    local stunV2CooldownDuration = 0.5
+    local customRotation = CFrame.Angles(math.rad(-90), 0, 0)
 
-        stunV2Target = t
-        stunV2Active = true
-        stunV2ForceTimer = 0
-        stunV2IsImpactPhase = true
+    local function setupV2Force(character)
+        local root = character:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        local existing = root:FindFirstChild("DerrubarForce")
+        if existing then existing:Destroy() end
+        local attachment = Instance.new("Attachment")
+        attachment.Name = "DerrubarAttachment"
+        attachment.Parent = root
+        local vectorForce = Instance.new("VectorForce")
+        vectorForce.Name = "DerrubarForce"
+        vectorForce.Attachment0 = attachment
+        vectorForce.RelativeTo = Enum.ActuatorRelativeTo.World
+        vectorForce.ApplyAtCenterOfMass = true
+        vectorForce.Force = Vector3.new(0, -1000000, 0)
+        vectorForce.Enabled = false
+        vectorForce.Parent = root
+    end
 
-        local char = player.Character
-        if not char then return end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if not root or not hum then return end
+    local function stopStunV2()
+        stunV2Active = false
+        if stunV2Conn then stunV2Conn:Disconnect(); stunV2Conn = nil end
+        local char = LocalPlayer.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if root then
+                if stunV2OriginalCFrame then
+                    root.CFrame = stunV2OriginalCFrame
+                    stunV2OriginalCFrame = nil
+                end
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                local vf = root:FindFirstChild("DerrubarForce")
+                if vf then vf:Destroy() end
+                local att = root:FindFirstChild("DerrubarAttachment")
+                if att then att:Destroy() end
+                detach(root)
+            end
+            if hum then hum.PlatformStand = false end
+        end
+        stunV2Target = nil
+    end
 
-        setupV2Force(char)
-        stunV2OriginalCFrame = root.CFrame
-        hum.PlatformStand = true
+    AbuseTab:CreateToggle({
+        Title = "Stun Play V2",
+        Default = false,
+        Callback = function(Value)
+            if not Value then stopStunV2() return end
+            local t = GetAbuseTarget()
+            if not t or not t.Character then return end
 
-        stunV2Conn = RunService.Heartbeat:Connect(function(dt)
-            if not stunV2Active then return end
+            stunV2Target = t
+            stunV2Active = true
+            stunV2ForceTimer = 0
+            stunV2IsImpactPhase = true
 
-            -- Se o alvo morreu/saiu, para
-            if not stunV2Target or not stunV2Target.Character then
-                stopStunV2()
+            local char = LocalPlayer.Character
+            if not char then return end
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not root or not hum then return end
+
+            setupV2Force(char)
+            stunV2OriginalCFrame = root.CFrame
+            hum.PlatformStand = true
+
+            stunV2Conn = RunService.Heartbeat:Connect(function(dt)
+                if not stunV2Active then return end
+
+                if not stunV2Target or not stunV2Target.Character then
+                    stopStunV2()
+                    return
+                end
+
+                local curTarget = stunV2Target.Character
+                local targetRoot = curTarget:FindFirstChild("HumanoidRootPart")
+                if not targetRoot then return end
+
+                local curChar = LocalPlayer.Character
+                if not curChar then return end
+                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+                local curHum = curChar:FindFirstChildOfClass("Humanoid")
+                if not curRoot or not curHum or curHum.Health <= 0 then return end
+
+                if not curRoot:FindFirstChild("DerrubarForce") then
+                    setupV2Force(curChar)
+                end
+                local vectorForce = curRoot:FindFirstChild("DerrubarForce")
+
+                stunV2ForceTimer = stunV2ForceTimer + dt
+                if stunV2IsImpactPhase then
+                    if stunV2ForceTimer >= stunV2ActiveDuration then
+                        stunV2IsImpactPhase = false
+                        stunV2ForceTimer = 0
+                    end
+                else
+                    if stunV2ForceTimer >= stunV2CooldownDuration then
+                        stunV2IsImpactPhase = true
+                        stunV2ForceTimer = 0
+                    end
+                end
+
+                attach(curRoot, targetRoot)
+
+                if stunV2IsImpactPhase then
+                    local offsetCima = Vector3.new(0, 10, 0)
+                    local targetPosition = targetRoot.CFrame:PointToWorldSpace(offsetCima)
+                    curRoot.CFrame = CFrame.new(targetPosition) * targetRoot.CFrame.Rotation * customRotation
+                    if vectorForce then vectorForce.Enabled = true end
+                    curRoot.AssemblyLinearVelocity = Vector3.new(0, -50, 0)
+                    curRoot.AssemblyAngularVelocity = Vector3.new(50, 50, 50)
+                else
+                    local offsetNormal = Vector3.new(0, 1, 0)
+                    local targetPosition = targetRoot.CFrame:PointToWorldSpace(offsetNormal)
+                    curRoot.CFrame = CFrame.new(targetPosition) * targetRoot.CFrame.Rotation * customRotation
+                    if vectorForce then vectorForce.Enabled = false end
+                    curRoot.AssemblyLinearVelocity = Vector3.zero
+                    curRoot.AssemblyAngularVelocity = Vector3.zero
+                end
+            end)
+        end,
+    })
+end)
+-- =============================================
+-- GLITTER PLAY ALL LOOP
+-- =============================================
+pcall(function()
+    local glitterLoopActive = false
+    local glitterLoopConn = nil
+    local glitterLoopOriginalCF = nil
+    local glitterLoopBvTable = {}
+
+    AbuseTab:CreateToggle({
+        Title = "Glitter Play All Loop",
+        Default = false,
+        Callback = function(Value)
+            glitterLoopActive = Value
+            if not Value then
+                if glitterLoopConn then glitterLoopConn:Disconnect(); glitterLoopConn = nil end
+                for _, bv in pairs(glitterLoopBvTable) do pcall(function() bv:Destroy() end) end
+                glitterLoopBvTable = {}
+                local char = LocalPlayer.Character
+                if char then
+                    local root = char:FindFirstChild("HumanoidRootPart")
+                    local hum  = char:FindFirstChildOfClass("Humanoid")
+                    if root and glitterLoopOriginalCF then
+                        root.CFrame = glitterLoopOriginalCF
+                        root.Velocity = Vector3.zero
+                        root.RotVelocity = Vector3.zero
+                        detach(root)
+                    end
+                    if hum then hum.PlatformStand = false; hum.Sit = false end
+                end
+                glitterLoopOriginalCF = nil
                 return
             end
 
-            local curTarget = stunV2Target.Character
-            local targetRoot = curTarget:FindFirstChild("HumanoidRootPart")
-            if not targetRoot then return end
+            local char = LocalPlayer.Character
+            if not char then glitterLoopActive = false; return end
+            local myRoot = char:FindFirstChild("HumanoidRootPart")
+            local myHum  = char:FindFirstChildOfClass("Humanoid")
+            if not myRoot or not myHum then glitterLoopActive = false; return end
 
-            local curChar = player.Character
-            if not curChar then return end
-            local curRoot = curChar:FindFirstChild("HumanoidRootPart")
-            local curHum = curChar:FindFirstChildOfClass("Humanoid")
-            if not curRoot or not curHum or curHum.Health <= 0 then return end
+            myHum.PlatformStand = true
+            glitterLoopOriginalCF = myRoot.CFrame
+            local targetIndex = 1
+            local lastSwitch = tick()
 
-            -- Garante que o DerrubarForce exista no root atual
-            if not curRoot:FindFirstChild("DerrubarForce") then
-                setupV2Force(curChar)
-            end
-            local vectorForce = curRoot:FindFirstChild("DerrubarForce")
+            glitterLoopConn = RunService.Heartbeat:Connect(function()
+                if not glitterLoopActive then return end
+                local curChar = LocalPlayer.Character
+                if not curChar then return end
+                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+                if not curRoot then return end
 
-            stunV2ForceTimer = stunV2ForceTimer + dt
-            if stunV2IsImpactPhase then
-                if stunV2ForceTimer >= stunV2ActiveDuration then
-                    stunV2IsImpactPhase = false
-                    stunV2ForceTimer = 0
-                end
-            else
-                if stunV2ForceTimer >= stunV2CooldownDuration then
-                    stunV2IsImpactPhase = true
-                    stunV2ForceTimer = 0
-                end
-            end
-
-            attach(curRoot, targetRoot)
-
-            if stunV2IsImpactPhase then
-                local offsetCima = Vector3.new(0, 10, 0)
-                local targetPosition = targetRoot.CFrame:PointToWorldSpace(offsetCima)
-                curRoot.CFrame = CFrame.new(targetPosition) * targetRoot.CFrame.Rotation * customRotation
-                if vectorForce then vectorForce.Enabled = true end
-                curRoot.AssemblyLinearVelocity = Vector3.new(0, -50, 0)
-                curRoot.AssemblyAngularVelocity = Vector3.new(50, 50, 50)
-            else
-                local offsetNormal = Vector3.new(0, 1, 0)
-                local targetPosition = targetRoot.CFrame:PointToWorldSpace(offsetNormal)
-                curRoot.CFrame = CFrame.new(targetPosition) * targetRoot.CFrame.Rotation * customRotation
-                if vectorForce then vectorForce.Enabled = false end
-                curRoot.AssemblyLinearVelocity = Vector3.zero
-                curRoot.AssemblyAngularVelocity = Vector3.zero
-            end
-        end)
-    end,
-})
--- =============================================
--- GLITTER PLAY ALL
--- =============================================
-local glitterAllRunning = false
-
-AbuseTab:CreateButton({
-    Title = "Glitter Play All",
-    Callback = function()
-        if glitterAllRunning then return end
-        local char = player.Character
-        if not char then return end
-        local myRoot = char:FindFirstChild("HumanoidRootPart")
-        local myHum = char:FindFirstChildOfClass("Humanoid")
-        if not myRoot or not myHum then return end
-        glitterAllRunning = true
-        local originalCFrame = myRoot.CFrame
-        local allBv = {}
-        myHum.PlatformStand = true
-        local targetIndex = 1
-        local lastSwitch = tick()
-        local switchInterval = 0.2
-        local startTime = tick()
-        local conn
-        conn = RunService.Heartbeat:Connect(function()
-            if not glitterAllRunning then conn:Disconnect() return end
-            local curChar = player.Character
-            if not curChar then conn:Disconnect() return end
-            local curRoot = curChar:FindFirstChild("HumanoidRootPart")
-            if not curRoot then return end
-            local targets = {}
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                    table.insert(targets, p)
-                end
-            end
-            if #targets == 0 then return end
-            if tick() - lastSwitch >= switchInterval then
-                targetIndex = targetIndex % #targets + 1
-                lastSwitch = tick()
-                if targetIndex == 1 and tick() - startTime >= (#targets * switchInterval) then
-                    glitterAllRunning = false
-                    conn:Disconnect()
-                    local c = player.Character
-                    if c then
-                        local r = c:FindFirstChild("HumanoidRootPart")
-                        local h = c:FindFirstChildOfClass("Humanoid")
-                        if r then
-                            r.CFrame = originalCFrame
-                            r.Velocity = Vector3.zero
-                            r.RotVelocity = Vector3.zero
-                            detach(r)
-                        end
-                        if h then h.PlatformStand = false; h.Sit = false end
+                local targets = {}
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                        table.insert(targets, p)
                     end
-                    for _, bv in pairs(allBv) do pcall(function() bv:Destroy() end) end
-                    return
                 end
-            end
-            local target = targets[targetIndex]
-            if not target then return end
-            local targetRoot = target.Character:FindFirstChild("HumanoidRootPart")
-            if not targetRoot then return end
-            if not allBv[targetRoot] then
-                local bv = Instance.new("BodyVelocity")
-                bv.Name = "EpixVel"
-                bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
-                bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-                bv.Parent = targetRoot
-                allBv[targetRoot] = bv
-            end
-            local timeNow = tick()
-            local cyclePos = (timeNow * 2.5) % 2
-            local currentY
-            if cyclePos < 1 then currentY = -3 + (3.5 * cyclePos)
-            else currentY = 0.5 - (3.5 * (cyclePos - 1)) end
-            curRoot.CFrame = CFrame.new(targetRoot.Position + Vector3.new(0, currentY, 0)) * CFrame.Angles(math.rad(90), 0, 0)
-            curRoot.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
-            curRoot.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
-            attach(curRoot, targetRoot)
-        end)
-    end,
-})
-local glitterLoopActive = false
-local glitterLoopConn = nil
-local glitterLoopOriginalCF = nil
-local glitterLoopBvTable = {}
+                if #targets == 0 then return end
 
-AbuseTab:CreateToggle({
-    Title = "Glitter Play All Loop",
-    Default = false,
-    Callback = function(Value)
-        glitterLoopActive = Value
-        if not Value then
-            if glitterLoopConn then glitterLoopConn:Disconnect(); glitterLoopConn = nil end
-            for _, bv in pairs(glitterLoopBvTable) do pcall(function() bv:Destroy() end) end
-            glitterLoopBvTable = {}
-            local char = player.Character
-            if char then
-                local root = char:FindFirstChild("HumanoidRootPart")
-                local hum  = char:FindFirstChildOfClass("Humanoid")
-                if root and glitterLoopOriginalCF then
-                    root.CFrame = glitterLoopOriginalCF
-                    root.Velocity = Vector3.zero
-                    root.RotVelocity = Vector3.zero
-                    detach(root)
+                if tick() - lastSwitch >= 0.2 then
+                    targetIndex = targetIndex % #targets + 1
+                    lastSwitch = tick()
                 end
-                if hum then hum.PlatformStand = false; hum.Sit = false end
-            end
-            glitterLoopOriginalCF = nil
-            return
-        end
 
-        local char = player.Character
-        if not char then glitterLoopActive = false; return end
-        local myRoot = char:FindFirstChild("HumanoidRootPart")
-        local myHum  = char:FindFirstChildOfClass("Humanoid")
-        if not myRoot or not myHum then glitterLoopActive = false; return end
+                local target = targets[targetIndex]
+                if not target then return end
+                local targetRoot = target.Character:FindFirstChild("HumanoidRootPart")
+                if not targetRoot then return end
 
-        myHum.PlatformStand = true
-        glitterLoopOriginalCF = myRoot.CFrame
-        local targetIndex = 1
-        local lastSwitch = tick()
-
-        glitterLoopConn = RunService.Heartbeat:Connect(function()
-            if not glitterLoopActive then return end
-            local curChar = player.Character
-            if not curChar then return end
-            local curRoot = curChar:FindFirstChild("HumanoidRootPart")
-            if not curRoot then return end
-
-            local targets = {}
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                    table.insert(targets, p)
+                if not glitterLoopBvTable[targetRoot] then
+                    local bv = Instance.new("BodyVelocity")
+                    bv.Name = "EpixVel"
+                    bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
+                    bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+                    bv.Parent = targetRoot
+                    glitterLoopBvTable[targetRoot] = bv
                 end
-            end
-            if #targets == 0 then return end
 
-            if tick() - lastSwitch >= 0.2 then
-                targetIndex = targetIndex % #targets + 1
-                lastSwitch = tick()
-            end
+                local timeNow = tick()
+                local cyclePos = (timeNow * 2.5) % 2
+                local currentY
+                if cyclePos < 1 then
+                    currentY = -3 + (3.5 * cyclePos)
+                else
+                    currentY = 0.5 - (3.5 * (cyclePos - 1))
+                end
 
-            local target = targets[targetIndex]
-            if not target then return end
-            local targetRoot = target.Character:FindFirstChild("HumanoidRootPart")
-            if not targetRoot then return end
-
-            if not glitterLoopBvTable[targetRoot] then
-                local bv = Instance.new("BodyVelocity")
-                bv.Name = "EpixVel"
-                bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
-                bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-                bv.Parent = targetRoot
-                glitterLoopBvTable[targetRoot] = bv
-            end
-
-            local timeNow = tick()
-            local cyclePos = (timeNow * 2.5) % 2
-            local currentY
-            if cyclePos < 1 then
-                currentY = -3 + (3.5 * cyclePos)
-            else
-                currentY = 0.5 - (3.5 * (cyclePos - 1))
-            end
-
-            curRoot.CFrame = CFrame.new(targetRoot.Position + Vector3.new(0, currentY, 0)) * CFrame.Angles(math.rad(90), 0, 0)
-            curRoot.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
-            curRoot.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
-            attach(curRoot, targetRoot)
-        end)
-    end,
-})
- 
+                curRoot.CFrame = CFrame.new(targetRoot.Position + Vector3.new(0, currentY, 0)) * CFrame.Angles(math.rad(90), 0, 0)
+                curRoot.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+                curRoot.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+                attach(curRoot, targetRoot)
+            end)
+        end,
+    })
+end)

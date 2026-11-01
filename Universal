@@ -12235,71 +12235,7 @@ pcall(function()
     })
 end)
 
--- =============================================
--- STUN PLAY
--- =============================================
-local stunActive = false
-local stunConn = nil
-local stunTarget = nil
-local stunOriginalCFrame = nil
-local customRotation = CFrame.Angles(math.rad(70), 0, 0)
-
-local function stopStun()
-    stunActive = false
-    if stunConn then stunConn:Disconnect(); stunConn = nil end
-    stunTarget = nil
-    local char = player.Character
-    if char then
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if root then
-            if stunOriginalCFrame then root.CFrame = stunOriginalCFrame end
-            root.Velocity = Vector3.zero
-            root.RotVelocity = Vector3.zero
-            detach(root)
-        end
-        if hum then hum.PlatformStand = false; hum.Sit = false end
-    end
-    stunOriginalCFrame = nil
-end
-
-AbuseTab:CreateToggle({
-    Title = "Stun Play",
-    Default = false,
-    Callback = function(Value)
-        if not Value then stopStun() return end
-        local t = GetPlayTarget()
-        if not t or not t.Character then return end
-        stunTarget = t
-        stunActive = true
-        local char = player.Character
-        if not char then return end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if not root or not hum then return end
-        stunOriginalCFrame = root.CFrame
-        hum.PlatformStand = true
-        stunConn = RunService.Heartbeat:Connect(function()
-            if not stunActive or not stunTarget then stopStun() return end
-            local curTarget = stunTarget.Character
-            if not curTarget then return end
-            local targetRoot = curTarget:FindFirstChild("HumanoidRootPart")
-            if not targetRoot then return end
-            local curChar = player.Character
-            if not curChar then return end
-            local curRoot = curChar:FindFirstChild("HumanoidRootPart")
-            if not curRoot then return end
-            local offset = Vector3.new(0, 1, 0)
-            local targetPosition = targetRoot.CFrame:PointToWorldSpace(offset)
-            curRoot.CFrame = CFrame.new(targetPosition) * targetRoot.CFrame.Rotation * customRotation
-            curRoot.Velocity = Vector3.zero
-            curRoot.RotVelocity = Vector3.zero
-            attach(curRoot, targetRoot)
-        end)
-    end,
-})
-
--- =============================================
+-- -- =============================================
 -- STUN PLAY V2
 -- =============================================
 local stunV2Active = false
@@ -12310,6 +12246,8 @@ local stunV2ForceTimer = 0
 local stunV2ActiveDuration = 0.6
 local stunV2CooldownDuration = 3.0
 local stunV2IsImpactPhase = true
+
+local customRotation = CFrame.Angles(math.rad(70), 0, 0)   -- ← ADICIONADO AQUI
 
 local function setupV2Force(character)
     local rootPart = character:WaitForChild("HumanoidRootPart", 5)
@@ -12414,7 +12352,6 @@ AbuseTab:CreateToggle({
         end)
     end,
 })
-
 -- =============================================
 -- GLITTER PLAY ALL
 -- =============================================

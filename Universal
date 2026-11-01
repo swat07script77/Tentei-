@@ -1,1 +1,86 @@
 
+-- ============================================================
+-- ABA 1: MAIN
+-- ============================================================
+local MainTab = Window:CreateTab("Main", "home")
+
+MainTab:CreateLabel("Welcome to Script.")
+MainTab:CreateLabel("Bem-vindo ao Script.")
+
+MainTab:CreateButton({
+    Title    = "Hello World",
+    Callback = function()
+        Window:Notify({
+            Title       = "Main",
+            Description = "Hello World!",
+            Duration    = 2,
+            Type        = "success",
+        })
+    end,
+})
+
+MainTab:CreateToggle({
+    Title   = "Test Toggle",
+    Default = false,
+    Callback = function(Value)
+        Window:Notify({
+            Title       = "Main",
+            Description = "Toggle: " .. (Value and "ON" or "OFF"),
+            Duration    = 2,
+            Type        = "info",
+        })
+    end,
+})
+
+MainTab:CreateSlider({
+    Title    = "Test Slider",
+    Min      = 0,
+    Max      = 100,
+    Default  = 50,
+    Callback = function(Value)
+        -- recebe o valor
+    end,
+})
+
+-- ============================================================
+-- ABA 2: EXTRA
+-- ============================================================
+local ExtraTab = Window:CreateTab("Extra", "package")
+
+ExtraTab:CreateLabel("Extra functions here.")
+ExtraTab:CreateLabel("Funções extras aqui.")
+
+ExtraTab:CreateButton({
+    Title    = "Print to Console",
+    Callback = function()
+        print("[Script] Button pressed at", os.time())
+    end,
+})
+
+ExtraTab:CreateToggle({
+    Title   = "Extra Toggle",
+    Default = false,
+    Callback = function(Value)
+        print("[Script] Extra Toggle:", Value)
+    end,
+})
+
+-- ============================================================
+-- ABA 3: SETTINGS
+-- ============================================================
+local SettingsTab = Window:CreateTab("Settings", "settings")
+
+SettingsTab:CreateLabel("Settings options.")
+SettingsTab:CreateLabel("Opções de configuração.")
+
+SettingsTab:CreateButton({
+    Title    = "Show Info",
+    Callback = function()
+        Window:Notify({
+            Title       = "Info",
+            Description = "Player: " .. LocalPlayer.Name,
+            Duration    = 3,
+            Type        = "info",
+        })
+    end,
+})

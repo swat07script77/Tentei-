@@ -7006,7 +7006,21 @@ pcall(function()
         Notify("Script", "Loading...", 2)
         pcall(function() loadstring(game:HttpGet("https://pastebin.com/raw/AxSTCHu3"))() end)
     end })
-
+    
+ScriptsTab:CreateButton({
+    Title = "Elemental Power Tycoon Swat07 Hub",
+    Callback = function()
+        Window:Notify({
+            Title       = "Script",
+            Description = "Loading...",
+            Duration    = 2,
+            Type        = "info",
+        })
+        pcall(function()
+            loadstring(game:HttpGet("https://pastebin.com/raw/AxSTCHu3"))()
+        end)
+    end,
+})
     ScriptsTab:CreateButton({ Title = "Mouse Cell Phone", Callback = function()
         Notify("Script", "Loading...", 2)
         pcall(function() loadstring(game:HttpGet("https://pastebin.com/raw/CHQVXc0C"))() end)

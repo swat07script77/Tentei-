@@ -12235,62 +12235,6 @@ pcall(function()
     })
 end)
 
--- -- =============================================
--- STUN PLAY V2
--- =============================================
-local stunV2Active = false
-local stunV2Conn = nil
-local stunV2Target = nil
-local stunV2OriginalCFrame = nil
-local stunV2ForceTimer = 0
-local stunV2ActiveDuration = 0.6
-local stunV2CooldownDuration = 3.0
-local stunV2IsImpactPhase = true
-
-local customRotation = CFrame.Angles(math.rad(70), 0, 0)   -- ← ADICIONADO AQUI
-
-local function setupV2Force(character)
-    local rootPart = character:WaitForChild("HumanoidRootPart", 5)
-    if rootPart and not rootPart:FindFirstChild("DerrubarForce") then
-        local attachment = Instance.new("Attachment")
-        attachment.Name = "DerrubarAttachment"
-        attachment.Parent = rootPart
-        local vectorForce = Instance.new("VectorForce")
-        vectorForce.Name = "DerrubarForce"
-        vectorForce.Attachment0 = attachment
-        vectorForce.RelativeTo = Enum.ActuatorRelativeTo.World
-        vectorForce.Force = Vector3.new(0, -50 * rootPart.AssemblyMass * 50, 0)
-        vectorForce.Enabled = false
-        vectorForce.Parent = rootPart
-    end
-end
-
-player.CharacterAdded:Connect(function(newChar) setupV2Force(newChar) end)
-if player.Character then setupV2Force(player.Character) end
-
-local function stopStunV2()
-    stunV2Active = false
-    if stunV2Conn then stunV2Conn:Disconnect(); stunV2Conn = nil end
-    stunV2Target = nil
-    stunV2ForceTimer = 0
-    stunV2IsImpactPhase = true
-    local char = player.Character
-    if char then
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if root then
-            if stunV2OriginalCFrame then root.CFrame = stunV2OriginalCFrame end
-            root.Velocity = Vector3.zero
-            root.RotVelocity = Vector3.zero
-            local vf = root:FindFirstChild("DerrubarForce")
-            if vf then vf.Enabled = false end
-            detach(root)
-        end
-        if hum then hum.PlatformStand = false; hum.Sit = false end
-    end
-    stunV2OriginalCFrame = nil
-end
-
 AbuseTab:CreateToggle({
     Title = "Stun Play V2",
     Default = false,
@@ -12298,28 +12242,47 @@ AbuseTab:CreateToggle({
         if not Value then stopStunV2() return end
         local t = GetPlayTarget()
         if not t or not t.Character then return end
+
         stunV2Target = t
         stunV2Active = true
         stunV2ForceTimer = 0
         stunV2IsImpactPhase = true
+
         local char = player.Character
         if not char then return end
         local root = char:FindFirstChild("HumanoidRootPart")
         local hum = char:FindFirstChildOfClass("Humanoid")
         if not root or not hum then return end
+
         setupV2Force(char)
         stunV2OriginalCFrame = root.CFrame
         hum.PlatformStand = true
+
         stunV2Conn = RunService.Heartbeat:Connect(function(dt)
-            if not stunV2Active or not stunV2Target then stopStunV2() return end
+            if not stunV2Active then return end
+
+            -- Se o alvo morreu/saiu, para
+            if not stunV2Target or not stunV2Target.Character then
+                stopStunV2()
+                return
+            end
+
             local curTarget = stunV2Target.Character
-            if not curTarget then return end
             local targetRoot = curTarget:FindFirstChild("HumanoidRootPart")
             if not targetRoot then return end
+
             local curChar = player.Character
             if not curChar then return end
             local curRoot = curChar:FindFirstChild("HumanoidRootPart")
-            if not curRoot then return end
+            local curHum = curChar:FindFirstChildOfClass("Humanoid")
+            if not curRoot or not curHum or curHum.Health <= 0 then return end
+
+            -- Garante que o DerrubarForce exista no root atual
+            if not curRoot:FindFirstChild("DerrubarForce") then
+                setupV2Force(curChar)
+            end
+            local vectorForce = curRoot:FindFirstChild("DerrubarForce")
+
             stunV2ForceTimer = stunV2ForceTimer + dt
             if stunV2IsImpactPhase then
                 if stunV2ForceTimer >= stunV2ActiveDuration then
@@ -12332,8 +12295,9 @@ AbuseTab:CreateToggle({
                     stunV2ForceTimer = 0
                 end
             end
+
             attach(curRoot, targetRoot)
-            local vectorForce = curRoot:FindFirstChild("DerrubarForce")
+
             if stunV2IsImpactPhase then
                 local offsetCima = Vector3.new(0, 10, 0)
                 local targetPosition = targetRoot.CFrame:PointToWorldSpace(offsetCima)

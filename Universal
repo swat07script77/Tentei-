@@ -1,2078 +1,381 @@
-pcall(function()
-    local MainSwordsTab = Window:CreateTab("Main Swords", "swords")
-    local MainTab = Window:CreateTab("Main", "home")
-    local PlayTab = Window:CreateTab("Play", "play")
-    local AntiTab = Window:CreateTab("Anti", "shield")
+-- ============================================================
+-- ABA: MAIN SWORDS
+-- ============================================================
+local MainSwordsTab = Window:CreateTab("Main Swords", "swords")
 
-    local function Root(M) return M and M:FindFirstChild("HumanoidRootPart") end
-    local function Hum(M) return M and M:FindFirstChildOfClass("Humanoid") end
-    local function getHead(c) return c and c:FindFirstChild("Head") end
-    local function attach(Part, TargetPart)
-        pcall(sethiddenproperty, Part, 'PhysicsRepRootRef', InstanceHandle and InstanceHandle.new(TargetPart or Part) or (TargetPart or Part))
+local function Root(M) return M and M:FindFirstChild("HumanoidRootPart") end
+local function Hum(M) return M and M:FindFirstChildOfClass("Humanoid") end
+
+local SwordsTarget = nil
+local SwordsDropdown = nil
+
+local function GetSwordsTarget()
+    if not SwordsTarget or SwordsTarget == "" then return nil end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name == SwordsTarget then return plr end
     end
+    return nil
+end
 
-    local function CreateDropdownFor(Tab, setter)
-        local dropdown
-        local list = {}
-        local function refresh()
-            list = {}
-            for _, plr in ipairs(Players:GetPlayers()) do
-                if plr ~= LocalPlayer then table.insert(list, plr.Name) end
-            end
-            table.sort(list)
-            if dropdown and dropdown.Update then
-                pcall(function() dropdown:Update({ Options = list }) end)
-            end
-        end
-        dropdown = Tab:CreateDropdown({
-            Title = "Select Target",
-            Options = {},
-            Callback = function(Value) setter(Value) end,
-        })
-        refresh()
-        Tab:CreateButton({
-            Title = "Refresh Target List",
-            Callback = function() refresh() end,
-        })
-        return function() return dropdown end
+local function RefreshSwords()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
     end
-
-    local SwordsTarget = nil
-    local function GetSwordsTarget()
-        if not SwordsTarget or SwordsTarget == "" then return nil end
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr.Name == SwordsTarget then return plr end
-        end
-        return nil
+    table.sort(list)
+    if SwordsDropdown and SwordsDropdown.Update then
+        pcall(function() SwordsDropdown:Update({ Options = list }) end)
     end
-    CreateDropdownFor(MainSwordsTab, function(v) SwordsTarget = v end)
+end
 
-    local function Mvmentbtn(Name, Offset, IsFling)
-        local Conn, SavedCF
-        MainSwordsTab:CreateToggle({
-            Title = Name, Default = false,
-            Callback = function(State)
-                if Conn then Conn:Disconnect(); Conn = nil end
-                local LRoot = Root(LocalPlayer.Character)
-                if not State then
-                    if LRoot and SavedCF then
-                        LRoot.CFrame = SavedCF
-                        LRoot.Velocity = Vector3.zero
-                        LRoot.RotVelocity = Vector3.zero
-                        SavedCF = nil
-                    end
-                    if LRoot then attach(LRoot, LRoot) end
-                    return
-                end
-                if LRoot then SavedCF = LRoot.CFrame end
-                Conn = RunService.Heartbeat:Connect(function()
-                    local CurrentLRoot = Root(LocalPlayer.Character)
-                    local t = GetSwordsTarget()
-                    local TRoot = t and Root(t.Character)
-                    if not (CurrentLRoot and TRoot) then return end
-                    CurrentLRoot.CFrame = CFrame.new(TRoot.Position + Offset) * CFrame.Angles(-math.pi/2, 0, 0)
-                    local Vel = IsFling and Vector3.new(500, 500, 500) or Vector3.zero
-                    CurrentLRoot.Velocity = Vel
-                    CurrentLRoot.RotVelocity = Vel
-                    attach(CurrentLRoot, TRoot)
-                end)
-            end,
-        })
-    end
-    Mvmentbtn("Fling Player", Vector3.new(0, 0, 0), true)
-    Mvmentbtn("Fling 2.0", Vector3.new(0, -2.5, 0), true)
-    Mvmentbtn("Platform Fly", Vector3.new(0, -2.8, 0), false)
-    Mvmentbtn("Magic Carpet", Vector3.new(0, -3.1, 0), false)
-    Mvmentbtn("Elevator", Vector3.new(0, -2.6, 0), false)
-    Mvmentbtn("Anti Jump", Vector3.new(0, 3.5, 0), false)
+SwordsDropdown = MainSwordsTab:CreateDropdown({
+    Title = "Select Target",
+    Options = {},
+    Callback = function(Value) SwordsTarget = Value end,
+})
+RefreshSwords()
 
-    local function Bind(Name, Offset)
-        local Conn
-        MainSwordsTab:CreateToggle({
-            Title = Name, Default = false,
-            Callback = function(State)
-                if Conn then Conn:Disconnect(); Conn = nil end
-                local LRoot = Root(LocalPlayer.Character)
-                if not State then
-                    if LRoot then
-                        LRoot.Velocity = Vector3.zero
-                        attach(LRoot, LRoot)
-                    end
-                    return
-                end
-                Conn = RunService.Heartbeat:Connect(function()
-                    local CurrentLRoot = Root(LocalPlayer.Character)
-                    local t = GetSwordsTarget()
-                    local TRoot = t and Root(t.Character)
-                    if CurrentLRoot and TRoot then
-                        CurrentLRoot.CFrame = TRoot.CFrame * CFrame.new(Offset)
-                        CurrentLRoot.Velocity = Vector3.zero
-                        attach(CurrentLRoot, TRoot)
-                    end
-                end)
-            end,
-        })
-    end
-    Bind("Infinite Jump", Vector3.new(0, -5.75, 0))
-    Bind("Speed Boost (slow)", Vector3.new(0, 0.7, 1))
-    Bind("Speed Boost (medium)", Vector3.new(0, 0.7, 0.5))
-    Bind("Speed Boost (fast)", Vector3.new(0, 0.7, 0.35))
-    Bind("Movement Breaker", Vector3.new(0, 0.7, -0.8))
+MainSwordsTab:CreateButton({
+    Title = "Refresh Target List",
+    Callback = function() RefreshSwords() end,
+})
 
-    local function CreateRocket(Name, Speed)
-        local Conn
-        MainSwordsTab:CreateToggle({
-            Title = Name, Default = false,
-            Callback = function(State)
-                if Conn then Conn:Disconnect(); Conn = nil end
-                if not State then return end
-                local LRoot = Root(LocalPlayer.Character)
-                local t = GetSwordsTarget()
-                local TRoot = t and Root(t.Character)
-                if not (LRoot and TRoot) then return end
-                local SavedCF = LRoot.CFrame
-                Conn = RunService.Heartbeat:Connect(function()
-                    if not TRoot.Parent then return end
-                    local Pos = TRoot.Position + Vector3.new(0, -3, 0)
-                    LRoot.CFrame = CFrame.new(Pos, Pos + Vector3.new(0, 1, 0))
-                    LRoot.Velocity = Vector3.new(0, Speed, 0)
-                    LRoot.RotVelocity = Vector3.zero
-                    attach(LRoot, TRoot)
-                end)
-                task.delay(0.2, function()
-                    if Conn then Conn:Disconnect(); Conn = nil end
+local function Mvmentbtn(Name, Offset, IsFling)
+    local Conn, SavedCF
+    MainSwordsTab:CreateToggle({
+        Title = Name, Default = false,
+        Callback = function(State)
+            if Conn then Conn:Disconnect(); Conn = nil end
+            local LRoot = Root(LocalPlayer.Character)
+            if not State then
+                if LRoot and SavedCF then
                     LRoot.CFrame = SavedCF
                     LRoot.Velocity = Vector3.zero
                     LRoot.RotVelocity = Vector3.zero
-                    attach(LRoot, LRoot)
-                end)
-            end,
-        })
-    end
-    CreateRocket("Rocket Target", 50)
-    CreateRocket("GODSPEED", 5000)
-
-    local Flingin = false
-    MainSwordsTab:CreateButton({
-        Title = "NaN Fling",
-        Callback = function()
-            if Flingin then return end
-            local Char = LocalPlayer.Character
-            local LRoot = Root(Char)
-            local LHum = Hum(Char)
-            local t = GetSwordsTarget()
-            local TRoot = t and Root(t.Character)
-            if not (LRoot and LHum and TRoot) then return end
-            Flingin = true
-            local SavedCF = LRoot.CFrame
-            local SavedVel = LRoot.Velocity
-            local SavedPlatform = LHum.PlatformStand
-            local Vec = Vector3.new(0/0, 0/0, 0/0)
-            LHum.PlatformStand = true
-            local Conn = RunService.Heartbeat:Connect(function()
-                LRoot.CFrame = TRoot.CFrame
-                LRoot.AssemblyLinearVelocity = Vec
-                LRoot.AssemblyAngularVelocity = Vec
-                pcall(function() LHum:Move(Vec) end)
-                attach(LRoot, TRoot)
-            end)
-            task.delay(1.5, function()
-                if Conn then Conn:Disconnect() end
-                LHum.PlatformStand = SavedPlatform
-                LRoot.AssemblyLinearVelocity = Vector3.zero
-                LRoot.AssemblyAngularVelocity = Vector3.zero
-                LRoot.CFrame = SavedCF
-                LRoot.Velocity = SavedVel
-                LRoot.RotVelocity = Vector3.zero
-                attach(LRoot, LRoot)
-                Flingin = false
-            end)
-        end,
-    })
-
-    local TargetPlayer = nil
-    local function GetTarget()
-        if not TargetPlayer or TargetPlayer == "" then return nil end
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr.Name == TargetPlayer then return plr end
-        end
-        return nil
-    end
-    CreateDropdownFor(MainTab, function(v) TargetPlayer = v end)
-
-    local BOBBING_SPEED = 20
-    local UP_FORCE = Vector3.new(0, 9e9, 0)
-
-    local killAllLoopActive = false
-    local killAllLoopConn = nil
-    local killAllIndex = 1
-    local killAllSwitch = 0.2
-    local killAllLastSwitch = 0
-    local killAllOriginalCF = nil
-    MainTab:CreateToggle({
-        Title = "Kill All Loop", Default = false,
-        Callback = function(Value)
-            killAllLoopActive = Value
-            if killAllLoopConn then killAllLoopConn:Disconnect(); killAllLoopConn = nil end
-            if Value then
-                local char = LocalPlayer.Character
-                if not char then return end
-                local root = Root(char)
-                if not root then return end
-                killAllOriginalCF = root.CFrame
-                killAllLastSwitch = tick()
-                killAllLoopConn = RunService.Heartbeat:Connect(function()
-                    if not killAllLoopActive then return end
-                    local c = LocalPlayer.Character
-                    if not c then return end
-                    local r = Root(c)
-                    local h = Hum(c)
-                    if not r or not h then return end
-                    h.PlatformStand = true
-                    r.Velocity = Vector3.zero
-                    r.RotVelocity = Vector3.zero
-                    local targets = {}
-                    for _, p in ipairs(Players:GetPlayers()) do
-                        if p ~= LocalPlayer and p.Character then
-                            local head = getHead(p.Character)
-                            local hrp = Root(p.Character)
-                            if head and hrp then table.insert(targets, {head = head, hrp = hrp}) end
-                        end
-                    end
-                    if #targets == 0 then return end
-                    if tick() - killAllLastSwitch >= killAllSwitch then
-                        killAllIndex = (killAllIndex % #targets) + 1
-                        killAllLastSwitch = tick()
-                    end
-                    local t = targets[killAllIndex]
-                    if t and t.head and t.hrp then
-                        local headPos = t.head.Position
-                        local bellyPos = t.hrp.Position
-                        local cycle = (tick() * BOBBING_SPEED) % 1
-                        local y = headPos.Y + (bellyPos.Y - headPos.Y) * (0.5 - 0.5 * math.cos(cycle * 2 * math.pi))
-                        r.CFrame = CFrame.new(headPos.X, y, headPos.Z)
-                        r.Velocity = Vector3.zero
-                        r.RotVelocity = Vector3.zero
-                        t.hrp.Velocity = UP_FORCE
-                        t.hrp.RotVelocity = Vector3.zero
-                    end
-                end)
-            else
-                local c = LocalPlayer.Character
-                if c then
-                    local h = Hum(c)
-                    local r = Root(c)
-                    if h then h.PlatformStand = false end
-                    if r then
-                        r.Velocity = Vector3.zero
-                        r.RotVelocity = Vector3.zero
-                        if killAllOriginalCF then r.CFrame = killAllOriginalCF end
-                    end
+                    SavedCF = nil
                 end
-                killAllOriginalCF = nil
-            end
-        end,
-    })
-
-    local killAllRunning = false
-    MainTab:CreateButton({
-        Title = "Kill All",
-        Callback = function()
-            if killAllRunning then return end
-            local c = LocalPlayer.Character
-            if not c then return end
-            local h = Hum(c)
-            local r = Root(c)
-            if not h or not r then return end
-            killAllRunning = true
-            local originalCF = r.CFrame
-            local originalPlatform = h.PlatformStand
-            h.PlatformStand = true
-            local targets = {}
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and p.Character then
-                    local head = getHead(p.Character)
-                    local hrp = Root(p.Character)
-                    if head and hrp then table.insert(targets, {head = head, hrp = hrp}) end
-                end
-            end
-            if #targets == 0 then
-                h.PlatformStand = originalPlatform
-                killAllRunning = false
                 return
             end
-            local idx = 1
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if idx > #targets then
-                    conn:Disconnect()
-                    h.PlatformStand = originalPlatform
-                    r.CFrame = originalCF
-                    r.Velocity = Vector3.zero
-                    r.RotVelocity = Vector3.zero
-                    killAllRunning = false
-                    return
-                end
-                local t = targets[idx]
-                if t and t.head and t.head.Parent and t.hrp and t.hrp.Parent then
-                    local headPos = t.head.Position
-                    local bellyPos = t.hrp.Position
-                    local cycle = (tick() * BOBBING_SPEED) % 1
-                    local y = headPos.Y + (bellyPos.Y - headPos.Y) * (0.5 - 0.5 * math.cos(cycle * 2 * math.pi))
-                    r.CFrame = CFrame.new(headPos.X, y, headPos.Z)
-                    r.Velocity = Vector3.zero
-                    r.RotVelocity = Vector3.zero
-                    t.hrp.Velocity = UP_FORCE
-                    t.hrp.RotVelocity = Vector3.zero
-                    task.wait(0.08)
-                end
-                idx = idx + 1
+            if LRoot then SavedCF = LRoot.CFrame end
+            Conn = RunService.Heartbeat:Connect(function()
+                local lr = Root(LocalPlayer.Character)
+                local t = GetSwordsTarget()
+                local tr = t and Root(t.Character)
+                if not (lr and tr) then return end
+                lr.CFrame = CFrame.new(tr.Position + Offset) * CFrame.Angles(-math.pi/2, 0, 0)
+                local vel = IsFling and Vector3.new(500, 500, 500) or Vector3.zero
+                lr.Velocity = vel
+                lr.RotVelocity = vel
             end)
         end,
     })
+end
 
-    MainTab:CreateButton({
-        Title = "Kill Player",
-        Callback = function()
-            local target = GetTarget()
-            if not target then
-                Window:Notify({ Title = "Kill", Description = "Select a player.", Duration = 2, Type = "warning" })
-                return
-            end
-            local c = LocalPlayer.Character
-            if not c then return end
-            local h = Hum(c)
-            local r = Root(c)
-            if not h or not r then return end
-            local tChar = target.Character
-            if not tChar then return end
-            local tHead = getHead(tChar)
-            local tHRP = Root(tChar)
-            if not tHead or not tHRP then return end
-            local originalCF = r.CFrame
-            local originalPlatform = h.PlatformStand
-            h.PlatformStand = true
-            local start = tick()
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if tick() - start >= 1.5 then
-                    conn:Disconnect()
-                    h.PlatformStand = originalPlatform
-                    r.CFrame = originalCF
-                    r.Velocity = Vector3.zero
-                    r.RotVelocity = Vector3.zero
-                    return
-                end
-                local curR = Root(LocalPlayer.Character)
-                local curHead = target.Character and getHead(target.Character)
-                local curHRP = target.Character and Root(target.Character)
-                if not curR or not curHead or not curHRP then
-                    conn:Disconnect()
-                    h.PlatformStand = originalPlatform
-                    r.CFrame = originalCF
-                    return
-                end
-                local headPos = curHead.Position
-                local bellyPos = curHRP.Position
-                local cycle = (tick() * BOBBING_SPEED) % 1
-                local y = headPos.Y + (bellyPos.Y - headPos.Y) * (0.5 - 0.5 * math.cos(cycle * 2 * math.pi))
-                curR.CFrame = CFrame.new(headPos.X, y, headPos.Z)
-                curR.Velocity = Vector3.zero
-                curR.RotVelocity = Vector3.zero
-                curHRP.Velocity = UP_FORCE
-                curHRP.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
+Mvmentbtn("Fling Player", Vector3.new(0, 0, 0), true)
+Mvmentbtn("Fling 2.0", Vector3.new(0, -2.5, 0), true)
+Mvmentbtn("Platform Fly", Vector3.new(0, -2.8, 0), false)
+Mvmentbtn("Magic Carpet", Vector3.new(0, -3.1, 0), false)
+Mvmentbtn("Elevator", Vector3.new(0, -2.6, 0), false)
+Mvmentbtn("Anti Jump", Vector3.new(0, 3.5, 0), false)
 
-    local loopKillActive = false
-    local loopKillConn = nil
-    local loopKillOriginalCF = nil
-    local loopKillOriginalPlatform = false
-    MainTab:CreateToggle({
-        Title = "Loop Kill", Default = false,
-        Callback = function(Value)
-            loopKillActive = Value
-            if loopKillConn then loopKillConn:Disconnect(); loopKillConn = nil end
-            if not Value then
-                local c = LocalPlayer.Character
-                if c then
-                    local h = Hum(c)
-                    local r = Root(c)
-                    if h then h.PlatformStand = loopKillOriginalPlatform end
-                    if r then
-                        if loopKillOriginalCF then r.CFrame = loopKillOriginalCF end
-                        r.Velocity = Vector3.zero
-                        r.RotVelocity = Vector3.zero
-                    end
-                end
-                loopKillOriginalCF = nil
-                return
-            end
-            local target = GetTarget()
-            if not target then
-                Window:Notify({ Title = "Loop Kill", Description = "Select a player.", Duration = 2, Type = "warning" })
-                loopKillActive = false
-                return
-            end
-            local c = LocalPlayer.Character
-            if not c then return end
-            local r = Root(c)
-            local h = Hum(c)
-            if not r or not h then return end
-            loopKillOriginalCF = r.CFrame
-            loopKillOriginalPlatform = h.PlatformStand
-            h.PlatformStand = true
-            loopKillConn = RunService.Heartbeat:Connect(function()
-                if not loopKillActive then return end
-                local t = GetTarget()
-                if not t or not t.Character then return end
-                local tHRP = Root(t.Character)
-                local tHead = getHead(t.Character)
-                if not tHRP or not tHead then return end
-                local curR = Root(LocalPlayer.Character)
-                local curH = Hum(LocalPlayer.Character)
-                if not curR or not curH then return end
-                curH.PlatformStand = true
-                local headPos = tHead.Position
-                local bellyPos = tHRP.Position
-                local cycle = (tick() * BOBBING_SPEED) % 1
-                local y = headPos.Y + (bellyPos.Y - headPos.Y) * (0.5 - 0.5 * math.cos(cycle * 2 * math.pi))
-                curR.CFrame = CFrame.new(headPos.X, y, headPos.Z)
-                curR.Velocity = Vector3.zero
-                curR.RotVelocity = Vector3.zero
-                tHRP.Velocity = UP_FORCE
-                tHRP.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local auraActive = false
-    local auraConn = nil
-    local auraAttackConn = nil
-    local auraAttacking = false
-    local auraLastAttack = 0
-    local AURA_DIST = 2
-    local ATTACK_DURATION = 2
-    local COOLDOWN = 1
-    MainTab:CreateToggle({
-        Title = "Kill Aura", Default = false,
-        Callback = function(Value)
-            auraActive = Value
-            if auraConn then auraConn:Disconnect(); auraConn = nil end
-            if auraAttackConn then auraAttackConn:Disconnect(); auraAttackConn = nil end
-            auraAttacking = false
-            if Value then
-                auraConn = RunService.Heartbeat:Connect(function()
-                    if not auraActive or auraAttacking then return end
-                    if tick() - auraLastAttack < COOLDOWN then return end
-                    local myRoot = Root(LocalPlayer.Character)
-                    if not myRoot then return end
-                    local closest, minDist = nil, AURA_DIST
-                    for _, p in ipairs(Players:GetPlayers()) do
-                        if p ~= LocalPlayer and p.Character then
-                            local head = getHead(p.Character)
-                            if head then
-                                local d = (head.Position - myRoot.Position).Magnitude
-                                if d < minDist then
-                                    minDist = d
-                                    closest = p
-                                end
-                            end
-                        end
-                    end
-                    if closest then
-                        local tc = closest.Character
-                        local tHead = getHead(tc)
-                        local tHRP = Root(tc)
-                        if not tHead or not tHRP then return end
-                        local myChar = LocalPlayer.Character
-                        local myR = Root(myChar)
-                        local myH = Hum(myChar)
-                        if not myR or not myH then return end
-                        local origCF = myR.CFrame
-                        myH.PlatformStand = true
-                        auraAttacking = true
-                        local start = tick()
-                        auraAttackConn = RunService.Heartbeat:Connect(function()
-                            if tick() - start >= ATTACK_DURATION or not auraActive then
-                                if auraAttackConn then auraAttackConn:Disconnect(); auraAttackConn = nil end
-                                local ch = LocalPlayer.Character
-                                if ch then
-                                    local hh = Hum(ch)
-                                    local rr = Root(ch)
-                                    if hh then hh.PlatformStand = false end
-                                    if rr then
-                                        rr.CFrame = origCF
-                                        rr.Velocity = Vector3.zero
-                                        rr.RotVelocity = Vector3.zero
-                                    end
-                                end
-                                auraAttacking = false
-                                auraLastAttack = tick()
-                                return
-                            end
-                            local c = LocalPlayer.Character
-                            local tcc = closest.Character
-                            if not c or not tcc then
-                                if auraAttackConn then auraAttackConn:Disconnect(); auraAttackConn = nil end
-                                auraAttacking = false
-                                return
-                            end
-                            local cr = Root(c)
-                            local ch = getHead(tcc)
-                            local chr = Root(tcc)
-                            if not cr or not ch or not chr then
-                                if auraAttackConn then auraAttackConn:Disconnect(); auraAttackConn = nil end
-                                auraAttacking = false
-                                return
-                            end
-                            local headPos = ch.Position
-                            local bellyPos = chr.Position
-                            local cycle = (tick() * BOBBING_SPEED) % 1
-                            local y = headPos.Y + (bellyPos.Y - headPos.Y) * (0.5 - 0.5 * math.cos(cycle * 2 * math.pi))
-                            cr.CFrame = CFrame.new(headPos.X, y, headPos.Z)
-                            cr.Velocity = Vector3.zero
-                            cr.RotVelocity = Vector3.zero
-                            chr.Velocity = UP_FORCE
-                            chr.RotVelocity = Vector3.zero
-                        end)
-                    end
-                end)
-            end
-        end,
-    })
-
-    local walkFlingEnabled = false
-    local walkFlingThread = nil
-    MainTab:CreateToggle({
-        Title = "WalkFling", Default = false,
+local function Bind(Name, Offset)
+    local Conn
+    MainSwordsTab:CreateToggle({
+        Title = Name, Default = false,
         Callback = function(State)
-            walkFlingEnabled = State
-            if State then
-                local movel = 0.1
-                if walkFlingThread then task.cancel(walkFlingThread) end
-                walkFlingThread = task.spawn(function()
-                    while walkFlingEnabled do
-                        RunService.Heartbeat:Wait()
-                        local char = LocalPlayer.Character
-                        local root = char and Root(char)
-                        while walkFlingEnabled and not (char and char.Parent and root and root.Parent) do
-                            RunService.Heartbeat:Wait()
-                            char = LocalPlayer.Character
-                            root = char and Root(char)
-                        end
-                        if not walkFlingEnabled then break end
-                        local vel = root.Velocity
-                        root.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
-                        RunService.RenderStepped:Wait()
-                        if walkFlingEnabled and char.Parent and root.Parent then
-                            root.Velocity = vel
-                        end
-                        RunService.Stepped:Wait()
-                        if walkFlingEnabled and char.Parent and root.Parent then
-                            root.Velocity = vel + Vector3.new(0, movel, 0)
-                            movel = movel * -1
-                        end
-                    end
-                end)
-            else
-                walkFlingEnabled = false
-                if walkFlingThread then task.cancel(walkFlingThread); walkFlingThread = nil end
-                local root = LocalPlayer.Character and Root(LocalPlayer.Character)
-                if root then root.Velocity = Vector3.zero end
-            end
-        end,
-    })
-
-    local spawnLockEnabled = false
-    local deathPosition = nil
-    local spawnLockConn = nil
-    MainTab:CreateToggle({
-        Title = "Spawn Lock", Default = false,
-        Callback = function(State)
-            spawnLockEnabled = State
-            if spawnLockConn then spawnLockConn:Disconnect(); spawnLockConn = nil end
-            if State then
-                spawnLockConn = LocalPlayer.CharacterAdded:Connect(function(char)
-                    if not spawnLockEnabled then return end
-                    local root = char:WaitForChild("HumanoidRootPart", 5)
-                    if root and deathPosition then
-                        root.CFrame = CFrame.new(deathPosition)
-                    end
-                    local hum = char:WaitForChild("Humanoid")
-                    if hum then
-                        hum.Died:Connect(function()
-                            if not spawnLockEnabled then return end
-                            local r = char:FindFirstChild("HumanoidRootPart")
-                            if r then deathPosition = r.Position end
-                        end)
-                    end
-                end)
-                if LocalPlayer.Character then
-                    local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        hum.Died:Connect(function()
-                            if not spawnLockEnabled then return end
-                            local r = LocalPlayer.Character and Root(LocalPlayer.Character)
-                            if r then deathPosition = r.Position end
-                        end)
-                    end
-                end
-            else
-                deathPosition = nil
-            end
-        end,
-    })
-
-    local swimActive = false
-    local swimLoop = nil
-    MainTab:CreateToggle({
-        Title = "Swim", Default = false,
-        Callback = function(Value)
-            swimActive = Value
-            local char = LocalPlayer.Character
-            if not char then return end
-            local root = Root(char)
-            local hum = Hum(char)
-            if not root or not hum then return end
-            local function cleanup()
-                if root then
-                    if root:FindFirstChild("SwimVelocity") then root.SwimVelocity:Destroy() end
-                    if root:FindFirstChild("SwimGyro") then root.SwimGyro:Destroy() end
-                end
-                if hum then
-                    hum.PlatformStand = false
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
-                end
-                if swimLoop then swimLoop:Disconnect(); swimLoop = nil end
-            end
-            if Value then
-                local bv = Instance.new("BodyVelocity")
-                bv.Name = "SwimVelocity"
-                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                bv.Parent = root
-                local bg = Instance.new("BodyGyro")
-                bg.Name = "SwimGyro"
-                bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-                bg.P = 5000
-                bg.Parent = root
-                local camera = workspace.CurrentCamera
-                local uis = UserInputService
-                swimLoop = RunService.RenderStepped:Connect(function()
-                    if not swimActive or not char.Parent then cleanup(); return end
-                    hum:ChangeState(Enum.HumanoidStateType.Swimming)
-                    local moveDir = hum.MoveDirection
-                    local vMove = 0
-                    if uis:IsKeyDown(Enum.KeyCode.Space) then vMove = 1 end
-                    if uis:IsKeyDown(Enum.KeyCode.LeftControl) then vMove = -1 end
-                    local totalDir = moveDir + Vector3.new(0, vMove, 0)
-                    if totalDir.Magnitude > 0 then
-                        bv.Velocity = totalDir.Unit * 60
-                    else
-                        bv.Velocity = Vector3.zero
-                    end
-                    bg.CFrame = camera.CFrame * CFrame.Angles(math.rad(-90), 0, 0)
-                end)
-            else
-                cleanup()
-            end
-        end,
-    })
-
-    MainTab:CreateButton({
-        Title = "Reset",
-        Callback = function()
-            local char = LocalPlayer.Character
-            local hum = char and Hum(char)
-            if replicatesignal then pcall(function() replicatesignal(LocalPlayer.Kill) end) end
-            if hum then
-                hum:ChangeState(Enum.HumanoidStateType.Dead)
-                hum.Health = 0
-            elseif char then
-                char:BreakJoints()
-            end
-        end,
-    })
-
-    local walksitOriginal = {}
-    MainTab:CreateToggle({
-        Title = "Walksit", Default = false,
-        Callback = function(Value)
-            local char = LocalPlayer.Character
-            local hum = char and Hum(char)
-            if not char or not hum then return end
-            local anims = char:FindFirstChild("Animate")
-            if not anims then return end
-            if Value then
-                walksitOriginal = {
-                    idle = anims.idle:FindFirstChildWhichIsA("Animation").AnimationId,
-                    walk = anims.walk:FindFirstChildWhichIsA("Animation").AnimationId,
-                    run  = anims.run:FindFirstChildWhichIsA("Animation").AnimationId,
-                    jump = anims.jump:FindFirstChildWhichIsA("Animation").AnimationId,
-                }
-                local sitId = anims.sit:FindFirstChildWhichIsA("Animation").AnimationId
-                anims.idle:FindFirstChildWhichIsA("Animation").AnimationId = sitId
-                anims.walk:FindFirstChildWhichIsA("Animation").AnimationId = sitId
-                anims.run:FindFirstChildWhichIsA("Animation").AnimationId = sitId
-                anims.jump:FindFirstChildWhichIsA("Animation").AnimationId = sitId
-                for _, track in pairs(hum:GetPlayingAnimationTracks()) do track:Stop() end
-                hum.HipHeight = (hum.RigType == Enum.HumanoidRigType.R15) and 1.35 or -1.45
-            else
-                if anims.idle:FindFirstChildWhichIsA("Animation") then anims.idle:FindFirstChildWhichIsA("Animation").AnimationId = walksitOriginal.idle end
-                if anims.walk:FindFirstChildWhichIsA("Animation") then anims.walk:FindFirstChildWhichIsA("Animation").AnimationId = walksitOriginal.walk end
-                if anims.run:FindFirstChildWhichIsA("Animation") then anims.run:FindFirstChildWhichIsA("Animation").AnimationId = walksitOriginal.run end
-                if anims.jump:FindFirstChildWhichIsA("Animation") then anims.jump:FindFirstChildWhichIsA("Animation").AnimationId = walksitOriginal.jump end
-                hum.HipHeight = (hum.RigType == Enum.HumanoidRigType.R15) and 2 or 0
-            end
-        end,
-    })
-
-    MainTab:CreateButton({
-        Title = "Re",
-        Callback = function()
-            local char = LocalPlayer.Character
-            local root = char and Root(char)
-            if not root then return end
-            local savedPos = root.Position
-            local hum = Hum(char)
-            if hum then hum:ChangeState(Enum.HumanoidStateType.Dead); hum.Health = 0 end
-            local conn
-            conn = LocalPlayer.CharacterAdded:Connect(function(newChar)
-                conn:Disconnect()
-                local newRoot = newChar:WaitForChild("HumanoidRootPart", 5)
-                if newRoot then
-                    newRoot.CFrame = CFrame.new(savedPos)
+            if Conn then Conn:Disconnect(); Conn = nil end
+            if not State then return end
+            Conn = RunService.Heartbeat:Connect(function()
+                local lr = Root(LocalPlayer.Character)
+                local t = GetSwordsTarget()
+                local tr = t and Root(t.Character)
+                if lr and tr then
+                    lr.CFrame = tr.CFrame * CFrame.new(Offset)
+                    lr.Velocity = Vector3.zero
                 end
             end)
         end,
     })
+end
 
-    local PlayTarget = nil
-    local function GetPlayTarget()
-        if not PlayTarget or PlayTarget == "" then return nil end
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr.Name == PlayTarget then return plr end
-        end
-        return nil
+Bind("Infinite Jump", Vector3.new(0, -5.75, 0))
+Bind("Speed Boost (slow)", Vector3.new(0, 0.7, 1))
+Bind("Speed Boost (medium)", Vector3.new(0, 0.7, 0.5))
+Bind("Speed Boost (fast)", Vector3.new(0, 0.7, 0.35))
+Bind("Movement Breaker", Vector3.new(0, 0.7, -0.8))
+
+-- ============================================================
+-- ABA: MAIN
+-- ============================================================
+local MainTab = Window:CreateTab("Main", "home")
+
+local MainTarget = nil
+local MainDropdown = nil
+
+local function GetMainTarget()
+    if not MainTarget or MainTarget == "" then return nil end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name == MainTarget then return plr end
     end
-    CreateDropdownFor(PlayTab, function(v) PlayTarget = v end)
+    return nil
+end
 
-    PlayTab:CreateButton({
-        Title = "Goto",
-        Callback = function()
-            local t = GetPlayTarget()
-            if not t then return end
-            local tr = Root(t.Character)
-            local mr = Root(LocalPlayer.Character)
-            if tr and mr then mr.CFrame = tr.CFrame * CFrame.new(2, 0, 0) end
-        end,
-    })
+local function RefreshMain()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
+    end
+    table.sort(list)
+    if MainDropdown and MainDropdown.Update then
+        pcall(function() MainDropdown:Update({ Options = list }) end)
+    end
+end
 
-    local flingTargetRunning = false
-    PlayTab:CreateButton({
-        Title = "Fling Target",
-        Callback = function()
-            if flingTargetRunning then return end
-            local t = GetPlayTarget()
-            if not t then return end
-            local tr = Root(t.Character)
-            local mr = Root(LocalPlayer.Character)
-            if not tr or not mr then return end
-            flingTargetRunning = true
-            local orig = mr.CFrame
-            local bv = Instance.new("BodyVelocity")
-            bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
-            bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-            bv.Parent = tr
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not tr or not tr.Parent or not mr or not mr.Parent then
-                    conn:Disconnect(); bv:Destroy(); flingTargetRunning = false; return
-                end
-                mr.CFrame = CFrame.new(tr.Position)
-                mr.Velocity = Vector3.new(9e7, 9e7*10, 9e7)
-                mr.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
-            end)
-            task.delay(5, function()
-                if conn then conn:Disconnect() end
-                bv:Destroy()
-                if mr and mr.Parent then
-                    mr.CFrame = orig
-                    mr.Velocity = Vector3.zero
-                    mr.RotVelocity = Vector3.zero
-                end
-                flingTargetRunning = false
-            end)
-        end,
-    })
+MainDropdown = MainTab:CreateDropdown({
+    Title = "Select Target",
+    Options = {},
+    Callback = function(Value) MainTarget = Value end,
+})
+RefreshMain()
 
-    PlayTab:CreateButton({
+MainTab:CreateButton({
+    Title = "Refresh Target List",
+    Callback = function() RefreshMain() end,
+})
+
+MainTab:CreateButton({
+    Title = "Goto",
+    Callback = function()
+        local t = GetMainTarget()
+        if not t then return end
+        local tr = Root(t.Character)
+        local mr = Root(LocalPlayer.Character)
+        if tr and mr then mr.CFrame = tr.CFrame * CFrame.new(2, 0, 0) end
+    end,
+})
+
+MainTab:CreateButton({
+    Title = "Kill All",
+    Callback = function()
+        local c = LocalPlayer.Character
+        if not c then return end
+        local h = Hum(c)
+        local r = Root(c)
+        if not h or not r then return end
+        local orig = r.CFrame
+        local origP = h.PlatformStand
+        h.PlatformStand = true
+        local UP = Vector3.new(0, 9e9, 0)
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                local hrp = Root(p.Character)
+                if hrp then hrp.Velocity = UP; hrp.RotVelocity = Vector3.zero end
+            end
+        end
+        task.delay(1.5, function()
+            h.PlatformStand = origP
+            r.CFrame = orig
+            r.Velocity = Vector3.zero
+            r.RotVelocity = Vector3.zero
+        end)
+    end,
+})
+
+MainTab:CreateToggle({
+    Title = "Loop Kill",
+    Default = false,
+    Callback = function(Value)
+        if not Value then return end
+        local t = GetMainTarget()
+        if not t then
+            Window:Notify({ Title = "Loop Kill", Description = "Select a player.", Duration = 2, Type = "warning" })
+            return
+        end
+        local c = LocalPlayer.Character
+        if not c then return end
+        local r = Root(c)
+        local h = Hum(c)
+        if not r or not h then return end
+        local orig = r.CFrame
+        local origP = h.PlatformStand
+        h.PlatformStand = true
+        local UP = Vector3.new(0, 9e9, 0)
+        local running = true
+        local conn
+        conn = RunService.Heartbeat:Connect(function()
+            if not running then return end
+            local tt = GetMainTarget()
+            if not tt or not tt.Character then return end
+            local tr = Root(tt.Character)
+            local head = tt.Character:FindFirstChild("Head")
+            local cr = Root(LocalPlayer.Character)
+            if not tr or not head or not cr then return end
+            local cycle = (tick() * 20) % 1
+            local y = head.Position.Y + (tr.Position.Y - head.Position.Y) * (0.5 - 0.5 * math.cos(cycle * 2 * math.pi))
+            cr.CFrame = CFrame.new(head.Position.X, y, head.Position.Z)
+            cr.Velocity = Vector3.zero
+            cr.RotVelocity = Vector3.zero
+            tr.Velocity = UP
+            tr.RotVelocity = Vector3.zero
+        end)
+        -- Salva conn para desligar
+        _G._LoopKillConn = conn
+    end,
+})
+
+MainTab:CreateButton({
+    Title = "Reset",
+    Callback = function()
+        local c = LocalPlayer.Character
+        local h = c and Hum(c)
+        if replicatesignal then pcall(function() replicatesignal(LocalPlayer.Kill) end) end
+        if h then h:ChangeState(Enum.HumanoidStateType.Dead); h.Health = 0 end
+    end,
+})
+
+-- ============================================================
+-- ABA: PLAY
+-- ============================================================
+local PlayTab = Window:CreateTab("Play", "play")
+
+local PlayTarget = nil
+local PlayDropdown = nil
+
+local function GetPlayTarget()
+    if not PlayTarget or PlayTarget == "" then return nil end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name == PlayTarget then return plr end
+    end
+    return nil
+end
+
+local function RefreshPlay()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
+    end
+    table.sort(list)
+    if PlayDropdown and PlayDropdown.Update then
+        pcall(function() PlayDropdown:Update({ Options = list }) end)
+    end
+end
+
+PlayDropdown = PlayTab:CreateDropdown({
+    Title = "Select Target",
+    Options = {},
+    Callback = function(Value) PlayTarget = Value end,
+})
+RefreshPlay()
+
+PlayTab:CreateButton({
+    Title = "Refresh Target List",
+    Callback = function() RefreshPlay() end,
+})
+
+PlayTab:CreateButton({
+    Title = "Goto",
+    Callback = function()
+        local t = GetPlayTarget()
+        if not t then return end
+        local tr = Root(t.Character)
+        local mr = Root(LocalPlayer.Character)
+        if tr and mr then mr.CFrame = tr.CFrame * CFrame.new(2, 0, 0) end
+    end,
+})
+
+PlayTab:CreateButton({
+    Title = "Fling Target",
+    Callback = function()
+        local t = GetPlayTarget()
+        if not t then return end
+        local tr = Root(t.Character)
+        local mr = Root(LocalPlayer.Character)
+        if not tr or not mr then return end
+        local bv = Instance.new("BodyVelocity")
+        bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
+        bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+        bv.Parent = tr
+        task.delay(3, function() bv:Destroy() end)
+    end,
+})
+
+PlayTab:CreateButton({
     Title = "Fling All",
     Callback = function()
-        local targets = {}
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer then
                 local r = Root(p.Character)
-                if r then table.insert(targets, r) end
+                if r then
+                    local bv = Instance.new("BodyVelocity")
+                    bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
+                    bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+                    bv.Parent = r
+                    task.delay(3, function() bv:Destroy() end)
+                end
             end
-        end
-        for _, tr in ipairs(targets) do
-            local bv = Instance.new("BodyVelocity")
-            bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
-            bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-            bv.Parent = tr
-            task.delay(5, function() if bv then bv:Destroy() end end)
         end
     end,
 })
 
 PlayTab:CreateToggle({
-    Title = "Fling All Toggle",
+    Title = "Orbit",
     Default = false,
     Callback = function(Value)
-        if not Value then
-            for _, p in ipairs(Players:GetPlayers()) do
-                local r = Root(p.Character)
-                if r then
-                    local bv = r:FindFirstChild("EpixVel")
-                    if bv then bv:Destroy() end
-                end
-            end
-            return
-        end
+        if not Value then return end
+        local ang = 0
         local conn
         conn = RunService.Heartbeat:Connect(function()
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer then
-                    local r = Root(p.Character)
-                    if r and not r:FindFirstChild("EpixVel") then
-                        local bv = Instance.new("BodyVelocity")
-                        bv.Name = "EpixVel"
-                        bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
-                        bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-                        bv.Parent = r
-                    end
-                end
-            end
-        end)
-    end,
-})
-    local superFlingActive = false
-    PlayTab:CreateToggle({
-        Title = "Super Fling",
-        Default = false,
-        Callback = function(Value)
-            superFlingActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not superFlingActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                mr.CFrame = CFrame.new(tr.Position + Vector3.new(0, -3, 0)) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr.Velocity = Vector3.new(9e7, 9e7*10, 9e7)
-                mr.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
-            end)
-        end,
-    })
-
-    local orbitActive = false
-    local orbitAngle = 0
-    PlayTab:CreateSlider({
-        Title = "Orbit Radius", Min = 0, Max = 100, Default = 5,
-        Callback = function(v) _G.OrbitRadius = v end,
-    })
-    PlayTab:CreateSlider({
-        Title = "Orbit Speed", Min = 1, Max = 100, Default = 10,
-        Callback = function(v) _G.OrbitSpeed = v end,
-    })
-    PlayTab:CreateToggle({
-        Title = "Orbit",
-        Default = false,
-        Callback = function(Value)
-            orbitActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not orbitActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                orbitAngle = orbitAngle + ((_G.OrbitSpeed or 10) * 0.1)
-                local rad = _G.OrbitRadius or 5
-                local x = math.cos(orbitAngle) * rad
-                local z = math.sin(orbitAngle) * rad
-                mr.CFrame = CFrame.new(tr.Position + Vector3.new(x, 0, z), tr.Position)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local bringActive = false
-    PlayTab:CreateSlider({
-        Title = "Bring Speed", Min = 20, Max = 200, Default = 75,
-        Callback = function(v) _G.BringSpeed = v end,
-    })
-    PlayTab:CreateToggle({
-        Title = "Bring Target",
-        Default = false,
-        Callback = function(Value)
-            bringActive = Value
-            if not Value then return end
-            task.spawn(function()
-                local t = GetPlayTarget()
-                if not t then return end
-                local mr = Root(LocalPlayer.Character)
-                local tr = Root(t.Character)
-                if not mr or not tr then return end
-                local orig = mr.CFrame
-                local fromP = tr.Position
-                local toP = mr.Position
-                local speed = (_G.BringSpeed or 75) * 0.8
-                local way = 0
-                local mag = (fromP - toP).Magnitude - 3
-                while bringActive and way < mag do
-                    local dt = task.wait()
-                    way = math.min(way + speed * dt, mag)
-                    local alpha = way / mag
-                    mr.CFrame = CFrame.new(toP:Lerp(fromP, alpha))
-                    mr.Velocity = Vector3.zero
-                    mr.RotVelocity = Vector3.zero
-                end
-                if mr and mr.Parent then
-                    mr.CFrame = orig
-                end
-            end)
-        end,
-    })
-
-    PlayTab:CreateButton({
-        Title = "Godspeed Rocket",
-        Callback = function()
-            local t = GetPlayTarget()
-            if not t then return end
-            local mr = Root(LocalPlayer.Character)
-            local tr = Root(t.Character)
-            if not mr or not tr then return end
-            local orig = mr.CFrame
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not tr or not tr.Parent then conn:Disconnect(); return end
-                local pos = tr.Position + Vector3.new(0, -3, 0)
-                mr.CFrame = CFrame.new(pos, pos + Vector3.new(0, 1, 0))
-                mr.Velocity = Vector3.new(0, 5000, 0)
-            end)
-            task.delay(2, function()
-                if conn then conn:Disconnect() end
-                if mr and mr.Parent then
-                    mr.CFrame = orig
-                    mr.Velocity = Vector3.zero
-                end
-            end)
-        end,
-    })
-
-    local spinTargetActive = false
-    PlayTab:CreateToggle({
-        Title = "Spin Target",
-        Default = false,
-        Callback = function(Value)
-            spinTargetActive = Value
-            if not Value then return end
-            local angle = 0
-            local heightOff = -4
-            local dir = 1
-            local conn
-            conn = RunService.Heartbeat:Connect(function(dt)
-                if not spinTargetActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                heightOff = heightOff + 0.8 * dt * dir
-                if heightOff >= -3 then heightOff = -3; dir = -1
-                elseif heightOff <= -5 then heightOff = -5; dir = 1 end
-                angle = angle + 20 * dt
-                mr.CFrame = CFrame.new(tr.Position + Vector3.new(0, heightOff, 0)) * CFrame.Angles(-math.pi/2, 0, 0) * CFrame.Angles(0, 0, angle)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local antiJumpActive = false
-    PlayTab:CreateToggle({
-        Title = "Anti Jump Target",
-        Default = false,
-        Callback = function(Value)
-            antiJumpActive = Value
-            if not Value then
-                local t = GetPlayTarget()
-                if t and t.Character then
-                    local th = Hum(t.Character)
-                    if th and _G.OrigJumpPower then th.JumpPower = _G.OrigJumpPower end
-                end
-                return
-            end
-            local t = GetPlayTarget()
-            if not t or not t.Character then return end
-            local th = Hum(t.Character)
-            if th then _G.OrigJumpPower = th.JumpPower end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not antiJumpActive then conn:Disconnect(); return end
-                local tt = GetPlayTarget()
-                if not tt or not tt.Character then return end
-                local tr = Root(tt.Character)
-                local th2 = Hum(tt.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if th2 then th2.JumpPower = 0 end
-                mr.CFrame = CFrame.new(tr.Position + Vector3.new(0, 3, 0)) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local annoyActive = false
-    PlayTab:CreateToggle({
-        Title = "Annoy",
-        Default = false,
-        Callback = function(Value)
-            annoyActive = Value
-            if not Value then return end
-            local positions = {
-                Vector3.new(0, 0, 0.5),
-                Vector3.new(0.5, 0, 0),
-                Vector3.new(-0.5, 0, 0),
-            }
-            local idx = 1
-            local lastSwitch = tick()
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not annoyActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if tick() - lastSwitch >= 0.6 then
-                    idx = idx % #positions + 1
-                    lastSwitch = tick()
-                end
-                local offset = positions[idx]
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(offset)).Position, tr.Position)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local viewActive = false
-    PlayTab:CreateToggle({
-        Title = "View",
-        Default = false,
-        Callback = function(Value)
-            viewActive = Value
-            if not Value then
-                workspace.CurrentCamera.CameraSubject = Hum(LocalPlayer.Character)
-                return
-            end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not viewActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local th = Hum(t.Character)
-                if th then
-                    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
-                    workspace.CurrentCamera.CameraSubject = th
-                end
-            end)
-        end,
-    })
-
-    local headSitActive = false
-    PlayTab:CreateToggle({
-        Title = "Head Sit",
-        Default = false,
-        Callback = function(Value)
-            headSitActive = Value
-            if not Value then return end
-            local t = GetPlayTarget()
-            if t and t.Character then
-                local h = Hum(t.Character)
-                if h then h.Sit = true end
-            end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not headSitActive then conn:Disconnect(); return end
-                local tt = GetPlayTarget()
-                if not tt or not tt.Character then return end
-                local tr = Root(tt.Character)
-                local th = Hum(tt.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if th then th.Sit = true end
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(0, 3, 0.9)).Position) * tr.CFrame.Rotation
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local backpackActive = false
-    PlayTab:CreateToggle({
-        Title = "Backpack",
-        Default = false,
-        Callback = function(Value)
-            backpackActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not backpackActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(0, 0, 1)).Position) * tr.CFrame.Rotation * CFrame.Angles(0, math.rad(180), 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local stairActive = false
-    PlayTab:CreateToggle({
-        Title = "Stair",
-        Default = false,
-        Callback = function(Value)
-            stairActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not stairActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local th = Hum(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                local mh = Hum(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if mh then mh.PlatformStand = true end
-                local offset
-                if th and th.RigType == Enum.HumanoidRigType.R15 then
-                    offset = Vector3.new(0, 0, -2)
-                else
-                    offset = Vector3.new(0, 0, -1.3)
-                end
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(offset)).Position) * tr.CFrame.Rotation * CFrame.Angles(math.rad(-90), 0, math.rad(90))
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local spinInsideActive = false
-    local spinInsideAngle = 0
-    PlayTab:CreateToggle({
-        Title = "Spin Inside",
-        Default = false,
-        Callback = function(Value)
-            spinInsideActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not spinInsideActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                local mh = Hum(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if mh then mh.PlatformStand = true end
-                spinInsideAngle = spinInsideAngle + 0.1
-                mr.CFrame = CFrame.new(tr.Position) * tr.CFrame.Rotation * CFrame.Angles(math.rad(-90), spinInsideAngle, 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local smashActive = false
-    PlayTab:CreateToggle({
-        Title = "Smash Target",
-        Default = false,
-        Callback = function(Value)
-            smashActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not smashActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                local mh = Hum(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if mh then mh.PlatformStand = true end
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(0, 2, 0)).Position) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local antiSideActive = false
-    PlayTab:CreateToggle({
-        Title = "Anti Side",
-        Default = false,
-        Callback = function(Value)
-            antiSideActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not antiSideActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                local mh = Hum(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if mh then mh.PlatformStand = true end
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(1.7, 0.7, 0)).Position) * tr.CFrame.Rotation
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local elevatorActive = false
-    PlayTab:CreateToggle({
-        Title = "Elevator",
-        Default = false,
-        Callback = function(Value)
-            elevatorActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not elevatorActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                mr.CFrame = CFrame.new(tr.Position + Vector3.new(0, -3, 0)) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local platformFlyActive = false
-    PlayTab:CreateToggle({
-        Title = "Platform Fly",
-        Default = false,
-        Callback = function(Value)
-            platformFlyActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not platformFlyActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                mr.CFrame = CFrame.new(tr.Position + Vector3.new(0, -4, 0)) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-                    
-
-    PlayTab:CreateToggle({
-        Title = "Fling All Toggle",
-        Default = false,
-        Callback = function(Value)
-            if not Value then
-                for _, p in ipairs(Players:GetPlayers()) do
-                    local r = Root(p.Character)
-                    if r then
-                        local bv = r:FindFirstChild("EpixVel")
-                        if bv then bv:Destroy() end
-                    end
-                end
-                return
-            end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p ~= LocalPlayer then
-                        local r = Root(p.Character)
-                        if r and not r:FindFirstChild("EpixVel") then
-                            local bv = Instance.new("BodyVelocity")
-                            bv.Name = "EpixVel"
-                            bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
-                            bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-                            bv.Parent = r
-                        end
-                    end
-                end
-            end)
-        end,
-    })
-
-    local superFlingActive = false
-    PlayTab:CreateToggle({
-        Title = "Super Fling",
-        Default = false,
-        Callback = function(Value)
-            superFlingActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not superFlingActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                mr.CFrame = CFrame.new(tr.Position + Vector3.new(0, -3, 0)) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr.Velocity = Vector3.new(9e7, 9e7*10, 9e7)
-                mr.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
-            end)
-        end,
-    })
-
-    local orbitActive = false
-    local orbitAngle = 0
-    PlayTab:CreateSlider({
-        Title = "Orbit Radius", Min = 0, Max = 100, Default = 5,
-        Callback = function(v) _G.OrbitRadius = v end,
-    })
-    PlayTab:CreateSlider({
-        Title = "Orbit Speed", Min = 1, Max = 100, Default = 10,
-        Callback = function(v) _G.OrbitSpeed = v end,
-    })
-    PlayTab:CreateToggle({
-        Title = "Orbit",
-        Default = false,
-        Callback = function(Value)
-            orbitActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not orbitActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                orbitAngle = orbitAngle + ((_G.OrbitSpeed or 10) * 0.1)
-                local rad = _G.OrbitRadius or 5
-                local x = math.cos(orbitAngle) * rad
-                local z = math.sin(orbitAngle) * rad
-                mr.CFrame = CFrame.new(tr.Position + Vector3.new(x, 0, z), tr.Position)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local bringActive = false
-    PlayTab:CreateSlider({
-        Title = "Bring Speed", Min = 20, Max = 200, Default = 75,
-        Callback = function(v) _G.BringSpeed = v end,
-    })
-    PlayTab:CreateToggle({
-        Title = "Bring Target",
-        Default = false,
-        Callback = function(Value)
-            bringActive = Value
-            if not Value then return end
-            task.spawn(function()
-                local t = GetPlayTarget()
-                if not t then return end
-                local mr = Root(LocalPlayer.Character)
-                local tr = Root(t.Character)
-                if not mr or not tr then return end
-                local orig = mr.CFrame
-                local fromP = tr.Position
-                local toP = mr.Position
-                local speed = (_G.BringSpeed or 75) * 0.8
-                local way = 0
-                local mag = (fromP - toP).Magnitude - 3
-                while bringActive and way < mag do
-                    local dt = task.wait()
-                    way = math.min(way + speed * dt, mag)
-                    local alpha = way / mag
-                    mr.CFrame = CFrame.new(toP:Lerp(fromP, alpha))
-                    mr.Velocity = Vector3.zero
-                    mr.RotVelocity = Vector3.zero
-                end
-                if mr and mr.Parent then
-                    mr.CFrame = orig
-                end
-            end)
-        end,
-    })
-
-    PlayTab:CreateButton({
-        Title = "Godspeed Rocket",
-        Callback = function()
-            local t = GetPlayTarget()
-            if not t then return end
-            local mr = Root(LocalPlayer.Character)
-            local tr = Root(t.Character)
-            if not mr or not tr then return end
-            local orig = mr.CFrame
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not tr or not tr.Parent then conn:Disconnect(); return end
-                local pos = tr.Position + Vector3.new(0, -3, 0)
-                mr.CFrame = CFrame.new(pos, pos + Vector3.new(0, 1, 0))
-                mr.Velocity = Vector3.new(0, 5000, 0)
-            end)
-            task.delay(2, function()
-                if conn then conn:Disconnect() end
-                if mr and mr.Parent then
-                    mr.CFrame = orig
-                    mr.Velocity = Vector3.zero
-                end
-            end)
-        end,
-    })
-
-    local spinTargetActive = false
-    PlayTab:CreateToggle({
-        Title = "Spin Target",
-        Default = false,
-        Callback = function(Value)
-            spinTargetActive = Value
-            if not Value then return end
-            local angle = 0
-            local heightOff = -4
-            local dir = 1
-            local conn
-            conn = RunService.Heartbeat:Connect(function(dt)
-                if not spinTargetActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                heightOff = heightOff + 0.8 * dt * dir
-                if heightOff >= -3 then heightOff = -3; dir = -1
-                elseif heightOff <= -5 then heightOff = -5; dir = 1 end
-                angle = angle + 20 * dt
-                mr.CFrame = CFrame.new(tr.Position + Vector3.new(0, heightOff, 0)) * CFrame.Angles(-math.pi/2, 0, 0) * CFrame.Angles(0, 0, angle)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local antiJumpActive = false
-    PlayTab:CreateToggle({
-        Title = "Anti Jump Target",
-        Default = false,
-        Callback = function(Value)
-            antiJumpActive = Value
-            if not Value then
-                local t = GetPlayTarget()
-                if t and t.Character then
-                    local th = Hum(t.Character)
-                    if th and _G.OrigJumpPower then th.JumpPower = _G.OrigJumpPower end
-                end
-                return
-            end
-            local t = GetPlayTarget()
-            if not t or not t.Character then return end
-            local th = Hum(t.Character)
-            if th then _G.OrigJumpPower = th.JumpPower end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not antiJumpActive then conn:Disconnect(); return end
-                local tt = GetPlayTarget()
-                if not tt or not tt.Character then return end
-                local tr = Root(tt.Character)
-                local th2 = Hum(tt.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if th2 then th2.JumpPower = 0 end
-                mr.CFrame = CFrame.new(tr.Position + Vector3.new(0, 3, 0)) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local annoyActive = false
-    PlayTab:CreateToggle({
-        Title = "Annoy",
-        Default = false,
-        Callback = function(Value)
-            annoyActive = Value
-            if not Value then return end
-            local positions = {
-                Vector3.new(0, 0, 0.5),
-                Vector3.new(0.5, 0, 0),
-                Vector3.new(-0.5, 0, 0),
-            }
-            local idx = 1
-            local lastSwitch = tick()
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not annoyActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if tick() - lastSwitch >= 0.6 then
-                    idx = idx % #positions + 1
-                    lastSwitch = tick()
-                end
-                local offset = positions[idx]
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(offset)).Position, tr.Position)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local viewActive = false
-    PlayTab:CreateToggle({
-        Title = "View",
-        Default = false,
-        Callback = function(Value)
-            viewActive = Value
-            if not Value then
-                workspace.CurrentCamera.CameraSubject = Hum(LocalPlayer.Character)
-                return
-            end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not viewActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local th = Hum(t.Character)
-                if th then
-                    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
-                    workspace.CurrentCamera.CameraSubject = th
-                end
-            end)
-        end,
-    })
-
-    local headSitActive = false
-    PlayTab:CreateToggle({
-        Title = "Head Sit",
-        Default = false,
-        Callback = function(Value)
-            headSitActive = Value
-            if not Value then return end
-            local t = GetPlayTarget()
-            if t and t.Character then
-                local h = Hum(t.Character)
-                if h then h.Sit = true end
-            end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not headSitActive then conn:Disconnect(); return end
-                local tt = GetPlayTarget()
-                if not tt or not tt.Character then return end
-                local tr = Root(tt.Character)
-                local th = Hum(tt.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if th then th.Sit = true end
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(0, 3, 0.9)).Position) * tr.CFrame.Rotation
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local backpackActive = false
-    PlayTab:CreateToggle({
-        Title = "Backpack",
-        Default = false,
-        Callback = function(Value)
-            backpackActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not backpackActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(0, 0, 1)).Position) * tr.CFrame.Rotation * CFrame.Angles(0, math.rad(180), 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local stairActive = false
-    PlayTab:CreateToggle({
-        Title = "Stair",
-        Default = false,
-        Callback = function(Value)
-            stairActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not stairActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local th = Hum(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                local mh = Hum(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if mh then mh.PlatformStand = true end
-                local offset
-                if th and th.RigType == Enum.HumanoidRigType.R15 then
-                    offset = Vector3.new(0, 0, -2)
-                else
-                    offset = Vector3.new(0, 0, -1.3)
-                end
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(offset)).Position) * tr.CFrame.Rotation * CFrame.Angles(math.rad(-90), 0, math.rad(90))
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local spinInsideActive = false
-    local spinInsideAngle = 0
-    PlayTab:CreateToggle({
-        Title = "Spin Inside",
-        Default = false,
-        Callback = function(Value)
-            spinInsideActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not spinInsideActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                local mh = Hum(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if mh then mh.PlatformStand = true end
-                spinInsideAngle = spinInsideAngle + 0.1
-                mr.CFrame = CFrame.new(tr.Position) * tr.CFrame.Rotation * CFrame.Angles(math.rad(-90), spinInsideAngle, 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local smashActive = false
-    PlayTab:CreateToggle({
-        Title = "Smash Target",
-        Default = false,
-        Callback = function(Value)
-            smashActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not smashActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                local mh = Hum(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if mh then mh.PlatformStand = true end
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(0, 2, 0)).Position) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local antiSideActive = false
-    PlayTab:CreateToggle({
-        Title = "Anti Side",
-        Default = false,
-        Callback = function(Value)
-            antiSideActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not antiSideActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                local mh = Hum(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if mh then mh.PlatformStand = true end
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(1.7, 0.7, 0)).Position) * tr.CFrame.Rotation
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local elevatorActive = false
-    PlayTab:CreateToggle({
-        Title = "Elevator",
-        Default = false,
-        Callback = function(Value)
-            elevatorActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not elevatorActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                mr.CFrame = CFrame.new(tr.Position + Vector3.new(0, -3, 0)) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local platformFlyActive = false
-    PlayTab:CreateToggle({
-        Title = "Platform Fly",
-        Default = false,
-        Callback = function(Value)
-            platformFlyActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not platformFlyActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                mr.CFrame = CFrame.new(tr.Position + Vector3.new(0, -4, 0)) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local magicCarpetActive = false
-    PlayTab:CreateToggle({
-        Title = "Magic Carpet",
-        Default = false,
-        Callback = function(Value)
-            magicCarpetActive = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not magicCarpetActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                mr.CFrame = CFrame.new(tr.Position + Vector3.new(0, -3.6, 0)) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local speed3Active = false
-    PlayTab:CreateToggle({
-        Title = "Speed 3",
-        Default = false,
-        Callback = function(Value)
-            speed3Active = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not speed3Active then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(0, 0, 0.8)).Position, tr.Position)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local speed7Active = false
-    PlayTab:CreateToggle({
-        Title = "Speed 7",
-        Default = false,
-        Callback = function(Value)
-            speed7Active = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not speed7Active then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(0, 0, 0.4)).Position, tr.Position)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local speed10Active = false
-    PlayTab:CreateToggle({
-        Title = "Speed 10",
-        Default = false,
-        Callback = function(Value)
-            speed10Active = Value
-            if not Value then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not speed10Active then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                mr.CFrame = CFrame.new((tr.CFrame * CFrame.new(0, 0, 0.15)).Position, tr.Position)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local rocketTargetActive = false
-    local rocketPhase = 0
-    local rocketLastSwitch = 0
-    PlayTab:CreateToggle({
-        Title = "Rocket Target",
-        Default = false,
-        Callback = function(Value)
-            rocketTargetActive = Value
-            if not Value then return end
-            rocketPhase = 0
-            rocketLastSwitch = tick()
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not rocketTargetActive then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local tr = Root(t.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if tick() - rocketLastSwitch >= 0.5 then
-                    rocketPhase = (rocketPhase + 1) % 2
-                    rocketLastSwitch = tick()
-                end
-                local offset = rocketPhase == 0 and Vector3.new(0, -3, 0) or Vector3.new(0, 3, 0)
-                mr.CFrame = CFrame.new(tr.Position + offset) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr.Velocity = Vector3.new(0, 50, 0)
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    local targetBugActive = false
-    PlayTab:CreateToggle({
-        Title = "Target Bug",
-        Default = false,
-        Callback = function(Value)
-            targetBugActive = Value
-            if not Value then return end
-            local t = GetPlayTarget()
-            if t and t.Character then
-                local th = Hum(t.Character)
-                if th then th.PlatformStand = true end
-            end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not targetBugActive then conn:Disconnect(); return end
-                local tt = GetPlayTarget()
-                if not tt or not tt.Character then return end
-                local tr = Root(tt.Character)
-                local th = Hum(tt.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                if th then th.PlatformStand = true end
-                mr.CFrame = CFrame.new(tr.Position) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-
-    PlayTab:CreateButton({
-        Title = "Jump Target",
-        Callback = function()
+            if not Value then conn:Disconnect(); return end
             local t = GetPlayTarget()
             if not t or not t.Character then return end
             local tr = Root(t.Character)
             local mr = Root(LocalPlayer.Character)
             if not tr or not mr then return end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                local tr2 = Root(t.Character)
-                local mr2 = Root(LocalPlayer.Character)
-                if not tr2 or not mr2 then return end
-                mr2.CFrame = CFrame.new(tr2.Position + Vector3.new(0, -3, 0)) * CFrame.Angles(-math.pi/2, 0, 0)
-                mr2.Velocity = Vector3.new(0, 11, 0)
-                mr2.RotVelocity = Vector3.zero
-            end)
-            task.delay(0.2, function()
-                if conn then conn:Disconnect() end
-            end)
-        end,
-    })
+            ang = ang + 0.1
+            mr.CFrame = CFrame.new(tr.Position + Vector3.new(math.cos(ang)*5, 0, math.sin(ang)*5), tr.Position)
+            mr.Velocity = Vector3.zero
+            mr.RotVelocity = Vector3.zero
+        end)
+    end,
+})
 
-    local viewActive2 = false
-    PlayTab:CreateToggle({
-        Title = "View Target",
-        Default = false,
-        Callback = function(Value)
-            viewActive2 = Value
-            if not Value then
-                local mh = Hum(LocalPlayer.Character)
-                if mh then workspace.CurrentCamera.CameraSubject = mh end
-                return
-            end
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not viewActive2 then conn:Disconnect(); return end
-                local t = GetPlayTarget()
-                if not t or not t.Character then return end
-                local th = Hum(t.Character)
-                if th then
-                    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
-                    workspace.CurrentCamera.CameraSubject = th
-                end
-            end)
-        end,
-    })
-
-    PlayTab:CreateButton({
-        Title = "Copy User ID",
-        Callback = function()
-            local t = GetPlayTarget()
-            if not t then return end
-            if setclipboard then setclipboard(tostring(t.UserId)) end
-        end,
-    })
-
-    PlayTab:CreateButton({
-        Title = "Copy Name",
-        Callback = function()
-            local t = GetPlayTarget()
-            if not t then return end
-            if setclipboard then setclipboard(t.Name) end
-        end,
-    })
-
-    PlayTab:CreateButton({
-        Title = "Copy Display Name",
-        Callback = function()
-            local t = GetPlayTarget()
-            if not t then return end
-            if setclipboard then setclipboard(t.DisplayName) end
-        end,
-    })
-
-    PlayTab:CreateButton({
-        Title = "Account Age",
-        Callback = function()
-            local t = GetPlayTarget()
-            if not t then return end
-            Window:Notify({
-                Title = "Account Age",
-                Description = t.AccountAge .. " days",
-                Duration = 3,
-                Type = "info",
-            })
-        end,
-    })
-
-    local controlActive = false
-    local controlMode = "Default"
-    local controlOffsets = {
-        Default = Vector3.new(0, -20, 0),
-        W = Vector3.new(0, 0.7, 0.5),
-        A = Vector3.new(1.7, 0.7, 0),
-        S = Vector3.new(0, 0.7, -0.5),
-        D = Vector3.new(-1.7, 0.7, 0),
-        Space = Vector3.new(0, -3, 0),
-    }
-    PlayTab:CreateToggle({
-        Title = "Control",
-        Default = false,
-        Callback = function(Value)
-            controlActive = Value
-            controlMode = "Default"
-            if not Value then
-                local mh = Hum(LocalPlayer.Character)
-                if mh then workspace.CurrentCamera.CameraSubject = mh end
-                return
-            end
+PlayTab:CreateToggle({
+    Title = "View Target",
+    Default = false,
+    Callback = function(Value)
+        if not Value then
+            local mh = Hum(LocalPlayer.Character)
+            if mh then workspace.CurrentCamera.CameraSubject = mh end
+            return
+        end
+        local conn
+        conn = RunService.Heartbeat:Connect(function()
+            if not Value then conn:Disconnect(); return end
             local t = GetPlayTarget()
             if not t or not t.Character then return end
             local th = Hum(t.Character)
-            if th then workspace.CurrentCamera.CameraSubject = th end
-            local inputBegan = UserInputService.InputBegan:Connect(function(input, gp)
-                if gp or not controlActive then return end
-                if input.KeyCode == Enum.KeyCode.W then controlMode = "W"
-                elseif input.KeyCode == Enum.KeyCode.A then controlMode = "A"
-                elseif input.KeyCode == Enum.KeyCode.S then controlMode = "S"
-                elseif input.KeyCode == Enum.KeyCode.D then controlMode = "D"
-                elseif input.KeyCode == Enum.KeyCode.Space then controlMode = "Space"
-                end
-            end)
-            local inputEnded = UserInputService.InputEnded:Connect(function(input, gp)
-                if not controlActive then return end
-                if input.KeyCode == Enum.KeyCode.W or input.KeyCode == Enum.KeyCode.A or input.KeyCode == Enum.KeyCode.S or input.KeyCode == Enum.KeyCode.D or input.KeyCode == Enum.KeyCode.Space then
-                    controlMode = "Default"
-                end
-            end)
-            local conn
-            conn = RunService.Heartbeat:Connect(function()
-                if not controlActive then
-                    conn:Disconnect()
-                    inputBegan:Disconnect()
-                    inputEnded:Disconnect()
-                    return
-                end
-                local tt = GetPlayTarget()
-                if not tt or not tt.Character then return end
-                local tr = Root(tt.Character)
-                local mr = Root(LocalPlayer.Character)
-                if not tr or not mr then return end
-                local offset = controlOffsets[controlMode] or controlOffsets.Default
-                mr.CFrame = tr.CFrame * CFrame.new(offset)
-                mr.Velocity = Vector3.zero
-                mr.RotVelocity = Vector3.zero
-            end)
-        end,
-    })
-end)
-    
+            if th then
+                workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+                workspace.CurrentCamera.CameraSubject = th
+            end
+        end)
+    end,
+})
+
+PlayTab:CreateButton({
+    Title = "Copy Name",
+    Callback = function()
+        local t = GetPlayTarget()
+        if not t then return end
+        if setclipboard then setclipboard(t.Name) end
+    end,
+})
+
+PlayTab:CreateButton({
+    Title = "Copy User ID",
+    Callback = function()
+        local t = GetPlayTarget()
+        if not t then return end
+        if setclipboard then setclipboard(tostring(t.UserId)) end
+    end,
+})

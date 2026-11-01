@@ -11942,126 +11942,127 @@ AbuseTab:CreateToggle({
 -- =============================================
 -- RAKNET DESYNC
 -- =============================================
-local raknetDesyncActive = false
-local raknetDesyncConn = nil
-local raknetDesyncClone = nil
-local raknetDesyncOriginalCF = nil
-local raknetDesyncDiedConn = nil
-local raknetDesyncMaterials = {}
-local raknetDesyncColors = {}
-local raknetDesyncTransparencies = {}
+pcall(function()
+    local raknetDesyncActive = false
+    local raknetDesyncConn = nil
+    local raknetDesyncClone = nil
+    local raknetDesyncOriginalCF = nil
+    local raknetDesyncDiedConn = nil
+    local raknetDesyncMaterials = {}
+    local raknetDesyncColors = {}
+    local raknetDesyncTransparencies = {}
 
-local function saveOriginalProperties(part)
-    if not raknetDesyncMaterials[part] then
-        raknetDesyncMaterials[part] = part.Material
-        raknetDesyncColors[part] = part.Color
-        raknetDesyncTransparencies[part] = part.Transparency
-    end
-end
-
-local function stopRaknetDesync()
-    raknetDesyncActive = false
-    if raknetDesyncConn then raknetDesyncConn:Disconnect(); raknetDesyncConn = nil end
-    if raknetDesyncDiedConn then raknetDesyncDiedConn:Disconnect(); raknetDesyncDiedConn = nil end
-    if raknetDesyncClone then pcall(function() raknetDesyncClone:Destroy() end); raknetDesyncClone = nil end
-    local char = LocalPlayer.Character
-    if char then
-        for _, v in pairs(char:GetDescendants()) do
-            if v:IsA("BasePart") then
-                if raknetDesyncMaterials[v] then v.Material = raknetDesyncMaterials[v]; raknetDesyncMaterials[v] = nil end
-                if raknetDesyncColors[v] then v.Color = raknetDesyncColors[v]; raknetDesyncColors[v] = nil end
-                if raknetDesyncTransparencies[v] then v.Transparency = raknetDesyncTransparencies[v]; raknetDesyncTransparencies[v] = nil end
-                v.CanCollide = true
-                if v:FindFirstChild("ForceField") then v.ForceField:Destroy() end
-            elseif v:IsA("Decal") then
-                v.Transparency = 0
-            elseif v:IsA("Highlight") then
-                v:Destroy()
-            end
-        end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then hum.CameraOffset = Vector3.new(0, 0, 0); hum.PlatformStand = false end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if root then
-            if raknetDesyncOriginalCF then root.CFrame = raknetDesyncOriginalCF; raknetDesyncOriginalCF = nil end
-            root.Velocity = Vector3.zero
-            root.RotVelocity = Vector3.zero
+    local function saveOriginalProperties(part)
+        if not raknetDesyncMaterials[part] then
+            raknetDesyncMaterials[part] = part.Material
+            raknetDesyncColors[part] = part.Color
+            raknetDesyncTransparencies[part] = part.Transparency
         end
     end
-end
 
-AbuseTab:CreateToggle({
-    Title = "Raknet Desync",
-    Default = false,
-    Callback = function(Value)
-        raknetDesyncActive = Value
-        if Value then
-            local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-            local rootPart = char:WaitForChild("HumanoidRootPart")
-            local humanoid = char:WaitForChild("Humanoid")
-            raknetDesyncOriginalCF = rootPart.CFrame
-            for _, v in pairs(char:GetDescendants()) do
-                if v:IsA("BasePart") then saveOriginalProperties(v) end
-            end
-            char.Archivable = true
-            raknetDesyncClone = char:Clone()
-            raknetDesyncClone.Name = "ServerClone"
-            raknetDesyncClone.Parent = workspace
-            for _, v in pairs(raknetDesyncClone:GetDescendants()) do
-                if v:IsA("Highlight") then v:Destroy() end
-            end
-            for _, v in pairs(raknetDesyncClone:GetDescendants()) do
-                if v:IsA("BasePart") then
-                    v.Anchored = true
-                    v.CanCollide = false
-                    v.Transparency = 0.5
-                    v.Material = Enum.Material.SmoothPlastic
-                    v.Color = Color3.fromRGB(0, 150, 255)
-                elseif v:IsA("Decal") then
-                    v.Transparency = 0.5
-                elseif v:IsA("Script") or v:IsA("LocalScript") or v:IsA("ModuleScript") then
-                    v:Destroy()
-                end
-            end
+    local function stopRaknetDesync()
+        raknetDesyncActive = false
+        if raknetDesyncConn then raknetDesyncConn:Disconnect(); raknetDesyncConn = nil end
+        if raknetDesyncDiedConn then raknetDesyncDiedConn:Disconnect(); raknetDesyncDiedConn = nil end
+        if raknetDesyncClone then pcall(function() raknetDesyncClone:Destroy() end); raknetDesyncClone = nil end
+        local char = LocalPlayer.Character
+        if char then
             for _, v in pairs(char:GetDescendants()) do
                 if v:IsA("BasePart") then
-                    v.Transparency = 0.2
-                    v.Material = Enum.Material.ForceField
-                    v.Color = Color3.fromRGB(0, 160, 255)
+                    if raknetDesyncMaterials[v] then v.Material = raknetDesyncMaterials[v]; raknetDesyncMaterials[v] = nil end
+                    if raknetDesyncColors[v] then v.Color = raknetDesyncColors[v]; raknetDesyncColors[v] = nil end
+                    if raknetDesyncTransparencies[v] then v.Transparency = raknetDesyncTransparencies[v]; raknetDesyncTransparencies[v] = nil end
+                    v.CanCollide = true
+                    if v:FindFirstChild("ForceField") then v.ForceField:Destroy() end
                 elseif v:IsA("Decal") then
-                    v.Transparency = 0.2
+                    v.Transparency = 0
                 elseif v:IsA("Highlight") then
                     v:Destroy()
                 end
             end
-            raknetDesyncConn = RunService.Heartbeat:Connect(function()
-                if not raknetDesyncActive then stopRaknetDesync() return end
-                if not char or not char.Parent or not rootPart or not rootPart.Parent then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.CameraOffset = Vector3.new(0, 0, 0); hum.PlatformStand = false end
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                if raknetDesyncOriginalCF then root.CFrame = raknetDesyncOriginalCF; raknetDesyncOriginalCF = nil end
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+            end
+        end
+    end
+
+    AbuseTab:CreateToggle({
+        Title = "Raknet Desync",
+        Default = false,
+        Callback = function(Value)
+            raknetDesyncActive = Value
+            if Value then
+                local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+                local rootPart = char:WaitForChild("HumanoidRootPart")
+                local humanoid = char:WaitForChild("Humanoid")
+                raknetDesyncOriginalCF = rootPart.CFrame
+                for _, v in pairs(char:GetDescendants()) do
+                    if v:IsA("BasePart") then saveOriginalProperties(v) end
+                end
+                char.Archivable = true
+                raknetDesyncClone = char:Clone()
+                raknetDesyncClone.Name = "ServerClone"
+                raknetDesyncClone.Parent = workspace
+                for _, v in pairs(raknetDesyncClone:GetDescendants()) do
+                    if v:IsA("Highlight") then v:Destroy() end
+                end
+                for _, v in pairs(raknetDesyncClone:GetDescendants()) do
+                    if v:IsA("BasePart") then
+                        v.Anchored = true
+                        v.CanCollide = false
+                        v.Transparency = 0.5
+                        v.Material = Enum.Material.SmoothPlastic
+                        v.Color = Color3.fromRGB(0, 150, 255)
+                    elseif v:IsA("Decal") then
+                        v.Transparency = 0.5
+                    elseif v:IsA("Script") or v:IsA("LocalScript") or v:IsA("ModuleScript") then
+                        v:Destroy()
+                    end
+                end
+                for _, v in pairs(char:GetDescendants()) do
+                    if v:IsA("BasePart") then
+                        v.Transparency = 0.2
+                        v.Material = Enum.Material.ForceField
+                        v.Color = Color3.fromRGB(0, 160, 255)
+                    elseif v:IsA("Decal") then
+                        v.Transparency = 0.2
+                    elseif v:IsA("Highlight") then
+                        v:Destroy()
+                    end
+                end
+                raknetDesyncConn = RunService.Heartbeat:Connect(function()
+                    if not raknetDesyncActive then stopRaknetDesync() return end
+                    if not char or not char.Parent or not rootPart or not rootPart.Parent then
+                        if raknetDesyncClone then raknetDesyncClone:Destroy() end
+                        if raknetDesyncConn then raknetDesyncConn:Disconnect() end
+                        raknetDesyncActive = false
+                        return
+                    end
+                    local oldCF = rootPart.CFrame
+                    local oldOffset = humanoid.CameraOffset
+                    rootPart.CFrame = raknetDesyncOriginalCF
+                    humanoid.CameraOffset = raknetDesyncOriginalCF:ToObjectSpace(CFrame.new(oldCF.Position)).Position
+                    RunService.RenderStepped:Wait()
+                    rootPart.CFrame = oldCF
+                    humanoid.CameraOffset = oldOffset
+                end)
+                if raknetDesyncDiedConn then raknetDesyncDiedConn:Disconnect() end
+                raknetDesyncDiedConn = humanoid.Died:Connect(function()
                     if raknetDesyncClone then raknetDesyncClone:Destroy() end
                     if raknetDesyncConn then raknetDesyncConn:Disconnect() end
                     raknetDesyncActive = false
-                    return
-                end
-                local oldCF = rootPart.CFrame
-                local oldOffset = humanoid.CameraOffset
-                rootPart.CFrame = raknetDesyncOriginalCF
-                humanoid.CameraOffset = raknetDesyncOriginalCF:ToObjectSpace(CFrame.new(oldCF.Position)).Position
-                RunService.RenderStepped:Wait()
-                rootPart.CFrame = oldCF
-                humanoid.CameraOffset = oldOffset
-            end)
-            if raknetDesyncDiedConn then raknetDesyncDiedConn:Disconnect() end
-            raknetDesyncDiedConn = humanoid.Died:Connect(function()
-                if raknetDesyncClone then raknetDesyncClone:Destroy() end
-                if raknetDesyncConn then raknetDesyncConn:Disconnect() end
-                raknetDesyncActive = false
-            end)
-        else
-            stopRaknetDesync()
-        end
-    end,
-})
-
+                end)
+            else
+                stopRaknetDesync()
+            end
+        end,
+    })
+end)
 -- =============================================
 -- BYPASS SUPER FLING
 -- =============================================

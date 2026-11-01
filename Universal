@@ -1,13 +1,9 @@
 local MainTab = Window:CreateTab("Main", "home")
 
-local function SetHidden(obj, prop, value)
-    if sethiddenproperty then
-        pcall(sethiddenproperty, obj, prop, value)
+local function attach(Part, TargetPart)
+    if sethiddenproperty and InstanceHandle then
+        pcall(sethiddenproperty, Part, "PhysicsRepRootRef", InstanceHandle.new(TargetPart or Part))
     end
-end
-
-local function AttachRoot(root, targetRoot)
-    SetHidden(root, "PhysicsRepRootPart", targetRoot)
 end
 
 local TargetPlayer = nil
@@ -117,7 +113,7 @@ MainTab:CreateToggle({
                     localRoot.RotVelocity = Vector3.zero
                     target.hrp.Velocity = UP_FORCE
                     target.hrp.RotVelocity = Vector3.zero
-                    AttachRoot(localRoot, target.hrp)
+                    attach(localRoot, target.hrp)
                 end
             end)
         else
@@ -128,7 +124,7 @@ MainTab:CreateToggle({
                 local root = localChar:FindFirstChild("HumanoidRootPart")
                 if hum then hum.PlatformStand = false end
                 if root then
-                    AttachRoot(root, nil)
+                    attach(root, nil)
                     root.Velocity = Vector3.zero
                     root.RotVelocity = Vector3.zero
                     if originalLoopCFrame then root.CFrame = originalLoopCFrame end
@@ -186,7 +182,7 @@ MainTab:CreateButton({
                 root.CFrame = originalCFrame
                 root.Velocity = Vector3.zero
                 root.RotVelocity = Vector3.zero
-                AttachRoot(root, nil)
+                attach(root, nil)
                 killAllRunning = false
                 return
             end
@@ -201,7 +197,7 @@ MainTab:CreateButton({
                 root.RotVelocity = Vector3.zero
                 target.hrp.Velocity = UP_FORCE
                 target.hrp.RotVelocity = Vector3.zero
-                AttachRoot(root, target.hrp)
+                attach(root, target.hrp)
                 task.wait(0.08)
             end
             index = index + 1
@@ -229,7 +225,7 @@ MainTab:CreateToggle({
                     if loopKillOriginalCFrame then root.CFrame = loopKillOriginalCFrame end
                     root.Velocity = Vector3.zero
                     root.RotVelocity = Vector3.zero
-                    AttachRoot(root, nil)
+                    attach(root, nil)
                 end
             end
             loopKillOriginalCFrame = nil
@@ -265,7 +261,7 @@ MainTab:CreateToggle({
             curRoot.RotVelocity = Vector3.zero
             tHRP.Velocity = Vector3.new(0, 9e9, 0)
             tHRP.RotVelocity = Vector3.zero
-            AttachRoot(curRoot, tHRP)
+            attach(curRoot, tHRP)
         end)
     end,
 })
@@ -287,7 +283,7 @@ local function restoreCharacter(originalCFrame)
     local root = char:FindFirstChild("HumanoidRootPart")
     if hum then hum.PlatformStand = false; hum.AutoRotate = true end
     if root then
-        AttachRoot(root, nil)
+        attach(root, nil)
         root.Velocity = Vector3.zero
         root.RotVelocity = Vector3.zero
         if originalCFrame then root.CFrame = originalCFrame end
@@ -344,7 +340,7 @@ local function attackTarget(targetPlayer)
         curRoot.RotVelocity = Vector3.zero
         curHRP.Velocity = Vector3.new(0, 9e9, 0)
         curHRP.RotVelocity = Vector3.zero
-        AttachRoot(curRoot, curHRP)
+        attach(curRoot, curHRP)
     end)
 end
 
@@ -444,7 +440,7 @@ MainTab:CreateToggle({
                 if not root then return end
                 if deathPosition then
                     root.CFrame = CFrame.new(deathPosition)
-                    AttachRoot(root, root)
+                    attach(root, root)
                 end
                 local hum = char:WaitForChild("Humanoid")
                 if hum then
@@ -472,7 +468,7 @@ MainTab:CreateToggle({
             local currentChar = LocalPlayer.Character
             if currentChar then
                 local root = currentChar:FindFirstChild("HumanoidRootPart")
-                if root then AttachRoot(root, nil) end
+                if root then attach(root, nil) end
             end
         end
     end,

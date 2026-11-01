@@ -3451,7 +3451,7 @@ do
     local charMap = {
         a = "ä¸¹", b = "æ—¥", c = "äº¡", d = "å¥", e = "ãƒ¨", f = "ä¹",
         g = "å‘‚", h = "å»¾", i = "å·¥", j = "å‹¹", k = "ç‰‡", l = "ã—",
-        m = "å†Š", n = "å‡ ", o = "å›ž", p = "å°¸", q = "ç”²", r = "å°º",
+        m = "å†Š", n = "å‡ ", o = "å›ž", p = "å°¸", q = "ç”²", r = "å°º",
         s = "å·±", t = "åž", u = "å‡µ", v = "ãƒ¬", w = "å±±", x = "ãƒ¡",
         y = "ã¨", z = "ä¹™",
     }
@@ -4260,30 +4260,7 @@ MainTab:CreateToggle({
     end,
 })
 
--- ============================================================
--- AUTO REJOIN
--- ============================================================
-local AutoRejoinActive = false
-local AutoRejoinLast = 0
-local AutoRejoinConn = nil
-MainTab:CreateToggle({
-    Title = "Auto Rejoin",
-    Default = false,
-    Callback = function(Value)
-        AutoRejoinActive = Value
-        if AutoRejoinConn then AutoRejoinConn:Disconnect(); AutoRejoinConn = nil end
-        if not Value then return end
-        AutoRejoinLast = 0
-        AutoRejoinConn = game:GetService("GuiService").ErrorMessageChanged:Connect(function()
-            if not AutoRejoinActive then return end
-            if tick() - AutoRejoinLast < 5 then return end
-            AutoRejoinLast = tick()
-            pcall(function()
-                game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
-            end)
-        end)
-    end,
-})
+
 
 -- ============================================================
 -- CREDIT TAB
@@ -4292,9 +4269,8 @@ local CreditTab = Window:CreateTab("Credit", "info")
 CreditTab:CreateSection("Creator")
 CreditTab:CreateLabel("Creator: swat07_script")
 CreditTab:CreateSection("Social")
-CreditTab:CreateLabel("Discord: https://discord.gg/vArYQrx4A")
-CreditTab:CreateLabel("Discord Owner: krnl")
-CreditTab:CreateLabel("Usernames: Krnl_oficial | Swat07_oficial")
+CreditTab:CreateLabel("Discord Owner: Vinícius oficial")
+CreditTab:CreateLabel("Usernames: Vinícius| stp")
 CreditTab:CreateSection("Local Info")
 pcall(function()
     local productInfo = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
@@ -12469,6 +12445,641 @@ pcall(function()
                 curRoot.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
                 attach(curRoot, targetRoot)
             end)
+        end,
+    })
+end)
+-- ============================================================
+-- CALCULATOR (ScreenGui separada, aberta por botão)
+-- ============================================================
+pcall(function()
+    local CalculatorTab = Window:CreateTab("Calculator", "calculator")
+
+    local calcGui = Instance.new("ScreenGui")
+    calcGui.Name = "SwatCalculator"
+    calcGui.ResetOnSpawn = false
+    calcGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    calcGui.DisplayOrder = 2147483647
+    calcGui.Enabled = false
+    pcall(function() calcGui.Parent = game:GetService("CoreGui") end)
+    if not calcGui.Parent then calcGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+    local calcFrame = Instance.new("Frame")
+    calcFrame.Size = UDim2.new(0, 260, 0, 330)
+    calcFrame.Position = UDim2.new(0.5, -130, 0.5, -165)
+    calcFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+    calcFrame.BorderSizePixel = 0
+    calcFrame.Active = true
+    calcFrame.Draggable = true
+    calcFrame.Parent = calcGui
+
+    local calcCorner = Instance.new("UICorner")
+    calcCorner.CornerRadius = UDim.new(0, 14)
+    calcCorner.Parent = calcFrame
+
+    local calcStroke = Instance.new("UIStroke")
+    calcStroke.Color = Color3.fromRGB(35, 35, 35)
+    calcStroke.Thickness = 1
+    calcStroke.Parent = calcFrame
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, 0, 0, 30)
+    titleLabel.Position = UDim2.new(0, 0, 0, 5)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "Calculator"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 16
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    titleLabel.Parent = calcFrame
+
+    local closeCalc = Instance.new("TextButton")
+    closeCalc.Size = UDim2.new(0, 22, 0, 22)
+    closeCalc.Position = UDim2.new(1, -26, 0, 6)
+    closeCalc.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    closeCalc.BorderSizePixel = 0
+    closeCalc.Text = "X"
+    closeCalc.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeCalc.Font = Enum.Font.GothamBold
+    closeCalc.TextSize = 12
+    closeCalc.Parent = calcFrame
+    local cc = Instance.new("UICorner")
+    cc.CornerRadius = UDim.new(0, 6)
+    cc.Parent = closeCalc
+
+    local Display = Instance.new("TextLabel")
+    Display.Size = UDim2.new(1, -20, 0, 45)
+    Display.Position = UDim2.new(0, 10, 0, 40)
+    Display.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+    Display.Text = "0"
+    Display.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Display.Font = Enum.Font.GothamMedium
+    Display.TextSize = 22
+    Display.TextXAlignment = Enum.TextXAlignment.Right
+    Display.Parent = calcFrame
+    local dc = Instance.new("UICorner")
+    dc.CornerRadius = UDim.new(0, 8)
+    dc.Parent = Display
+    local dp = Instance.new("UIPadding")
+    dp.PaddingRight = UDim.new(0, 10)
+    dp.PaddingLeft = UDim.new(0, 10)
+    dp.Parent = Display
+
+    local ButtonsFrame = Instance.new("Frame")
+    ButtonsFrame.Size = UDim2.new(1, -20, 0, 210)
+    ButtonsFrame.Position = UDim2.new(0, 10, 0, 95)
+    ButtonsFrame.BackgroundTransparency = 1
+    ButtonsFrame.Parent = calcFrame
+
+    local GridLayout = Instance.new("UIGridLayout")
+    GridLayout.CellSize = UDim2.new(0, 50, 0, 42)
+    GridLayout.CellPadding = UDim2.new(0, 6, 0, 6)
+    GridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    GridLayout.Parent = ButtonsFrame
+
+    local CurrentInput = ""
+    local PreviousInput = ""
+    local Operation = nil
+
+    local function UpdateDisplay()
+        if PreviousInput ~= "" and Operation then
+            Display.Text = PreviousInput .. " " .. Operation .. " " .. CurrentInput
+        else
+            Display.Text = CurrentInput ~= "" and CurrentInput or "0"
+        end
+    end
+
+    local function Calculate()
+        local num1 = tonumber(PreviousInput)
+        local num2 = tonumber(CurrentInput)
+        if not num1 or not num2 then return end
+        local result
+        if Operation == "+" then result = num1 + num2
+        elseif Operation == "-" then result = num1 - num2
+        elseif Operation == "*" then result = num1 * num2
+        elseif Operation == "/" then
+            result = (num2 ~= 0) and (num1 / num2) or "Error"
+        end
+        if result ~= nil then
+            CurrentInput = tostring(result)
+            PreviousInput = ""
+            Operation = nil
+            UpdateDisplay()
+        end
+    end
+
+    local Buttons = {
+        {"C","Op"},{"Del","Del"},{"/","Op"},{"*","Op"},
+        {"7","Num"},{"8","Num"},{"9","Num"},{"-","Op"},
+        {"4","Num"},{"5","Num"},{"6","Num"},{"+","Op"},
+        {"1","Num"},{"2","Num"},{"3","Num"},{"=","Eq"},
+        {"0","Num"},{".","Num"}
+    }
+
+    for _, btnData in ipairs(Buttons) do
+        local text = btnData[1]
+        local btype = btnData[2]
+
+        local Btn = Instance.new("TextButton")
+        Btn.Text = text
+        Btn.TextSize = 16
+        Btn.Font = Enum.Font.GothamBold
+        Btn.BorderSizePixel = 0
+        Btn.Parent = ButtonsFrame
+        local bc = Instance.new("UICorner")
+        bc.CornerRadius = UDim.new(0, 8)
+        bc.Parent = Btn
+
+        if btype == "Num" then
+            Btn.BackgroundColor3 = Color3.fromRGB(32, 32, 32)
+            Btn.TextColor3 = Color3.fromRGB(240, 240, 240)
+        elseif btype == "Op" or btype == "Del" then
+            Btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            Btn.TextColor3 = Color3.fromRGB(255, 170, 0)
+        elseif btype == "Eq" then
+            Btn.BackgroundColor3 = Color3.fromRGB(255, 140, 0)
+            Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end
+
+        Btn.MouseButton1Click:Connect(function()
+            if btype == "Num" then
+                if CurrentInput == "0" then CurrentInput = "" end
+                CurrentInput = CurrentInput .. text
+                UpdateDisplay()
+            elseif btype == "Del" then
+                if CurrentInput ~= "" then
+                    CurrentInput = string.sub(CurrentInput, 1, -2)
+                elseif Operation ~= nil then
+                    Operation = nil
+                    CurrentInput = PreviousInput
+                    PreviousInput = ""
+                end
+                UpdateDisplay()
+            elseif btype == "Op" then
+                if text == "C" then
+                    CurrentInput = ""
+                    PreviousInput = ""
+                    Operation = nil
+                    Display.Text = "0"
+                else
+                    if CurrentInput ~= "" and PreviousInput ~= "" then Calculate() end
+                    if CurrentInput ~= "" then
+                        PreviousInput = CurrentInput
+                        CurrentInput = ""
+                    end
+                    if PreviousInput ~= "" then
+                        Operation = text
+                        UpdateDisplay()
+                    end
+                end
+            elseif btype == "Eq" then
+                Calculate()
+            end
+        end)
+    end
+
+    closeCalc.MouseButton1Click:Connect(function()
+        calcGui.Enabled = false
+    end)
+
+    CalculatorTab:CreateButton({
+        Title = "Open Calculator",
+        Callback = function()
+            calcGui.Enabled = not calcGui.Enabled
+        end,
+    })
+end)
+
+-- ============================================================
+-- CREATING (criador de elementos custom)
+-- ============================================================
+pcall(function()
+    local CreatingTab = Window:CreateTab("Creating", "plus")
+
+    local HttpService = game:GetService("HttpService")
+    local saveFile = "CustomElements.json"
+    local customElements = {}
+
+    local function hasFileAPI()
+        return type(isfile) == "function" and type(readfile) == "function" and type(writefile) == "function"
+    end
+
+    local function loadCustomElements()
+        if not hasFileAPI() then return {} end
+        local ok, data = pcall(readfile, saveFile)
+        if ok and data and data ~= "" then
+            local ok2, decoded = pcall(function()
+                return HttpService:JSONDecode(data)
+            end)
+            if ok2 and type(decoded) == "table" then
+                return decoded
+            end
+        end
+        return {}
+    end
+
+    local function saveCustomElements()
+        if not hasFileAPI() then return end
+        local ok, encoded = pcall(function()
+            return HttpService:JSONEncode(customElements)
+        end)
+        if ok then
+            pcall(writefile, saveFile, encoded)
+        end
+    end
+
+    customElements = loadCustomElements()
+
+    -- ============================================================
+    -- CRIAR ELEMENTO (Button/Toggle)
+    -- ============================================================
+    local function createElement(elem)
+        local function safeRun()
+            local fn, err = loadstring(elem.code)
+            if not fn then
+                if elem.onError then elem.onError("Compile error: " .. tostring(err)) end
+                return
+            end
+            local ok, runErr = pcall(fn)
+            if not ok and elem.onError then
+                elem.onError("Runtime error: " .. tostring(runErr))
+            end
+        end
+
+        if elem.type == "Button" then
+            CreatingTab:CreateButton({
+                Title = elem.name,
+                Callback = function()
+                    safeRun()
+                end,
+            })
+        elseif elem.type == "Toggle" then
+            CreatingTab:CreateToggle({
+                Title = elem.name,
+                Default = false,
+                Callback = function(Value)
+                    if Value then
+                        safeRun()
+                    end
+                end,
+            })
+        end
+    end
+
+    -- ============================================================
+    -- CONFIG MENU (nome + código)
+    -- ============================================================
+    local configMenu = nil
+
+    local function openConfigMenu(elementType)
+        if configMenu then configMenu:Destroy(); configMenu = nil end
+
+        configMenu = Instance.new("Frame")
+        configMenu.Size = UDim2.new(0, 400, 0, 400)
+        configMenu.Position = UDim2.new(0.5, -200, 0.5, -200)
+        configMenu.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+        configMenu.BorderSizePixel = 0
+        configMenu.Active = true
+        configMenu.Draggable = true
+        configMenu.ZIndex = 20
+        configMenu.Parent = Window.ScreenGui or LocalPlayer:WaitForChild("PlayerGui")
+
+        local cfgCorner = Instance.new("UICorner")
+        cfgCorner.CornerRadius = UDim.new(0, 10)
+        cfgCorner.Parent = configMenu
+
+        local cfgStroke = Instance.new("UIStroke")
+        cfgStroke.Color = Color3.fromRGB(60, 60, 70)
+        cfgStroke.Thickness = 1.5
+        cfgStroke.Parent = configMenu
+
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(1, 0, 0, 32)
+        title.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
+        title.BorderSizePixel = 0
+        title.Text = "Configure " .. elementType
+        title.TextColor3 = Color3.fromRGB(255, 255, 255)
+        title.Font = Enum.Font.GothamBold
+        title.TextSize = 14
+        title.ZIndex = 21
+        title.Parent = configMenu
+        local tc = Instance.new("UICorner")
+        tc.CornerRadius = UDim.new(0, 10)
+        tc.Parent = title
+
+        local closeBtn = Instance.new("TextButton")
+        closeBtn.Size = UDim2.new(0, 26, 0, 26)
+        closeBtn.Position = UDim2.new(1, -30, 0, 3)
+        closeBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+        closeBtn.BorderSizePixel = 0
+        closeBtn.Text = "X"
+        closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closeBtn.Font = Enum.Font.GothamBold
+        closeBtn.TextSize = 12
+        closeBtn.ZIndex = 22
+        closeBtn.Parent = configMenu
+        local cbc = Instance.new("UICorner")
+        cbc.CornerRadius = UDim.new(0, 6)
+        cbc.Parent = closeBtn
+        closeBtn.MouseButton1Click:Connect(function()
+            if configMenu then configMenu:Destroy(); configMenu = nil end
+        end)
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, -20, 0, 18)
+        nameLabel.Position = UDim2.new(0, 10, 0, 40)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = "Element Name:"
+        nameLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+        nameLabel.Font = Enum.Font.Gotham
+        nameLabel.TextSize = 12
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        nameLabel.ZIndex = 21
+        nameLabel.Parent = configMenu
+
+        local nameBox = Instance.new("TextBox")
+        nameBox.Size = UDim2.new(1, -20, 0, 34)
+        nameBox.Position = UDim2.new(0, 10, 0, 60)
+        nameBox.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+        nameBox.BorderSizePixel = 0
+        nameBox.Text = ""
+        nameBox.PlaceholderText = "My Custom Element"
+        nameBox.TextColor3 = Color3.fromRGB(220, 220, 240)
+        nameBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 130)
+        nameBox.Font = Enum.Font.Gotham
+        nameBox.TextSize = 13
+        nameBox.ZIndex = 21
+        nameBox.Parent = configMenu
+        local nc = Instance.new("UICorner")
+        nc.CornerRadius = UDim.new(0, 6)
+        nc.Parent = nameBox
+
+        local codeLabel = Instance.new("TextLabel")
+        codeLabel.Size = UDim2.new(1, -20, 0, 18)
+        codeLabel.Position = UDim2.new(0, 10, 0, 104)
+        codeLabel.BackgroundTransparency = 1
+        codeLabel.Text = (elementType == "Button") and "Code (executes when clicked):" or "Code (executes on Toggle):"
+        codeLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+        codeLabel.Font = Enum.Font.Gotham
+        codeLabel.TextSize = 12
+        codeLabel.TextXAlignment = Enum.TextXAlignment.Left
+        codeLabel.ZIndex = 21
+        codeLabel.Parent = configMenu
+
+        local codeScroller = Instance.new("ScrollingFrame")
+        codeScroller.Size = UDim2.new(1, -20, 1, -220)
+        codeScroller.Position = UDim2.new(0, 10, 0, 124)
+        codeScroller.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+        codeScroller.BorderSizePixel = 0
+        codeScroller.ScrollBarThickness = 4
+        codeScroller.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 100)
+        codeScroller.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        codeScroller.CanvasSize = UDim2.new(0, 0, 0, 0)
+        codeScroller.ZIndex = 21
+        codeScroller.Parent = configMenu
+        local cc2 = Instance.new("UICorner")
+        cc2.CornerRadius = UDim.new(0, 6)
+        cc2.Parent = codeScroller
+
+        local codeBox = Instance.new("TextBox")
+        codeBox.Size = UDim2.new(1, -10, 0, 200)
+        codeBox.Position = UDim2.new(0, 5, 0, 5)
+        codeBox.BackgroundTransparency = 1
+        codeBox.Text = ""
+        codeBox.PlaceholderText = "-- Lua code here"
+        codeBox.TextColor3 = Color3.fromRGB(200, 220, 255)
+        codeBox.PlaceholderColor3 = Color3.fromRGB(80, 80, 100)
+        codeBox.Font = Enum.Font.Code
+        codeBox.TextSize = 12
+        codeBox.TextXAlignment = Enum.TextXAlignment.Left
+        codeBox.TextYAlignment = Enum.TextYAlignment.Top
+        codeBox.TextWrapped = true
+        codeBox.ClearTextOnFocus = false
+        codeBox.ZIndex = 22
+        codeBox.Parent = codeScroller
+
+        codeBox:GetPropertyChangedSignal("Text"):Connect(function()
+            local _, count = codeBox.Text:gsub("\n", "\n")
+            local lines = count + 1
+            local h = math.max(lines * 16 + 20, 200)
+            codeBox.Size = UDim2.new(1, -10, 0, h)
+            codeScroller.CanvasSize = UDim2.new(0, 0, 0, h + 20)
+        end)
+
+        local saveBtn = Instance.new("TextButton")
+        saveBtn.Size = UDim2.new(0.5, -20, 0, 40)
+        saveBtn.Position = UDim2.new(0, 15, 1, -55)
+        saveBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+        saveBtn.BorderSizePixel = 0
+        saveBtn.Text = "Save"
+        saveBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        saveBtn.Font = Enum.Font.GothamBold
+        saveBtn.TextSize = 14
+        saveBtn.ZIndex = 21
+        saveBtn.Parent = configMenu
+        local sc = Instance.new("UICorner")
+        sc.CornerRadius = UDim.new(0, 8)
+        sc.Parent = saveBtn
+
+        local cancelBtn = Instance.new("TextButton")
+        cancelBtn.Size = UDim2.new(0.5, -20, 0, 40)
+        cancelBtn.Position = UDim2.new(0.5, 5, 1, -55)
+        cancelBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
+        cancelBtn.BorderSizePixel = 0
+        cancelBtn.Text = "Cancel"
+        cancelBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        cancelBtn.Font = Enum.Font.GothamBold
+        cancelBtn.TextSize = 14
+        cancelBtn.ZIndex = 21
+        cancelBtn.Parent = configMenu
+        local cc3 = Instance.new("UICorner")
+        cc3.CornerRadius = UDim.new(0, 8)
+        cc3.Parent = cancelBtn
+
+        cancelBtn.MouseButton1Click:Connect(function()
+            if configMenu then configMenu:Destroy(); configMenu = nil end
+        end)
+
+        saveBtn.MouseButton1Click:Connect(function()
+            local elemName = nameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
+            if elemName == "" then
+                Window:Notify({ Title = "Creating", Description = "Enter a name", Duration = 2, Type = "warning" })
+                return
+            end
+            local code = codeBox.Text
+            if code == "" then
+                Window:Notify({ Title = "Creating", Description = "Enter code", Duration = 2, Type = "warning" })
+                return
+            end
+            local fn, err = loadstring(code)
+            if not fn then
+                Window:Notify({ Title = "Creating", Description = "Compile error: " .. tostring(err), Duration = 3, Type = "error" })
+                return
+            end
+
+            local elem = { type = elementType, name = elemName, code = code }
+            elem.onError = function(msg)
+                Window:Notify({ Title = "Creating Error", Description = msg, Duration = 3, Type = "error" })
+            end
+            table.insert(customElements, { type = elem.type, name = elem.name, code = elem.code })
+            saveCustomElements()
+            createElement(elem)
+
+            Window:Notify({ Title = "Creating", Description = elemName .. " created!", Duration = 2, Type = "success" })
+            if configMenu then configMenu:Destroy(); configMenu = nil end
+        end)
+    end
+
+    -- ============================================================
+    -- CREATE MENU (escolher Button/Toggle)
+    -- ============================================================
+    local createMenu = nil
+
+    local function openCreateMenu()
+        if createMenu then createMenu:Destroy(); createMenu = nil end
+
+        createMenu = Instance.new("Frame")
+        createMenu.Size = UDim2.new(0, 340, 0, 220)
+        createMenu.Position = UDim2.new(0.5, -170, 0.5, -110)
+        createMenu.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+        createMenu.BorderSizePixel = 0
+        createMenu.Active = true
+        createMenu.Draggable = true
+        createMenu.ZIndex = 20
+        createMenu.Parent = Window.ScreenGui or LocalPlayer:WaitForChild("PlayerGui")
+
+        local mc = Instance.new("UICorner")
+        mc.CornerRadius = UDim.new(0, 10)
+        mc.Parent = createMenu
+
+        local ms = Instance.new("UIStroke")
+        ms.Color = Color3.fromRGB(60, 60, 70)
+        ms.Thickness = 1.5
+        ms.Parent = createMenu
+
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(1, 0, 0, 32)
+        title.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
+        title.BorderSizePixel = 0
+        title.Text = "Create Element"
+        title.TextColor3 = Color3.fromRGB(255, 255, 255)
+        title.Font = Enum.Font.GothamBold
+        title.TextSize = 14
+        title.ZIndex = 21
+        title.Parent = createMenu
+        local tc2 = Instance.new("UICorner")
+        tc2.CornerRadius = UDim.new(0, 10)
+        tc2.Parent = title
+
+        local closeBtn = Instance.new("TextButton")
+        closeBtn.Size = UDim2.new(0, 26, 0, 26)
+        closeBtn.Position = UDim2.new(1, -30, 0, 3)
+        closeBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+        closeBtn.BorderSizePixel = 0
+        closeBtn.Text = "X"
+        closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closeBtn.Font = Enum.Font.GothamBold
+        closeBtn.TextSize = 12
+        closeBtn.ZIndex = 22
+        closeBtn.Parent = createMenu
+        local cbc2 = Instance.new("UICorner")
+        cbc2.CornerRadius = UDim.new(0, 6)
+        cbc2.Parent = closeBtn
+        closeBtn.MouseButton1Click:Connect(function()
+            if createMenu then createMenu:Destroy(); createMenu = nil end
+        end)
+
+        local choiceButton = Instance.new("TextButton")
+        choiceButton.Size = UDim2.new(0, 145, 0, 45)
+        choiceButton.Position = UDim2.new(0, 15, 0, 68)
+        choiceButton.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        choiceButton.BorderSizePixel = 0
+        choiceButton.Text = "Button"
+        choiceButton.TextColor3 = Color3.fromRGB(200, 200, 220)
+        choiceButton.Font = Enum.Font.GothamBold
+        choiceButton.TextSize = 14
+        choiceButton.ZIndex = 21
+        choiceButton.Parent = createMenu
+        local cbc3 = Instance.new("UICorner")
+        cbc3.CornerRadius = UDim.new(0, 8)
+        cbc3.Parent = choiceButton
+
+        local choiceToggle = Instance.new("TextButton")
+        choiceToggle.Size = UDim2.new(0, 145, 0, 45)
+        choiceToggle.Position = UDim2.new(1, -160, 0, 68)
+        choiceToggle.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        choiceToggle.BorderSizePixel = 0
+        choiceToggle.Text = "Toggle"
+        choiceToggle.TextColor3 = Color3.fromRGB(200, 200, 220)
+        choiceToggle.Font = Enum.Font.GothamBold
+        choiceToggle.TextSize = 14
+        choiceToggle.ZIndex = 21
+        choiceToggle.Parent = createMenu
+        local ctc = Instance.new("UICorner")
+        ctc.CornerRadius = UDim.new(0, 8)
+        ctc.Parent = choiceToggle
+
+        local selectedType = nil
+
+        local function updateSelection()
+            if selectedType == "Button" then
+                choiceButton.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+                choiceToggle.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+            elseif selectedType == "Toggle" then
+                choiceToggle.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+                choiceButton.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+            end
+        end
+
+        choiceButton.MouseButton1Click:Connect(function()
+            selectedType = "Button"
+            updateSelection()
+        end)
+        choiceToggle.MouseButton1Click:Connect(function()
+            selectedType = "Toggle"
+            updateSelection()
+        end)
+
+        local confirmBtn = Instance.new("TextButton")
+        confirmBtn.Size = UDim2.new(1, -30, 0, 40)
+        confirmBtn.Position = UDim2.new(0, 15, 1, -55)
+        confirmBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+        confirmBtn.BorderSizePixel = 0
+        confirmBtn.Text = "Confirm"
+        confirmBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        confirmBtn.Font = Enum.Font.GothamBold
+        confirmBtn.TextSize = 14
+        confirmBtn.ZIndex = 21
+        confirmBtn.Parent = createMenu
+        local cfc = Instance.new("UICorner")
+        cfc.CornerRadius = UDim.new(0, 8)
+        cfc.Parent = confirmBtn
+
+        confirmBtn.MouseButton1Click:Connect(function()
+            if not selectedType then
+                Window:Notify({ Title = "Creating", Description = "Select a type first", Duration = 2, Type = "warning" })
+                return
+            end
+            if createMenu then createMenu:Destroy(); createMenu = nil end
+            openConfigMenu(selectedType)
+        end)
+    end
+
+    -- ============================================================
+    -- CARREGAR SALVOS
+    -- ============================================================
+    for _, elem in ipairs(customElements) do
+        if elem.type == "Button" or elem.type == "Toggle" then
+            elem.onError = function(msg)
+                Window:Notify({ Title = "Creating Error", Description = msg, Duration = 3, Type = "error" })
+            end
+            createElement(elem)
+        end
+    end
+
+    CreatingTab:CreateButton({
+        Title = "Create Element",
+        Callback = function()
+            openCreateMenu()
         end,
     })
 end)

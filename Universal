@@ -3881,7 +3881,7 @@ pcall(function()
         Callback = function(state)
             if state then
                 pcall(function()
-                    workspace.FallenPartsDestroyHeight = -math.huge
+                    workspace.FallenPartsDestroyHeight = -9e6
                 end)
             else
                 pcall(function()
@@ -4398,34 +4398,180 @@ ExtraTab:CreateToggle({
         end
     end,
 })
-do
+pcall(function()
+    if not ExtraTab then return end
+
+    local cflyActive = false
+    local cflySpeed = 50
+    local cflyLoop = nil
+
+    ExtraTab:CreateToggle({
+        Title = "CFrameFly",
+        Default = false,
+        Callback = function(Value)
+            cflyActive = Value
+            if not Value then
+                if cflyLoop then cflyLoop:Disconnect(); cflyLoop = nil end
+                local char = player.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum then hum.PlatformStand = false end
+                    local head = char:FindFirstChild("Head")
+                    if head then head.Anchored = false end
+                end
+                return
+            end
+
+            local char = player.Character
+            if not char then cflyActive = false return end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            local head = char:WaitForChild("Head")
+            if not hum or not head then cflyActive = false return end
+
+            hum.PlatformStand = true
+            head.Anchored = true
+
+            if cflyLoop then cflyLoop:Disconnect(); cflyLoop = nil end
+            cflyLoop = RunService.Heartbeat:Connect(function(deltaTime)
+                if not cflyActive then return end
+                local c = player.Character
+                if not c then return end
+                local h = c:FindFirstChildOfClass("Humanoid")
+                local hd = c:FindFirstChild("Head")
+                if not h or not hd then return end
+
+                local moveDirection = h.MoveDirection * (cflySpeed * deltaTime)
+                local headCFrame = hd.CFrame
+                local camera = workspace.CurrentCamera
+                local cameraCFrame = camera.CFrame
+                local cameraOffset = headCFrame:ToObjectSpace(cameraCFrame).Position
+                cameraCFrame = cameraCFrame * CFrame.new(-cameraOffset.X, -cameraOffset.Y, -cameraOffset.Z + 1)
+                local cameraPosition = cameraCFrame.Position
+                local headPosition = headCFrame.Position
+
+                local objectSpaceVelocity = CFrame.new(cameraPosition, Vector3.new(headPosition.X, cameraPosition.Y, headPosition.Z)):VectorToObjectSpace(moveDirection)
+                hd.CFrame = CFrame.new(headPosition) * (cameraCFrame - cameraPosition) * CFrame.new(objectSpaceVelocity)
+            end)
+        end,
+    })
+
+    ExtraTab:CreateSlider({
+        Title = "CFrameFly Speed",
+        Min = 1,
+        Max = 1000,
+        Default = 50,
+        Callback = function(Value)
+            cflySpeed = Value
+        end,
+    })
+
+    player.CharacterAdded:Connect(function()
+        if cflyActive then
+            task.wait(0.3)
+            local char = player.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                local head = char:FindFirstChild("Head")
+                if hum and head then
+                    hum.PlatformStand = true
+                    head.Anchored = true
+                end
+            end
+        end
+    end)
+end)
+pcall(function()
+    if not ExtraTab then return end
+
+    local noclipActive = false
+    local noclipConn = nil
+    local noclipParts = {}
+
+    local function noclipLoop()
+        if not noclipActive then return end
+        local char = player.Character
+        if not char then return end
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                if noclipParts[part] == nil then
+                    noclipParts[part] = part.CanCollide
+                end
+                part.CanCollide = false
+            end
+        end
+    end
+
+    ExtraTab:CreateToggle({
+        Title = "Noclip",
+        Default = false,
+        Callback = function(Value)
+            noclipActive = Value
+            if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
+            if Value then
+                noclipParts = {}
+                noclipLoop()
+                noclipConn = RunService.Heartbeat:Connect(noclipLoop)
+            else
+                local char = player.Character
+                if char then
+                    for _, part in pairs(char:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            if noclipParts[part] ~= nil then
+                                part.CanCollide = noclipParts[part]
+                            else
+                                part.CanCollide = true
+                            end
+                        end
+                    end
+                end
+                noclipParts = {}
+            end
+        end,
+    })
+
+    player.CharacterAdded:Connect(function()
+        if noclipActive then
+            task.wait(0.5)
+            noclipParts = {}
+            noclipLoop()
+        end
+    end)
+end)
+pcall(function()
     if not ExtraTab then return end
 
     local flyActive = false
-    local flyMenu = nil
-    local flySpeeds = 1
-    local flyNowe = false
-    local flyConnections = {}
-    local flyBg = nil
-    local flyBv = nil
-    local flyTpwalking = false
+    local flySpeedValue = 50
+    local flyConnection = nil
+    local flyBodyGyro = nil
+    local flyBodyVelocity = nil
+    local flyUpConnection = nil
+    local flyDownConnection = nil
     local flyCtrl = {f = 0, b = 0, l = 0, r = 0}
-    local flyLastctrl = {f = 0, b = 0, l = 0, r = 0}
-    local flyMaxspeed = 50
-    local flySpeed = 0
-    local flyTis = nil
-    local flyDis = nil
+    local flyLastCtrl = {f = 0, b = 0, l = 0, r = 0}
+    local flyCurrentSpeed = 0
+    local flyMaxSpeed = 50
+
+    local function getBodyPart()
+        local char = player.Character
+        if not char then return nil end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum then return nil end
+        if hum.RigType == Enum.HumanoidRigType.R6 then
+            return char:FindFirstChild("Torso")
+        else
+            return char:FindFirstChild("UpperTorso")
+        end
+    end
 
     local function stopFly()
         flyActive = false
-        flyNowe = false
-        flyTpwalking = false
-        if flyTis then flyTis:Disconnect(); flyTis = nil end
-        if flyDis then flyDis:Disconnect(); flyDis = nil end
-        for _, conn in pairs(flyConnections) do conn:Disconnect() end
-        flyConnections = {}
-        if flyBg then flyBg:Destroy(); flyBg = nil end
-        if flyBv then flyBv:Destroy(); flyBv = nil end
+        if flyConnection then flyConnection:Disconnect(); flyConnection = nil end
+        if flyUpConnection then flyUpConnection:Disconnect(); flyUpConnection = nil end
+        if flyDownConnection then flyDownConnection:Disconnect(); flyDownConnection = nil end
+        if flyBodyGyro then flyBodyGyro:Destroy(); flyBodyGyro = nil end
+        if flyBodyVelocity then flyBodyVelocity:Destroy(); flyBodyVelocity = nil end
+
         local char = player.Character
         if char then
             local hum = char:FindFirstChildOfClass("Humanoid")
@@ -4447,281 +4593,162 @@ do
                 hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, true)
                 hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
                 hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
+                hum.AutoRotate = true
             end
             local animate = char:FindFirstChild("Animate")
             if animate then animate.Disabled = false end
         end
-        if flyMenu then flyMenu:Destroy(); flyMenu = nil end
     end
 
-    local function createFlyMenu()
-        if flyMenu then flyMenu:Destroy() end
-        flyMenu = Instance.new("ScreenGui")
-        flyMenu.Name = "FlyMenu"
-        flyMenu.ResetOnSpawn = false
-        flyMenu.Parent = gui
+    local function startFly()
+        local char = player.Character
+        if not char then flyActive = false return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local bodyPart = getBodyPart()
+        if not hum or not bodyPart then flyActive = false return end
 
-        local Frame = Instance.new("Frame")
-        Frame.Parent = flyMenu
-        Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-        Frame.BackgroundTransparency = 0.1
-        Frame.BorderSizePixel = 0
-        Frame.Position = UDim2.new(0.5, -75, 0.5, -75)
-        Frame.Size = UDim2.new(0, 150, 0, 150)
-        Frame.Active = true
-        Frame.Draggable = true
-        Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 12)
-        local stroke = Instance.new("UIStroke", Frame)
-        stroke.Color = Color3.fromRGB(60, 60, 65)
-        stroke.Thickness = 1.5
+        local animate = char:FindFirstChild("Animate")
+        if animate then animate.Disabled = true end
 
-        local closeBtn = Instance.new("TextButton")
-        closeBtn.Parent = Frame
-        closeBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-        closeBtn.BorderSizePixel = 0
-        closeBtn.Size = UDim2.new(0, 35, 0, 35)
-        closeBtn.Position = UDim2.new(1, -40, 0, 5)
-        closeBtn.Font = Enum.Font.SourceSansBold
-        closeBtn.Text = "X"
-        closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        closeBtn.TextSize = 20
-        Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
-        closeBtn.MouseButton1Click:Connect(function()
-            stopFly()
-            if Notify then Notify("Fly", "Desativado", 1) end
-        end)
-
-        local minusBtn = Instance.new("TextButton")
-        minusBtn.Parent = Frame
-        minusBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-        minusBtn.BorderSizePixel = 0
-        minusBtn.Size = UDim2.new(0, 50, 0, 50)
-        minusBtn.Position = UDim2.new(0, 12, 0.5, -25)
-        minusBtn.Font = Enum.Font.SourceSansBold
-        minusBtn.Text = "-"
-        minusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        minusBtn.TextSize = 30
-        Instance.new("UICorner", minusBtn).CornerRadius = UDim.new(0, 8)
-
-        local speedLabel = Instance.new("TextLabel")
-        speedLabel.Parent = Frame
-        speedLabel.BackgroundTransparency = 1
-        speedLabel.Size = UDim2.new(0, 50, 0, 50)
-        speedLabel.Position = UDim2.new(0.5, -25, 0.5, -25)
-        speedLabel.Font = Enum.Font.SourceSansBold
-        speedLabel.Text = "1"
-        speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        speedLabel.TextSize = 28
-        speedLabel.TextScaled = true
-
-        local plusBtn = Instance.new("TextButton")
-        plusBtn.Parent = Frame
-        plusBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-        plusBtn.BorderSizePixel = 0
-        plusBtn.Size = UDim2.new(0, 50, 0, 50)
-        plusBtn.Position = UDim2.new(1, -62, 0.5, -25)
-        plusBtn.Font = Enum.Font.SourceSansBold
-        plusBtn.Text = "+"
-        plusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        plusBtn.TextSize = 30
-        Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 8)
-
-        plusBtn.MouseButton1Down:Connect(function()
-            flySpeeds = flySpeeds + 1
-            speedLabel.Text = flySpeeds
-            if flyNowe == true then
-                flyTpwalking = false
-                task.wait(0.1)
-                for i = 1, flySpeeds do
-                    task.spawn(function()
-                        local hb = game:GetService("RunService").Heartbeat
-                        flyTpwalking = true
-                        local chr = player.Character
-                        local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-                        while flyTpwalking and hb:Wait() and chr and hum and hum.Parent do
-                            if hum.MoveDirection.Magnitude > 0 then
-                                chr:TranslateBy(hum.MoveDirection)
-                            end
-                        end
-                    end)
-                end
-            end
-        end)
-
-        minusBtn.MouseButton1Down:Connect(function()
-            if flySpeeds > 1 then
-                flySpeeds = flySpeeds - 1
-                speedLabel.Text = flySpeeds
-                if flyNowe == true then
-                    flyTpwalking = false
-                    task.wait(0.1)
-                    for i = 1, flySpeeds do
-                        task.spawn(function()
-                            local hb = game:GetService("RunService").Heartbeat
-                            flyTpwalking = true
-                            local chr = player.Character
-                            local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-                            while flyTpwalking and hb:Wait() and chr and hum and hum.Parent do
-                                if hum.MoveDirection.Magnitude > 0 then
-                                    chr:TranslateBy(hum.MoveDirection)
-                                end
-                            end
-                        end)
-                    end
-                end
-            end
-        end)
-
-        local function startFly()
-            if flyNowe == true then return end
-            flyNowe = true
-            for i = 1, flySpeeds do
-                task.spawn(function()
-                    local hb = game:GetService("RunService").Heartbeat
-                    flyTpwalking = true
-                    local chr = player.Character
-                    local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-                    while flyTpwalking and hb:Wait() and chr and hum and hum.Parent do
-                        if hum.MoveDirection.Magnitude > 0 then
-                            chr:TranslateBy(hum.MoveDirection)
-                        end
-                    end
-                end)
-            end
-            local char = player.Character
-            if char then
-                local animate = char:FindFirstChild("Animate")
-                if animate then animate.Disabled = true end
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    for _, v in pairs(hum:GetPlayingAnimationTracks()) do v:AdjustSpeed(0) end
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Landed, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Running, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, false)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
-                    hum:ChangeState(Enum.HumanoidStateType.Swimming)
-                    hum.PlatformStand = true
-                end
-            end
-
-            local bodyPart
-            local charRig = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-            if charRig and charRig.RigType == Enum.HumanoidRigType.R6 then
-                bodyPart = player.Character.Torso
-            else
-                bodyPart = player.Character.UpperTorso
-            end
-            if not bodyPart then return end
-
-            flyCtrl = {f = 0, b = 0, l = 0, r = 0}
-            flyLastctrl = {f = 0, b = 0, l = 0, r = 0}
-            flyMaxspeed = 50
-            flySpeed = 0
-
-            if flyBg then flyBg:Destroy() end
-            if flyBv then flyBv:Destroy() end
-
-            flyBg = Instance.new("BodyGyro", bodyPart)
-            flyBg.P = 9e4
-            flyBg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-            flyBg.cframe = bodyPart.CFrame
-
-            flyBv = Instance.new("BodyVelocity", bodyPart)
-            flyBv.velocity = Vector3.new(0, 0.1, 0)
-            flyBv.maxForce = Vector3.new(9e9, 9e9, 9e9)
-
-            local flyConnection = game:GetService("RunService").RenderStepped:Connect(function()
-                if not flyNowe and player.Character and player.Character.Humanoid.Health ~= 0 then return end
-                if flyCtrl.l + flyCtrl.r ~= 0 or flyCtrl.f + flyCtrl.b ~= 0 then
-                    flySpeed = flySpeed + 0.5 + (flySpeed / flyMaxspeed)
-                    if flySpeed > flyMaxspeed then flySpeed = flyMaxspeed end
-                elseif not (flyCtrl.l + flyCtrl.r ~= 0 or flyCtrl.f + flyCtrl.b ~= 0) and flySpeed ~= 0 then
-                    flySpeed = flySpeed - 1
-                    if flySpeed < 0 then flySpeed = 0 end
-                end
-                if (flyCtrl.l + flyCtrl.r) ~= 0 or (flyCtrl.f + flyCtrl.b) ~= 0 then
-                    flyBv.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (flyCtrl.f + flyCtrl.b)) +
-                        ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(flyCtrl.l + flyCtrl.r, (flyCtrl.f + flyCtrl.b) * 0.2, 0).p) -
-                        workspace.CurrentCamera.CoordinateFrame.p)) * flySpeed
-                    flyLastctrl = {f = flyCtrl.f, b = flyCtrl.b, l = flyCtrl.l, r = flyCtrl.r}
-                elseif (flyCtrl.l + flyCtrl.r) == 0 and (flyCtrl.f + flyCtrl.b) == 0 and flySpeed ~= 0 then
-                    flyBv.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (flyLastctrl.f + flyLastctrl.b)) +
-                        ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(flyLastctrl.l + flyLastctrl.r, (flyLastctrl.f + flyLastctrl.b) * 0.2, 0).p) -
-                        workspace.CurrentCamera.CoordinateFrame.p)) * flySpeed
-                else
-                    flyBv.velocity = Vector3.new(0, 0, 0)
-                end
-                flyBg.cframe = workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((flyCtrl.f + flyCtrl.b) * 50 * flySpeed / flyMaxspeed), 0, 0)
-            end)
-            table.insert(flyConnections, flyConnection)
+        for _, track in pairs(hum:GetPlayingAnimationTracks()) do
+            pcall(function() track:AdjustSpeed(0) end
         end
 
-        startFly()
-        if Notify then Notify("Fly", "Ativado (Velocidade: " .. flySpeeds .. ")", 2) end
+        hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Landed, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Running, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
+        hum:ChangeState(Enum.HumanoidStateType.Swimming)
+        hum.PlatformStand = true
 
-        local inputBegan = game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
-            if gameProcessed or not flyNowe then return end
+        flyCtrl = {f = 0, b = 0, l = 0, r = 0}
+        flyLastCtrl = {f = 0, b = 0, l = 0, r = 0}
+        flyCurrentSpeed = 0
+
+        if flyBodyGyro then flyBodyGyro:Destroy() end
+        if flyBodyVelocity then flyBodyVelocity:Destroy() end
+
+        flyBodyGyro = Instance.new("BodyGyro", bodyPart)
+        flyBodyGyro.P = 9e4
+        flyBodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+        flyBodyGyro.cframe = bodyPart.CFrame
+
+        flyBodyVelocity = Instance.new("BodyVelocity", bodyPart)
+        flyBodyVelocity.velocity = Vector3.new(0, 0.1, 0)
+        flyBodyVelocity.maxForce = Vector3.new(9e9, 9e9, 9e9)
+
+        if flyConnection then flyConnection:Disconnect() end
+        flyConnection = RunService.RenderStepped:Connect(function()
+            if not flyActive then return end
+            local curChar = player.Character
+            if not curChar then return end
+            local curHum = curChar:FindFirstChildOfClass("Humanoid")
+            if not curHum or curHum.Health <= 0 then return end
+
+            flyCtrl.f = (curHum.MoveDirection:Dot(workspace.CurrentCamera.CFrame.LookVector) > 0.1) and 1 or 0
+            flyCtrl.b = (curHum.MoveDirection:Dot(workspace.CurrentCamera.CFrame.LookVector) < -0.1) and 1 or 0
+            flyCtrl.l = (curHum.MoveDirection:Dot(workspace.CurrentCamera.CFrame.RightVector) < -0.1) and 1 or 0
+            flyCtrl.r = (curHum.MoveDirection:Dot(workspace.CurrentCamera.CFrame.RightVector) > 0.1) and 1 or 0
+
+            local moving = (flyCtrl.l + flyCtrl.r ~= 0 or flyCtrl.f + flyCtrl.b ~= 0)
+            if moving then
+                flyCurrentSpeed = flyCurrentSpeed + 0.5 + (flyCurrentSpeed / flyMaxSpeed)
+                if flyCurrentSpeed > flyMaxSpeed then flyCurrentSpeed = flyMaxSpeed end
+            else
+                flyCurrentSpeed = flyCurrentSpeed - 1
+                if flyCurrentSpeed < 0 then flyCurrentSpeed = 0 end
+            end
+
+            if (flyCtrl.l + flyCtrl.r) ~= 0 or (flyCtrl.f + flyCtrl.b) ~= 0 then
+                flyBodyVelocity.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (flyCtrl.f + flyCtrl.b)) +
+                    ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(flyCtrl.l + flyCtrl.r, (flyCtrl.f + flyCtrl.b) * 0.2, 0).p) -
+                    workspace.CurrentCamera.CoordinateFrame.p)) * flyCurrentSpeed
+                flyLastCtrl = {f = flyCtrl.f, b = flyCtrl.b, l = flyCtrl.l, r = flyCtrl.r}
+            elseif (flyCtrl.l + flyCtrl.r) == 0 and (flyCtrl.f + flyCtrl.b) == 0 and flyCurrentSpeed ~= 0 then
+                flyBodyVelocity.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (flyLastCtrl.f + flyLastCtrl.b)) +
+                    ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(flyLastCtrl.l + flyLastCtrl.r, (flyLastCtrl.f + flyLastCtrl.b) * 0.2, 0).p) -
+                    workspace.CurrentCamera.CoordinateFrame.p)) * flyCurrentSpeed
+            else
+                flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
+            end
+            flyBodyGyro.cframe = workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((flyCtrl.f + flyCtrl.b) * 50 * flyCurrentSpeed / flyMaxSpeed), 0, 0)
+        end)
+
+        if flyUpConnection then flyUpConnection:Disconnect() end
+        if flyDownConnection then flyDownConnection:Disconnect() end
+        flyUpConnection = UserInputService.InputBegan:Connect(function(input, processed)
+            if processed or not flyActive then return end
             if input.KeyCode == Enum.KeyCode.E then
-                flyTis = game:GetService("RunService").Heartbeat:Connect(function()
-                    if not flyNowe then if flyTis then flyTis:Disconnect(); flyTis = nil end return end
-                    local char = player.Character
-                    if char then
-                        local root = char:FindFirstChild("HumanoidRootPart")
-                        if root then root.CFrame = root.CFrame * CFrame.new(0, 1, 0) end
-                    end
-                end)
-            elseif input.KeyCode == Enum.KeyCode.Q then
-                flyDis = game:GetService("RunService").Heartbeat:Connect(function()
-                    if not flyNowe then if flyDis then flyDis:Disconnect(); flyDis = nil end return end
-                    local char = player.Character
-                    if char then
-                        local root = char:FindFirstChild("HumanoidRootPart")
-                        if root then root.CFrame = root.CFrame * CFrame.new(0, -1, 0) end
-                    end
-                end)
+                local c = player.Character
+                local r = c and c:FindFirstChild("HumanoidRootPart")
+                if r then
+                    r.CFrame = r.CFrame * CFrame.new(0, 1, 0)
+                end
             end
         end)
-        local inputEnded = game:GetService("UserInputService").InputEnded:Connect(function(input, gameProcessed)
-            if gameProcessed then return end
-            if input.KeyCode == Enum.KeyCode.E then
-                if flyTis then flyTis:Disconnect(); flyTis = nil end
-            elseif input.KeyCode == Enum.KeyCode.Q then
-                if flyDis then flyDis:Disconnect(); flyDis = nil end
+        flyDownConnection = UserInputService.InputBegan:Connect(function(input, processed)
+            if processed or not flyActive then return end
+            if input.KeyCode == Enum.KeyCode.Q then
+                local c = player.Character
+                local r = c and c:FindFirstChild("HumanoidRootPart")
+                if r then
+                    r.CFrame = r.CFrame * CFrame.new(0, -1, 0)
+                end
             end
         end)
-        table.insert(flyConnections, inputBegan)
-        table.insert(flyConnections, inputEnded)
     end
 
     ExtraTab:CreateToggle({
         Title = "Fly",
         Default = false,
-        Callback = function(value)
-            if value then
-                if flyActive then
-                    if Notify then Notify("Fly", "Já está ativo", 1) end
-                    return
-                end
-                flyActive = true
-                createFlyMenu()
+        Callback = function(Value)
+            flyActive = Value
+            if Value then
+                startFly()
             else
                 stopFly()
-                if Notify then Notify("Fly", "Desativado", 1) end
             end
         end,
     })
-end
+
+    ExtraTab:CreateSlider({
+        Title = "Fly Speed",
+        Min = 1,
+        Max = 1000,
+        Default = 50,
+        Callback = function(Value)
+            flySpeedValue = Value
+            flyMaxSpeed = Value
+        end,
+    })
+
+    player.CharacterAdded:Connect(function()
+        if flyActive then
+            task.wait(0.3)
+            flyActive = false
+            local char = player.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.PlatformStand = false
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+                end
+            end
+        end
+    end)
+end)
+
 do
     if not ExtraTab then return end
 

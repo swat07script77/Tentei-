@@ -4398,6 +4398,55 @@ ExtraTab:CreateToggle({
         end
     end,
 })
+-- ------------------------------------------------------------
+-- Noclip
+-- ------------------------------------------------------------
+ExtraTab:CreateToggle({
+    Title = "Noclip",
+    Default = false,
+    Callback = function(Value)
+        if not Value then
+            _G.NoclipActive = false
+            if _G.NoclipConn then _G.NoclipConn:Disconnect(); _G.NoclipConn = nil end
+            local char = LocalPlayer.Character
+            if char then
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        if _G.NoclipParts and _G.NoclipParts[part] ~= nil then
+                            part.CanCollide = _G.NoclipParts[part]
+                        else
+                            part.CanCollide = true
+                        end
+                    end
+                end
+            end
+            _G.NoclipParts = {}
+            return
+        end
+
+        if _G.NoclipActive then return end
+        _G.NoclipActive = true
+        _G.NoclipParts = {}
+
+        local function loop()
+            if not _G.NoclipActive then return end
+            local char = LocalPlayer.Character
+            if not char then return end
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    if _G.NoclipParts[part] == nil then
+                        _G.NoclipParts[part] = part.CanCollide
+                    end
+                    part.CanCollide = false
+                end
+            end
+        end
+
+        loop()
+        if _G.NoclipConn then _G.NoclipConn:Disconnect() end
+        _G.NoclipConn = RunService.Heartbeat:Connect(loop)
+    end,
+})
 do
     if not ExtraTab then return end
 
@@ -4803,7 +4852,70 @@ do
         end,
     })
 end
+-- ------------------------------------------------------------
+-- FPS Cap (Slider + Toggle + Aviso)
+-- ------------------------------------------------------------
+local FpsCapValue = 60
+local FpsCapEnabled = false
 
+local function ApplyFpsCap()
+    if _G.FpsCapLoop then
+        task.cancel(_G.FpsCapLoop)
+        _G.FpsCapLoop = nil
+    end
+    if not FpsCapEnabled then return end
+
+    local num = FpsCapValue
+    if not num or num <= 0 then return end
+
+    if setfpscap and type(setfpscap) == "function" then
+        pcall(setfpscap, num)
+    else
+        _G.FpsCapLoop = task.spawn(function()
+            local timer = os.clock()
+            while FpsCapEnabled do
+                if os.clock() >= timer + 1 / num then
+                    timer = os.clock()
+                    task.wait()
+                end
+            end
+        end)
+    end
+end
+
+CfgTab:CreateLabel("FPS Cap")
+CfgTab:CreateLabel("Warning: low values may cause lag / freezing.")
+
+CfgTab:CreateSlider({
+    Title = "Set FPS Cap",
+    Min = 1,
+    Max = 240,
+    Default = 60,
+    Callback = function(Value)
+        FpsCapValue = Value
+        if FpsCapEnabled then ApplyFpsCap() end
+    end,
+})
+
+CfgTab:CreateToggle({
+    Title = "Enable FPS Cap",
+    Default = false,
+    Callback = function(Value)
+        FpsCapEnabled = Value
+        if Value then
+            ApplyFpsCap()
+        else
+            if _G.FpsCapLoop then
+                task.cancel(_G.FpsCapLoop)
+                _G.FpsCapLoop = nil
+            end
+            -- Restaura o fps cap original (se disponível)
+            if setfpscap and type(setfpscap) == "function" then
+                pcall(setfpscap, 240)
+            end
+        end
+    end,
+})
 do
     local freeCamActive = false
     local freeCamConn = nil

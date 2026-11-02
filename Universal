@@ -3881,7 +3881,7 @@ pcall(function()
         Callback = function(state)
             if state then
                 pcall(function()
-                    workspace.FallenPartsDestroyHeight = -math.huge
+                    workspace.FallenPartsDestroyHeight = -9e6
                 end)
             else
                 pcall(function()

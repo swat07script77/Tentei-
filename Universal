@@ -4853,30 +4853,34 @@ do
     })
 end
 -- ------------------------------------------------------------
--- FPS Cap (Slider + Toggle + Aviso)
+-- FPS Cap (baseado no addcmd setfpscap)
 -- ------------------------------------------------------------
+local fpscaploop = nil
 local FpsCapValue = 60
 local FpsCapEnabled = false
 
 local function ApplyFpsCap()
-    if _G.FpsCapLoop then
-        task.cancel(_G.FpsCapLoop)
-        _G.FpsCapLoop = nil
+    if fpscaploop then
+        task.cancel(fpscaploop)
+        fpscaploop = nil
     end
+
     if not FpsCapEnabled then return end
 
-    local num = FpsCapValue
-    if not num or num <= 0 then return end
+    local fpsCap = FpsCapValue
+    if not fpsCap or fpsCap <= 0 then return end
 
     if setfpscap and type(setfpscap) == "function" then
-        pcall(setfpscap, num)
+        pcall(setfpscap, fpsCap)
     else
-        _G.FpsCapLoop = task.spawn(function()
-            local timer = os.clock()
+        fpscaploop = task.spawn(function()
+            local frameTime = 1 / fpsCap
             while FpsCapEnabled do
-                if os.clock() >= timer + 1 / num then
-                    timer = os.clock()
-                    task.wait()
+                local start = os.clock()
+                task.wait(frameTime)
+                local elapsed = os.clock() - start
+                if elapsed < frameTime then
+                    task.wait(frameTime - elapsed)
                 end
             end
         end)
@@ -4905,11 +4909,10 @@ CfgTab:CreateToggle({
         if Value then
             ApplyFpsCap()
         else
-            if _G.FpsCapLoop then
-                task.cancel(_G.FpsCapLoop)
-                _G.FpsCapLoop = nil
+            if fpscaploop then
+                task.cancel(fpscaploop)
+                fpscaploop = nil
             end
-            -- Restaura o fps cap original (se disponível)
             if setfpscap and type(setfpscap) == "function" then
                 pcall(setfpscap, 240)
             end
@@ -13339,6 +13342,142 @@ ToolTab:CreateButton({
         tool.Parent = me.Character or me:WaitForChild("Backpack")
     end,
 })
+ToolTab:CreateButton({
+    Title = "Toolbringnpc",
+    Callback = function()
+        local runService = game:GetService("RunService")
+
+        local tool = Instance.new("Tool")
+        tool.Name = "toolbringnpc"
+        tool.RequiresHandle = true
+
+        local handle = Instance.new("Part")
+        handle.Name = "Handle"
+        handle.Size = Vector3.new(0.1, 0.1, 0.1)
+        handle.Transparency = 1
+        handle.CanCollide = false
+        handle.Parent = tool
+
+        tool.Parent = LocalPlayer:WaitForChild("Backpack")
+
+        local heldNpc = nil
+        local isEquipped = false
+        local lastClick = 0
+        local originalCollisions = {}
+        local conn, renderConn = nil, nil
+
+        local function disableNpcCollision(model)
+            if originalCollisions[model] then return end
+            originalCollisions[model] = {}
+            for _, p in ipairs(model:GetDescendants()) do
+                if p:IsA("BasePart") then
+                    originalCollisions[model][p] = p.CanCollide
+                    p.CanCollide = false
+                end
+            end
+        end
+
+        local function restoreNpcCollision(model)
+            if originalCollisions[model] then
+                for p, state in pairs(originalCollisions[model]) do
+                    if p and p.Parent then p.CanCollide = state end
+                end
+                originalCollisions[model] = nil
+            end
+        end
+
+        tool.Equipped:Connect(function()
+            isEquipped = true
+            local mouse = LocalPlayer:GetMouse()
+
+            conn = mouse.Button1Down:Connect(function()
+                if not isEquipped then return end
+                local now = tick()
+
+                if (now - lastClick) <= 0.3 and heldNpc then
+                    local char = LocalPlayer.Character
+                    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+                    local npcRoot = heldNpc:FindFirstChild("HumanoidRootPart")
+
+                    if myRoot and npcRoot then
+                        local hitPos = mouse.Hit.Position
+                        local npcToThrow = heldNpc
+                        heldNpc = nil
+
+                        task.spawn(function()
+                            local startCFrame = myRoot.CFrame
+                            local targetLook = CFrame.lookAt(myRoot.Position, Vector3.new(hitPos.X, myRoot.Position.Y, hitPos.Z))
+
+                            for i = 0, 1, 0.15 do
+                                if not myRoot or not myRoot.Parent then break end
+                                myRoot.CFrame = startCFrame:Lerp(targetLook, i) * CFrame.Angles(0, math.rad(i * 360), 0)
+                                task.wait(0.02)
+                            end
+                            if myRoot then myRoot.CFrame = targetLook end
+
+                            if npcToThrow and npcToThrow.Parent then
+                                local finalRoot = npcToThrow:FindFirstChild("HumanoidRootPart")
+                                if finalRoot then
+                                    local throwDir = (hitPos - finalRoot.Position).Unit
+                                    finalRoot.AssemblyLinearVelocity = throwDir * 160 + Vector3.new(0, 60, 0)
+                                end
+                                task.delay(0.3, function()
+                                    restoreNpcCollision(npcToThrow)
+                                end)
+                            end
+                        end)
+                    end
+
+                    lastClick = 0
+                    return
+                end
+
+                lastClick = now
+
+                if not heldNpc then
+                    local target = mouse.Target
+                    if target and target.Parent then
+                        local hum = target.Parent:FindFirstChildOfClass("Humanoid")
+                        if hum and not Players:GetPlayerFromCharacter(target.Parent) then
+                            local npcRoot = target.Parent:FindFirstChild("HumanoidRootPart")
+                            local char = LocalPlayer.Character
+                            local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+
+                            if npcRoot and myRoot and (npcRoot.Position - myRoot.Position).Magnitude <= 15 then
+                                heldNpc = target.Parent
+                                disableNpcCollision(heldNpc)
+                            end
+                        end
+                    end
+                end
+            end)
+
+            renderConn = runService.RenderStepped:Connect(function()
+                if not isEquipped or not heldNpc then return end
+                local char = LocalPlayer.Character
+                local rightArm = char and (char:FindFirstChild("Right Arm") or char:FindFirstChild("RightHand"))
+                local npcRoot = heldNpc:FindFirstChild("HumanoidRootPart")
+
+                if rightArm and npcRoot then
+                    npcRoot.CFrame = rightArm.CFrame * CFrame.new(0, -1, -1.5) * CFrame.Angles(math.rad(90), 0, 0)
+                    npcRoot.AssemblyLinearVelocity = Vector3.zero
+                    npcRoot.AssemblyAngularVelocity = Vector3.zero
+                end
+            end)
+        end)
+
+        tool.Unequipped:Connect(function()
+            isEquipped = false
+            if conn then conn:Disconnect() end
+            if renderConn then renderConn:Disconnect() end
+            if heldNpc then
+                restoreNpcCollision(heldNpc)
+                heldNpc = nil
+            end
+        end)
+    end,
+})
+
 -- ============================================================
 -- ABA NPC (nova)
 -- ============================================================

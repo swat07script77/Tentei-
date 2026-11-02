@@ -13089,3 +13089,521 @@ pcall(function()
         end,
     })
 end)
+ToolTab:CreateButton({
+    Title = "ToolAttach",
+    Callback = function()
+        local RunService = game:GetService("RunService")
+        local me = LocalPlayer
+        local mouse = me:GetMouse()
+
+        -- anti-delay
+        local function attach(P1, P2)
+            if sethiddenproperty and InstanceHandle then
+                pcall(function()
+                    sethiddenproperty(P1, "PhysicsRepRootRef", InstanceHandle.new(P2 or P1))
+                end)
+            end
+        end
+        local function detach(P1)
+            if sethiddenproperty then
+                pcall(function()
+                    sethiddenproperty(P1, "PhysicsRepRootRef", nil)
+                end)
+            end
+        end
+
+        task.spawn(function()
+            while true do
+                RunService.Heartbeat:Wait()
+                local char = me.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+
+                if humanoid then
+                    humanoid.MaxHealth = math.huge
+                    humanoid.Health = humanoid.MaxHealth
+                end
+
+                local destroyHeight = workspace.FallenPartsDestroyHeight or -500
+                if root and root.Position.Y < destroyHeight + 100 then
+                    root.CFrame = CFrame.new(root.Position.X, 50, root.Position.Z)
+                    root.Velocity = Vector3.zero
+                    root.RotVelocity = Vector3.zero
+                end
+            end
+        end)
+
+        local function WalkFlingVoid(state)
+            if not state then
+                _G.WalkFlingVoidActive = false
+                if _G.WalkFlingVoidThread then
+                    task.cancel(_G.WalkFlingVoidThread)
+                    _G.WalkFlingVoidThread = nil
+                end
+                local char = me.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                if root then
+                    root.Velocity = Vector3.zero
+                    root.RotVelocity = Vector3.zero
+                    detach(root)
+                end
+                return
+            end
+
+            _G.WalkFlingVoidActive = true
+            _G.WalkFlingVoidThread = task.spawn(function()
+                repeat
+                    RunService.Heartbeat:Wait()
+                    if not _G.WalkFlingVoidActive then break end
+                    local character = me.Character
+                    local root = character and character:FindFirstChild("HumanoidRootPart")
+                    if not root then break end
+
+                    root.Velocity = Vector3.new(0, -10000, 0)
+                    RunService.RenderStepped:Wait()
+                    if _G.WalkFlingVoidActive and character and character.Parent and root and root.Parent then
+                        root.Velocity = Vector3.new(0, -10000, 0)
+                    end
+                    RunService.Stepped:Wait()
+                    if _G.WalkFlingVoidActive and character and character.Parent and root and root.Parent then
+                        root.Velocity = Vector3.new(0, -10000, 0)
+                    end
+                until not _G.WalkFlingVoidActive
+            end)
+        end
+
+        local tool = Instance.new("Tool")
+        tool.Name = "attach"
+        tool.RequiresHandle = false
+        tool.CanBeDropped = false
+
+        local isExecuting = false
+
+        tool.Activated:Connect(function()
+            if isExecuting then return end
+
+            local myChar = me.Character
+            local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if not myRoot then return end
+
+            local targetPart = mouse.Target
+            if not targetPart then return end
+
+            local targetChar = targetPart:FindFirstAncestorOfClass("Model")
+            local targetPlayer = Players:GetPlayerFromCharacter(targetChar)
+            local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+
+            if targetPlayer and targetPlayer ~= me and targetRoot then
+                isExecuting = true
+                local originalCFrame = myRoot.CFrame
+                WalkFlingVoid(true)
+
+                local startTime = tick()
+                local connection
+                connection = RunService.Heartbeat:Connect(function()
+                    if tick() - startTime < 2 and targetRoot and targetRoot.Parent and myRoot and myRoot.Parent then
+                        myRoot.CFrame = targetRoot.CFrame * CFrame.Angles(math.rad(90), 0, 0)
+                        attach(myRoot, targetRoot)
+                    else
+                        connection:Disconnect()
+                    end
+                end)
+
+                task.wait(2)
+
+                detach(myRoot)
+                WalkFlingVoid(false)
+                if myRoot and myRoot.Parent then
+                    myRoot.CFrame = originalCFrame
+                    myRoot.Velocity = Vector3.zero
+                    myRoot.RotVelocity = Vector3.zero
+                end
+
+                isExecuting = false
+            end
+        end)
+
+        tool.GripPos = Vector3.new(0, 9e99, 0)
+        tool.Parent = me.Character or me:WaitForChild("Backpack")
+    end,
+})
+-- ============================================================
+-- ABA NPC (nova)
+-- ============================================================
+local NPCTab = Window:CreateTab("NPC", "users")
+
+local NPCTarget = nil
+local NPCDropdown = nil
+
+local function RefreshNPCList()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
+    end
+    table.sort(list)
+    if NPCDropdown and NPCDropdown.Update then
+        pcall(function() NPCDropdown:Update({ Options = list }) end)
+    end
+end
+
+local function GetNPCTarget()
+    if not NPCTarget or NPCTarget == "" then return nil end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name == NPCTarget then return plr end
+    end
+    return nil
+end
+
+NPCDropdown = NPCTab:CreateDropdown({
+    Title = "Select Target Player",
+    Options = {},
+    Callback = function(Value) NPCTarget = Value end,
+})
+RefreshNPCList()
+
+NPCTab:CreateButton({
+    Title = "Refresh Player List",
+    Callback = function() RefreshNPCList() end,
+})
+
+local function shp()
+    return sethiddenproperty or function() return false end
+end
+
+-- ------------------------------------------------------------
+-- KillNpc (toggle)
+-- ------------------------------------------------------------
+NPCTab:CreateToggle({
+    Title = "KillNpc",
+    Default = false,
+    Callback = function(Value)
+        if not Value then
+            _G.KillAllNpcActive = false
+            if _G.KillAllNpcThread then task.cancel(_G.KillAllNpcThread); _G.KillAllNpcThread = nil end
+            return
+        end
+        _G.KillAllNpcActive = true
+        local sethiddenproperty = shp()
+        if _G.KillAllNpcThread then task.cancel(_G.KillAllNpcThread) end
+        _G.KillAllNpcThread = task.spawn(function()
+            while _G.KillAllNpcActive do
+                task.wait(0.9)
+                pcall(function()
+                    sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
+                    sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
+                end)
+                for _, d in ipairs(workspace:GetDescendants()) do
+                    if d.ClassName == "Humanoid" and d.Parent then
+                        if not Players:GetPlayerFromCharacter(d.Parent) then
+                            pcall(function() d.Health = 0 end)
+                        end
+                    end
+                end
+            end
+        end)
+    end,
+})
+
+-- ------------------------------------------------------------
+-- BringNpc
+-- ------------------------------------------------------------
+NPCTab:CreateButton({
+    Title = "BringNpc",
+    Callback = function()
+        local target = GetNPCTarget()
+        if not target or not target.Character then return end
+        local targetRoot = target.Character:FindFirstChild("HumanoidRootPart")
+        if not targetRoot then return end
+        local sethiddenproperty = shp()
+        pcall(function()
+            sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
+            sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
+        end)
+        local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not myRoot then return end
+        for _, d in ipairs(workspace:GetDescendants()) do
+            if d.ClassName == "Humanoid" and d.Parent then
+                if not Players:GetPlayerFromCharacter(d.Parent) then
+                    local root = d.Parent:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        local dist = (root.Position - myRoot.Position).Magnitude
+                        if dist <= 30 then
+                            pcall(function()
+                                root.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
+                            end)
+                        end
+                    end
+                end
+            end
+        end
+    end,
+})
+
+-- ------------------------------------------------------------
+-- LoopBringNpc
+-- ------------------------------------------------------------
+NPCTab:CreateToggle({
+    Title = "LoopBringNpc",
+    Default = false,
+    Callback = function(Value)
+        if not Value then
+            _G.LoopBringNpcActive = false
+            _G.LoopBringNpcTarget = nil
+            if _G.LoopBringNpcThread then task.cancel(_G.LoopBringNpcThread); _G.LoopBringNpcThread = nil end
+            return
+        end
+        local target = GetNPCTarget()
+        if not target then return end
+        _G.LoopBringNpcActive = true
+        _G.LoopBringNpcTarget = target
+        local sethiddenproperty = shp()
+        _G.LoopBringNpcThread = task.spawn(function()
+            while _G.LoopBringNpcActive and _G.LoopBringNpcTarget == target do
+                task.wait(0.3)
+                pcall(function()
+                    sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
+                    sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
+                end)
+                local tChar = target.Character
+                local targetRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
+                local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if targetRoot and myRoot then
+                    for _, d in ipairs(workspace:GetDescendants()) do
+                        if d.ClassName == "Humanoid" and d.Parent then
+                            if not Players:GetPlayerFromCharacter(d.Parent) then
+                                local root = d.Parent:FindFirstChild("HumanoidRootPart")
+                                if root then
+                                    local dist = (root.Position - myRoot.Position).Magnitude
+                                    if dist <= 30 then
+                                        pcall(function()
+                                            root.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
+                                        end)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end,
+})
+
+-- ------------------------------------------------------------
+-- LoopTpBringNpc
+-- ------------------------------------------------------------
+NPCTab:CreateToggle({
+    Title = "LoopTpBringNpc",
+    Default = false,
+    Callback = function(Value)
+        if not Value then
+            _G.LoopTpBringNpcActive = false
+            _G.LoopTpBringNpcTarget = nil
+            if _G.LoopTpBringNpcThread then task.cancel(_G.LoopTpBringNpcThread); _G.LoopTpBringNpcThread = nil end
+            if _G.LoopTpBringNpcConn then _G.LoopTpBringNpcConn:Disconnect(); _G.LoopTpBringNpcConn = nil end
+            return
+        end
+        local target = GetNPCTarget()
+        if not target then return end
+        _G.LoopTpBringNpcActive = true
+        _G.LoopTpBringNpcTarget = target
+        if _G.LoopTpBringNpcConn then _G.LoopTpBringNpcConn:Disconnect() end
+        _G.LoopTpBringNpcConn = Players.PlayerRemoving:Connect(function(p)
+            if p == _G.LoopTpBringNpcTarget then
+                _G.LoopTpBringNpcActive = false
+                _G.LoopTpBringNpcTarget = nil
+                if _G.LoopTpBringNpcThread then task.cancel(_G.LoopTpBringNpcThread); _G.LoopTpBringNpcThread = nil end
+            end
+        end)
+        local sethiddenproperty = shp()
+        _G.LoopTpBringNpcThread = task.spawn(function()
+            while _G.LoopTpBringNpcActive and _G.LoopTpBringNpcTarget == target and target.Parent do
+                pcall(function()
+                    sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
+                    sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
+                end)
+                local tChar = target.Character
+                local targetRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
+                local myChar = LocalPlayer.Character
+                local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                if not myChar or not myRoot or not myChar:FindFirstChild("Humanoid") or myChar.Humanoid.Health <= 0 then
+                    task.wait(0.5)
+                elseif targetRoot then
+                    local npcTargets = {}
+                    pcall(function()
+                        for _, d in ipairs(workspace:GetDescendants()) do
+                            if d and d.ClassName == "Humanoid" and d.Parent then
+                                if not Players:GetPlayerFromCharacter(d.Parent) then
+                                    local root = d.Parent:FindFirstChild("HumanoidRootPart")
+                                    if root and d.Health > 0 then table.insert(npcTargets, root) end
+                                end
+                            end
+                        end
+                    end)
+                    if #npcTargets > 0 then
+                        for _, root in ipairs(npcTargets) do
+                            if not _G.LoopTpBringNpcActive or _G.LoopTpBringNpcTarget ~= target then break end
+                            if root and root.Parent and root.Parent:FindFirstChild("Humanoid") then
+                                local hum = root.Parent.Humanoid
+                                if hum and hum.Health > 0 then
+                                    local startTime = tick()
+                                    while tick() - startTime < 0.2 do
+                                        if not _G.LoopTpBringNpcActive then break end
+                                        local curMyRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                                        if curMyRoot and root and root.Parent then
+                                            pcall(function()
+                                                curMyRoot.CFrame = root.CFrame + Vector3.new(0, 6.5, 0)
+                                                curMyRoot.Velocity = Vector3.zero
+                                            end)
+                                        end
+                                        task.wait()
+                                    end
+                                    local currentTargetRoot = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+                                    if currentTargetRoot then
+                                        pcall(function()
+                                            root.CFrame = currentTargetRoot.CFrame + Vector3.new(0, 5, 0)
+                                            root.Velocity = Vector3.zero
+                                        end)
+                                        task.wait(0.1)
+                                    end
+                                end
+                            end
+                        end
+                    else
+                        task.wait(0.2)
+                    end
+                end
+                task.wait()
+            end
+            _G.LoopTpBringNpcActive = false
+            _G.LoopTpBringNpcTarget = nil
+        end)
+    end,
+})
+
+-- ------------------------------------------------------------
+-- SitNpc
+-- ------------------------------------------------------------
+NPCTab:CreateButton({
+    Title = "SitNpc",
+    Callback = function()
+        local sethiddenproperty = shp()
+        pcall(function()
+            sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
+            sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
+        end)
+        for _, d in ipairs(workspace:GetDescendants()) do
+            if d.ClassName == "Humanoid" and d.Parent then
+                if not Players:GetPlayerFromCharacter(d.Parent) then
+                    pcall(function() d.Sit = true end)
+                end
+            end
+        end
+    end,
+})
+
+-- ------------------------------------------------------------
+-- FlingNpc
+-- ------------------------------------------------------------
+NPCTab:CreateButton({
+    Title = "FlingNpc",
+    Callback = function()
+        local sethiddenproperty = shp()
+        pcall(function()
+            sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
+            sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
+        end)
+        for _, d in ipairs(workspace:GetDescendants()) do
+            if d.ClassName == "Humanoid" and d.Parent then
+                if not Players:GetPlayerFromCharacter(d.Parent) then
+                    local root = d.Parent:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        pcall(function()
+                            root.Velocity = Vector3.new(9e9, 9e9, 9e9)
+                            root.RotVelocity = Vector3.new(9e9, 9e9, 9e9)
+                        end)
+                    end
+                end
+            end
+        end
+    end,
+})
+
+-- ------------------------------------------------------------
+-- VoidNpc
+-- ------------------------------------------------------------
+NPCTab:CreateButton({
+    Title = "VoidNpc",
+    Callback = function()
+        local sethiddenproperty = shp()
+        pcall(function()
+            sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
+            sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
+        end)
+        for _, d in ipairs(workspace:GetDescendants()) do
+            if d.ClassName == "Humanoid" and d.Parent then
+                if not Players:GetPlayerFromCharacter(d.Parent) then
+                    local root = d.Parent:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        pcall(function()
+                            root.CFrame = root.CFrame - Vector3.new(0, 500, 0)
+                        end)
+                    end
+                end
+            end
+        end
+    end,
+})
+
+-- ------------------------------------------------------------
+-- StunNpc
+-- ------------------------------------------------------------
+NPCTab:CreateToggle({
+    Title = "StunNpc",
+    Default = false,
+    Callback = function(Value)
+        if not Value then
+            _G.StunNpcActive = false
+            if _G.StunNpcThread then task.cancel(_G.StunNpcThread); _G.StunNpcThread = nil end
+            for _, d in ipairs(workspace:GetDescendants()) do
+                if d.ClassName == "Humanoid" and d.Parent then
+                    if not Players:GetPlayerFromCharacter(d.Parent) then
+                        pcall(function()
+                            d.WalkSpeed = 16
+                            d.JumpPower = 50
+                            d.PlatformStand = false
+                        end)
+                        local root = d.Parent:FindFirstChild("HumanoidRootPart")
+                        if root then pcall(function() root.Anchored = false end) end
+                    end
+                end
+            end
+            return
+        end
+        _G.StunNpcActive = true
+        local sethiddenproperty = shp()
+        _G.StunNpcThread = task.spawn(function()
+            while _G.StunNpcActive do
+                task.wait(0.5)
+                pcall(function()
+                    sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
+                    sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
+                end)
+                for _, d in ipairs(workspace:GetDescendants()) do
+                    if d.ClassName == "Humanoid" and d.Parent then
+                        if not Players:GetPlayerFromCharacter(d.Parent) then
+                            pcall(function()
+                                d.WalkSpeed = 0
+                                d.JumpPower = 0
+                                d.JumpHeight = 0
+                                d.PlatformStand = true
+                            end)
+                            local root = d.Parent:FindFirstChild("HumanoidRootPart")
+                            if root then pcall(function() root.Anchored = true end) end
+                        end
+                    end
+                end
+            end
+        end)
+    end,
+})

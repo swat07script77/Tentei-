@@ -3881,7 +3881,7 @@ pcall(function()
         Callback = function(state)
             if state then
                 pcall(function()
-                    workspace.FallenPartsDestroyHeight = -9e6
+                    workspace.FallenPartsDestroyHeight = -math.huge
                 end)
             else
                 pcall(function()
@@ -4398,180 +4398,34 @@ ExtraTab:CreateToggle({
         end
     end,
 })
-pcall(function()
-    if not ExtraTab then return end
-
-    local cflyActive = false
-    local cflySpeed = 50
-    local cflyLoop = nil
-
-    ExtraTab:CreateToggle({
-        Title = "CFrameFly",
-        Default = false,
-        Callback = function(Value)
-            cflyActive = Value
-            if not Value then
-                if cflyLoop then cflyLoop:Disconnect(); cflyLoop = nil end
-                local char = player.Character
-                if char then
-                    local hum = char:FindFirstChildOfClass("Humanoid")
-                    if hum then hum.PlatformStand = false end
-                    local head = char:FindFirstChild("Head")
-                    if head then head.Anchored = false end
-                end
-                return
-            end
-
-            local char = player.Character
-            if not char then cflyActive = false return end
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            local head = char:WaitForChild("Head")
-            if not hum or not head then cflyActive = false return end
-
-            hum.PlatformStand = true
-            head.Anchored = true
-
-            if cflyLoop then cflyLoop:Disconnect(); cflyLoop = nil end
-            cflyLoop = RunService.Heartbeat:Connect(function(deltaTime)
-                if not cflyActive then return end
-                local c = player.Character
-                if not c then return end
-                local h = c:FindFirstChildOfClass("Humanoid")
-                local hd = c:FindFirstChild("Head")
-                if not h or not hd then return end
-
-                local moveDirection = h.MoveDirection * (cflySpeed * deltaTime)
-                local headCFrame = hd.CFrame
-                local camera = workspace.CurrentCamera
-                local cameraCFrame = camera.CFrame
-                local cameraOffset = headCFrame:ToObjectSpace(cameraCFrame).Position
-                cameraCFrame = cameraCFrame * CFrame.new(-cameraOffset.X, -cameraOffset.Y, -cameraOffset.Z + 1)
-                local cameraPosition = cameraCFrame.Position
-                local headPosition = headCFrame.Position
-
-                local objectSpaceVelocity = CFrame.new(cameraPosition, Vector3.new(headPosition.X, cameraPosition.Y, headPosition.Z)):VectorToObjectSpace(moveDirection)
-                hd.CFrame = CFrame.new(headPosition) * (cameraCFrame - cameraPosition) * CFrame.new(objectSpaceVelocity)
-            end)
-        end,
-    })
-
-    ExtraTab:CreateSlider({
-        Title = "CFrameFly Speed",
-        Min = 1,
-        Max = 1000,
-        Default = 50,
-        Callback = function(Value)
-            cflySpeed = Value
-        end,
-    })
-
-    player.CharacterAdded:Connect(function()
-        if cflyActive then
-            task.wait(0.3)
-            local char = player.Character
-            if char then
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                local head = char:FindFirstChild("Head")
-                if hum and head then
-                    hum.PlatformStand = true
-                    head.Anchored = true
-                end
-            end
-        end
-    end)
-end)
-pcall(function()
-    if not ExtraTab then return end
-
-    local noclipActive = false
-    local noclipConn = nil
-    local noclipParts = {}
-
-    local function noclipLoop()
-        if not noclipActive then return end
-        local char = player.Character
-        if not char then return end
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                if noclipParts[part] == nil then
-                    noclipParts[part] = part.CanCollide
-                end
-                part.CanCollide = false
-            end
-        end
-    end
-
-    ExtraTab:CreateToggle({
-        Title = "Noclip",
-        Default = false,
-        Callback = function(Value)
-            noclipActive = Value
-            if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
-            if Value then
-                noclipParts = {}
-                noclipLoop()
-                noclipConn = RunService.Heartbeat:Connect(noclipLoop)
-            else
-                local char = player.Character
-                if char then
-                    for _, part in pairs(char:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            if noclipParts[part] ~= nil then
-                                part.CanCollide = noclipParts[part]
-                            else
-                                part.CanCollide = true
-                            end
-                        end
-                    end
-                end
-                noclipParts = {}
-            end
-        end,
-    })
-
-    player.CharacterAdded:Connect(function()
-        if noclipActive then
-            task.wait(0.5)
-            noclipParts = {}
-            noclipLoop()
-        end
-    end)
-end)
-pcall(function()
+do
     if not ExtraTab then return end
 
     local flyActive = false
-    local flySpeedValue = 50
-    local flyConnection = nil
-    local flyBodyGyro = nil
-    local flyBodyVelocity = nil
-    local flyUpConnection = nil
-    local flyDownConnection = nil
+    local flyMenu = nil
+    local flySpeeds = 1
+    local flyNowe = false
+    local flyConnections = {}
+    local flyBg = nil
+    local flyBv = nil
+    local flyTpwalking = false
     local flyCtrl = {f = 0, b = 0, l = 0, r = 0}
-    local flyLastCtrl = {f = 0, b = 0, l = 0, r = 0}
-    local flyCurrentSpeed = 0
-    local flyMaxSpeed = 50
-
-    local function getBodyPart()
-        local char = player.Character
-        if not char then return nil end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if not hum then return nil end
-        if hum.RigType == Enum.HumanoidRigType.R6 then
-            return char:FindFirstChild("Torso")
-        else
-            return char:FindFirstChild("UpperTorso")
-        end
-    end
+    local flyLastctrl = {f = 0, b = 0, l = 0, r = 0}
+    local flyMaxspeed = 50
+    local flySpeed = 0
+    local flyTis = nil
+    local flyDis = nil
 
     local function stopFly()
         flyActive = false
-        if flyConnection then flyConnection:Disconnect(); flyConnection = nil end
-        if flyUpConnection then flyUpConnection:Disconnect(); flyUpConnection = nil end
-        if flyDownConnection then flyDownConnection:Disconnect(); flyDownConnection = nil end
-        if flyBodyGyro then flyBodyGyro:Destroy(); flyBodyGyro = nil end
-        if flyBodyVelocity then flyBodyVelocity:Destroy(); flyBodyVelocity = nil end
-
+        flyNowe = false
+        flyTpwalking = false
+        if flyTis then flyTis:Disconnect(); flyTis = nil end
+        if flyDis then flyDis:Disconnect(); flyDis = nil end
+        for _, conn in pairs(flyConnections) do conn:Disconnect() end
+        flyConnections = {}
+        if flyBg then flyBg:Destroy(); flyBg = nil end
+        if flyBv then flyBv:Destroy(); flyBv = nil end
         local char = player.Character
         if char then
             local hum = char:FindFirstChildOfClass("Humanoid")
@@ -4593,162 +4447,281 @@ pcall(function()
                 hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, true)
                 hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
                 hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
-                hum.AutoRotate = true
             end
             local animate = char:FindFirstChild("Animate")
             if animate then animate.Disabled = false end
         end
+        if flyMenu then flyMenu:Destroy(); flyMenu = nil end
     end
 
-    local function startFly()
-        local char = player.Character
-        if not char then flyActive = false return end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        local bodyPart = getBodyPart()
-        if not hum or not bodyPart then flyActive = false return end
+    local function createFlyMenu()
+        if flyMenu then flyMenu:Destroy() end
+        flyMenu = Instance.new("ScreenGui")
+        flyMenu.Name = "FlyMenu"
+        flyMenu.ResetOnSpawn = false
+        flyMenu.Parent = gui
 
-        local animate = char:FindFirstChild("Animate")
-        if animate then animate.Disabled = true end
+        local Frame = Instance.new("Frame")
+        Frame.Parent = flyMenu
+        Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+        Frame.BackgroundTransparency = 0.1
+        Frame.BorderSizePixel = 0
+        Frame.Position = UDim2.new(0.5, -75, 0.5, -75)
+        Frame.Size = UDim2.new(0, 150, 0, 150)
+        Frame.Active = true
+        Frame.Draggable = true
+        Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 12)
+        local stroke = Instance.new("UIStroke", Frame)
+        stroke.Color = Color3.fromRGB(60, 60, 65)
+        stroke.Thickness = 1.5
 
-        for _, track in pairs(hum:GetPlayingAnimationTracks()) do
-            pcall(function() track:AdjustSpeed(0) end
+        local closeBtn = Instance.new("TextButton")
+        closeBtn.Parent = Frame
+        closeBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+        closeBtn.BorderSizePixel = 0
+        closeBtn.Size = UDim2.new(0, 35, 0, 35)
+        closeBtn.Position = UDim2.new(1, -40, 0, 5)
+        closeBtn.Font = Enum.Font.SourceSansBold
+        closeBtn.Text = "X"
+        closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closeBtn.TextSize = 20
+        Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+        closeBtn.MouseButton1Click:Connect(function()
+            stopFly()
+            if Notify then Notify("Fly", "Desativado", 1) end
+        end)
+
+        local minusBtn = Instance.new("TextButton")
+        minusBtn.Parent = Frame
+        minusBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+        minusBtn.BorderSizePixel = 0
+        minusBtn.Size = UDim2.new(0, 50, 0, 50)
+        minusBtn.Position = UDim2.new(0, 12, 0.5, -25)
+        minusBtn.Font = Enum.Font.SourceSansBold
+        minusBtn.Text = "-"
+        minusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        minusBtn.TextSize = 30
+        Instance.new("UICorner", minusBtn).CornerRadius = UDim.new(0, 8)
+
+        local speedLabel = Instance.new("TextLabel")
+        speedLabel.Parent = Frame
+        speedLabel.BackgroundTransparency = 1
+        speedLabel.Size = UDim2.new(0, 50, 0, 50)
+        speedLabel.Position = UDim2.new(0.5, -25, 0.5, -25)
+        speedLabel.Font = Enum.Font.SourceSansBold
+        speedLabel.Text = "1"
+        speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        speedLabel.TextSize = 28
+        speedLabel.TextScaled = true
+
+        local plusBtn = Instance.new("TextButton")
+        plusBtn.Parent = Frame
+        plusBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+        plusBtn.BorderSizePixel = 0
+        plusBtn.Size = UDim2.new(0, 50, 0, 50)
+        plusBtn.Position = UDim2.new(1, -62, 0.5, -25)
+        plusBtn.Font = Enum.Font.SourceSansBold
+        plusBtn.Text = "+"
+        plusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        plusBtn.TextSize = 30
+        Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 8)
+
+        plusBtn.MouseButton1Down:Connect(function()
+            flySpeeds = flySpeeds + 1
+            speedLabel.Text = flySpeeds
+            if flyNowe == true then
+                flyTpwalking = false
+                task.wait(0.1)
+                for i = 1, flySpeeds do
+                    task.spawn(function()
+                        local hb = game:GetService("RunService").Heartbeat
+                        flyTpwalking = true
+                        local chr = player.Character
+                        local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                        while flyTpwalking and hb:Wait() and chr and hum and hum.Parent do
+                            if hum.MoveDirection.Magnitude > 0 then
+                                chr:TranslateBy(hum.MoveDirection)
+                            end
+                        end
+                    end)
+                end
+            end
+        end)
+
+        minusBtn.MouseButton1Down:Connect(function()
+            if flySpeeds > 1 then
+                flySpeeds = flySpeeds - 1
+                speedLabel.Text = flySpeeds
+                if flyNowe == true then
+                    flyTpwalking = false
+                    task.wait(0.1)
+                    for i = 1, flySpeeds do
+                        task.spawn(function()
+                            local hb = game:GetService("RunService").Heartbeat
+                            flyTpwalking = true
+                            local chr = player.Character
+                            local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                            while flyTpwalking and hb:Wait() and chr and hum and hum.Parent do
+                                if hum.MoveDirection.Magnitude > 0 then
+                                    chr:TranslateBy(hum.MoveDirection)
+                                end
+                            end
+                        end)
+                    end
+                end
+            end
+        end)
+
+        local function startFly()
+            if flyNowe == true then return end
+            flyNowe = true
+            for i = 1, flySpeeds do
+                task.spawn(function()
+                    local hb = game:GetService("RunService").Heartbeat
+                    flyTpwalking = true
+                    local chr = player.Character
+                    local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                    while flyTpwalking and hb:Wait() and chr and hum and hum.Parent do
+                        if hum.MoveDirection.Magnitude > 0 then
+                            chr:TranslateBy(hum.MoveDirection)
+                        end
+                    end
+                end)
+            end
+            local char = player.Character
+            if char then
+                local animate = char:FindFirstChild("Animate")
+                if animate then animate.Disabled = true end
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    for _, v in pairs(hum:GetPlayingAnimationTracks()) do v:AdjustSpeed(0) end
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Landed, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Running, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, false)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
+                    hum:ChangeState(Enum.HumanoidStateType.Swimming)
+                    hum.PlatformStand = true
+                end
+            end
+
+            local bodyPart
+            local charRig = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+            if charRig and charRig.RigType == Enum.HumanoidRigType.R6 then
+                bodyPart = player.Character.Torso
+            else
+                bodyPart = player.Character.UpperTorso
+            end
+            if not bodyPart then return end
+
+            flyCtrl = {f = 0, b = 0, l = 0, r = 0}
+            flyLastctrl = {f = 0, b = 0, l = 0, r = 0}
+            flyMaxspeed = 50
+            flySpeed = 0
+
+            if flyBg then flyBg:Destroy() end
+            if flyBv then flyBv:Destroy() end
+
+            flyBg = Instance.new("BodyGyro", bodyPart)
+            flyBg.P = 9e4
+            flyBg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+            flyBg.cframe = bodyPart.CFrame
+
+            flyBv = Instance.new("BodyVelocity", bodyPart)
+            flyBv.velocity = Vector3.new(0, 0.1, 0)
+            flyBv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+
+            local flyConnection = game:GetService("RunService").RenderStepped:Connect(function()
+                if not flyNowe and player.Character and player.Character.Humanoid.Health ~= 0 then return end
+                if flyCtrl.l + flyCtrl.r ~= 0 or flyCtrl.f + flyCtrl.b ~= 0 then
+                    flySpeed = flySpeed + 0.5 + (flySpeed / flyMaxspeed)
+                    if flySpeed > flyMaxspeed then flySpeed = flyMaxspeed end
+                elseif not (flyCtrl.l + flyCtrl.r ~= 0 or flyCtrl.f + flyCtrl.b ~= 0) and flySpeed ~= 0 then
+                    flySpeed = flySpeed - 1
+                    if flySpeed < 0 then flySpeed = 0 end
+                end
+                if (flyCtrl.l + flyCtrl.r) ~= 0 or (flyCtrl.f + flyCtrl.b) ~= 0 then
+                    flyBv.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (flyCtrl.f + flyCtrl.b)) +
+                        ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(flyCtrl.l + flyCtrl.r, (flyCtrl.f + flyCtrl.b) * 0.2, 0).p) -
+                        workspace.CurrentCamera.CoordinateFrame.p)) * flySpeed
+                    flyLastctrl = {f = flyCtrl.f, b = flyCtrl.b, l = flyCtrl.l, r = flyCtrl.r}
+                elseif (flyCtrl.l + flyCtrl.r) == 0 and (flyCtrl.f + flyCtrl.b) == 0 and flySpeed ~= 0 then
+                    flyBv.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (flyLastctrl.f + flyLastctrl.b)) +
+                        ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(flyLastctrl.l + flyLastctrl.r, (flyLastctrl.f + flyLastctrl.b) * 0.2, 0).p) -
+                        workspace.CurrentCamera.CoordinateFrame.p)) * flySpeed
+                else
+                    flyBv.velocity = Vector3.new(0, 0, 0)
+                end
+                flyBg.cframe = workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((flyCtrl.f + flyCtrl.b) * 50 * flySpeed / flyMaxspeed), 0, 0)
+            end)
+            table.insert(flyConnections, flyConnection)
         end
 
-        hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Landed, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Running, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
-        hum:ChangeState(Enum.HumanoidStateType.Swimming)
-        hum.PlatformStand = true
+        startFly()
+        if Notify then Notify("Fly", "Ativado (Velocidade: " .. flySpeeds .. ")", 2) end
 
-        flyCtrl = {f = 0, b = 0, l = 0, r = 0}
-        flyLastCtrl = {f = 0, b = 0, l = 0, r = 0}
-        flyCurrentSpeed = 0
-
-        if flyBodyGyro then flyBodyGyro:Destroy() end
-        if flyBodyVelocity then flyBodyVelocity:Destroy() end
-
-        flyBodyGyro = Instance.new("BodyGyro", bodyPart)
-        flyBodyGyro.P = 9e4
-        flyBodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-        flyBodyGyro.cframe = bodyPart.CFrame
-
-        flyBodyVelocity = Instance.new("BodyVelocity", bodyPart)
-        flyBodyVelocity.velocity = Vector3.new(0, 0.1, 0)
-        flyBodyVelocity.maxForce = Vector3.new(9e9, 9e9, 9e9)
-
-        if flyConnection then flyConnection:Disconnect() end
-        flyConnection = RunService.RenderStepped:Connect(function()
-            if not flyActive then return end
-            local curChar = player.Character
-            if not curChar then return end
-            local curHum = curChar:FindFirstChildOfClass("Humanoid")
-            if not curHum or curHum.Health <= 0 then return end
-
-            flyCtrl.f = (curHum.MoveDirection:Dot(workspace.CurrentCamera.CFrame.LookVector) > 0.1) and 1 or 0
-            flyCtrl.b = (curHum.MoveDirection:Dot(workspace.CurrentCamera.CFrame.LookVector) < -0.1) and 1 or 0
-            flyCtrl.l = (curHum.MoveDirection:Dot(workspace.CurrentCamera.CFrame.RightVector) < -0.1) and 1 or 0
-            flyCtrl.r = (curHum.MoveDirection:Dot(workspace.CurrentCamera.CFrame.RightVector) > 0.1) and 1 or 0
-
-            local moving = (flyCtrl.l + flyCtrl.r ~= 0 or flyCtrl.f + flyCtrl.b ~= 0)
-            if moving then
-                flyCurrentSpeed = flyCurrentSpeed + 0.5 + (flyCurrentSpeed / flyMaxSpeed)
-                if flyCurrentSpeed > flyMaxSpeed then flyCurrentSpeed = flyMaxSpeed end
-            else
-                flyCurrentSpeed = flyCurrentSpeed - 1
-                if flyCurrentSpeed < 0 then flyCurrentSpeed = 0 end
-            end
-
-            if (flyCtrl.l + flyCtrl.r) ~= 0 or (flyCtrl.f + flyCtrl.b) ~= 0 then
-                flyBodyVelocity.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (flyCtrl.f + flyCtrl.b)) +
-                    ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(flyCtrl.l + flyCtrl.r, (flyCtrl.f + flyCtrl.b) * 0.2, 0).p) -
-                    workspace.CurrentCamera.CoordinateFrame.p)) * flyCurrentSpeed
-                flyLastCtrl = {f = flyCtrl.f, b = flyCtrl.b, l = flyCtrl.l, r = flyCtrl.r}
-            elseif (flyCtrl.l + flyCtrl.r) == 0 and (flyCtrl.f + flyCtrl.b) == 0 and flyCurrentSpeed ~= 0 then
-                flyBodyVelocity.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (flyLastCtrl.f + flyLastCtrl.b)) +
-                    ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(flyLastCtrl.l + flyLastCtrl.r, (flyLastCtrl.f + flyLastCtrl.b) * 0.2, 0).p) -
-                    workspace.CurrentCamera.CoordinateFrame.p)) * flyCurrentSpeed
-            else
-                flyBodyVelocity.velocity = Vector3.new(0, 0, 0)
-            end
-            flyBodyGyro.cframe = workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((flyCtrl.f + flyCtrl.b) * 50 * flyCurrentSpeed / flyMaxSpeed), 0, 0)
-        end)
-
-        if flyUpConnection then flyUpConnection:Disconnect() end
-        if flyDownConnection then flyDownConnection:Disconnect() end
-        flyUpConnection = UserInputService.InputBegan:Connect(function(input, processed)
-            if processed or not flyActive then return end
+        local inputBegan = game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+            if gameProcessed or not flyNowe then return end
             if input.KeyCode == Enum.KeyCode.E then
-                local c = player.Character
-                local r = c and c:FindFirstChild("HumanoidRootPart")
-                if r then
-                    r.CFrame = r.CFrame * CFrame.new(0, 1, 0)
-                end
+                flyTis = game:GetService("RunService").Heartbeat:Connect(function()
+                    if not flyNowe then if flyTis then flyTis:Disconnect(); flyTis = nil end return end
+                    local char = player.Character
+                    if char then
+                        local root = char:FindFirstChild("HumanoidRootPart")
+                        if root then root.CFrame = root.CFrame * CFrame.new(0, 1, 0) end
+                    end
+                end)
+            elseif input.KeyCode == Enum.KeyCode.Q then
+                flyDis = game:GetService("RunService").Heartbeat:Connect(function()
+                    if not flyNowe then if flyDis then flyDis:Disconnect(); flyDis = nil end return end
+                    local char = player.Character
+                    if char then
+                        local root = char:FindFirstChild("HumanoidRootPart")
+                        if root then root.CFrame = root.CFrame * CFrame.new(0, -1, 0) end
+                    end
+                end)
             end
         end)
-        flyDownConnection = UserInputService.InputBegan:Connect(function(input, processed)
-            if processed or not flyActive then return end
-            if input.KeyCode == Enum.KeyCode.Q then
-                local c = player.Character
-                local r = c and c:FindFirstChild("HumanoidRootPart")
-                if r then
-                    r.CFrame = r.CFrame * CFrame.new(0, -1, 0)
-                end
+        local inputEnded = game:GetService("UserInputService").InputEnded:Connect(function(input, gameProcessed)
+            if gameProcessed then return end
+            if input.KeyCode == Enum.KeyCode.E then
+                if flyTis then flyTis:Disconnect(); flyTis = nil end
+            elseif input.KeyCode == Enum.KeyCode.Q then
+                if flyDis then flyDis:Disconnect(); flyDis = nil end
             end
         end)
+        table.insert(flyConnections, inputBegan)
+        table.insert(flyConnections, inputEnded)
     end
 
     ExtraTab:CreateToggle({
         Title = "Fly",
         Default = false,
-        Callback = function(Value)
-            flyActive = Value
-            if Value then
-                startFly()
+        Callback = function(value)
+            if value then
+                if flyActive then
+                    if Notify then Notify("Fly", "Já está ativo", 1) end
+                    return
+                end
+                flyActive = true
+                createFlyMenu()
             else
                 stopFly()
+                if Notify then Notify("Fly", "Desativado", 1) end
             end
         end,
     })
-
-    ExtraTab:CreateSlider({
-        Title = "Fly Speed",
-        Min = 1,
-        Max = 1000,
-        Default = 50,
-        Callback = function(Value)
-            flySpeedValue = Value
-            flyMaxSpeed = Value
-        end,
-    })
-
-    player.CharacterAdded:Connect(function()
-        if flyActive then
-            task.wait(0.3)
-            flyActive = false
-            local char = player.Character
-            if char then
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    hum.PlatformStand = false
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
-                end
-            end
-        end
-    end)
-end)
-
+end
 do
     if not ExtraTab then return end
 
@@ -4994,165 +4967,7 @@ do
         end,
     })
 end
--- ------------------------------------------------------------
--- RTX (cinematic lighting)
--- ------------------------------------------------------------
-CfgTab:CreateToggle({
-    Title = "RTX",
-    Default = false,
-    Callback = function(Value)
-        local Lighting = game:GetService("Lighting")
 
-        if not Value then
-            if not _G.RTXActive then return end
-            _G.RTXActive = false
-
-            local CoreGui = game:GetService("CoreGui")
-
-            for _, v in pairs(Lighting:GetChildren()) do
-                if v:IsA("PostEffect") or v:IsA("Sky") or v:IsA("Atmosphere") then
-                    v:Destroy()
-                end
-            end
-
-            if _G.RTXBackup then
-                local b = _G.RTXBackup
-                Lighting.Ambient                = b.Ambient
-                Lighting.Brightness             = b.Brightness
-                Lighting.ColorShift_Bottom      = b.ColorShift_Bottom
-                Lighting.ColorShift_Top         = b.ColorShift_Top
-                Lighting.EnvironmentDiffuseScale = b.EnvironmentDiffuseScale
-                Lighting.EnvironmentSpecularScale = b.EnvironmentSpecularScale
-                Lighting.GlobalShadows          = b.GlobalShadows
-                Lighting.OutdoorAmbient         = b.OutdoorAmbient
-                Lighting.ShadowSoftness         = b.ShadowSoftness
-                Lighting.ClockTime              = b.ClockTime
-                Lighting.GeographicLatitude     = b.GeographicLatitude
-                Lighting.ExposureCompensation   = b.ExposureCompensation
-
-                for _, v in pairs(b.Effects) do
-                    if v and v.Parent == nil then
-                        v.Parent = Lighting
-                    end
-                end
-            end
-
-            _G.RTXBackup = nil
-
-            local vig = CoreGui:FindFirstChild("RTX_Vignette")
-            if vig then vig:Destroy() end
-            return
-        end
-
-        if _G.RTXActive then return end
-        _G.RTXActive = true
-
-        _G.RTXBackup = {
-            Ambient = Lighting.Ambient,
-            Brightness = Lighting.Brightness,
-            ColorShift_Bottom = Lighting.ColorShift_Bottom,
-            ColorShift_Top = Lighting.ColorShift_Top,
-            EnvironmentDiffuseScale = Lighting.EnvironmentDiffuseScale,
-            EnvironmentSpecularScale = Lighting.EnvironmentSpecularScale,
-            GlobalShadows = Lighting.GlobalShadows,
-            OutdoorAmbient = Lighting.OutdoorAmbient,
-            ShadowSoftness = Lighting.ShadowSoftness,
-            ClockTime = Lighting.ClockTime,
-            GeographicLatitude = Lighting.GeographicLatitude,
-            ExposureCompensation = Lighting.ExposureCompensation,
-            Effects = {},
-        }
-
-        for _, v in pairs(Lighting:GetChildren()) do
-            if v:IsA("PostEffect") or v:IsA("Sky") or v:IsA("Atmosphere") then
-                table.insert(_G.RTXBackup.Effects, v)
-            end
-        end
-
-        for _, v in pairs(_G.RTXBackup.Effects) do
-            v.Parent = nil
-        end
-
-        local Bloom = Instance.new("BloomEffect")
-        Bloom.Name = "RTX_Bloom"
-        Bloom.Intensity = 0.3
-        Bloom.Size = 10
-        Bloom.Threshold = 0.8
-        Bloom.Parent = Lighting
-
-        local Blur = Instance.new("BlurEffect")
-        Blur.Name = "RTX_Blur"
-        Blur.Size = 5
-        Blur.Parent = Lighting
-
-        local ColorCor = Instance.new("ColorCorrectionEffect")
-        ColorCor.Name = "RTX_Color"
-        ColorCor.Brightness = 0.1
-        ColorCor.Contrast = 0.5
-        ColorCor.Saturation = -0.3
-        ColorCor.TintColor = Color3.fromRGB(255, 235, 203)
-        ColorCor.Parent = Lighting
-
-        local SunRays = Instance.new("SunRaysEffect")
-        SunRays.Name = "RTX_SunRays"
-        SunRays.Intensity = 0.075
-        SunRays.Spread = 0.727
-        SunRays.Parent = Lighting
-
-        local Sky = Instance.new("Sky")
-        Sky.Name = "RTX_Sky"
-        Sky.SkyboxBk = "rbxassetid://151165214"
-        Sky.SkyboxDn = "rbxassetid://151165197"
-        Sky.SkyboxFt = "rbxassetid://151165224"
-        Sky.SkyboxLf = "rbxassetid://151165191"
-        Sky.SkyboxRt = "rbxassetid://151165206"
-        Sky.SkyboxUp = "rbxassetid://151165227"
-        Sky.SunAngularSize = 10
-        Sky.Parent = Lighting
-
-        local Atm = Instance.new("Atmosphere")
-        Atm.Name = "RTX_Atmosphere"
-        Atm.Density = 0.364
-        Atm.Offset = 0.556
-        Atm.Color = Color3.fromRGB(199, 175, 166)
-        Atm.Decay = Color3.fromRGB(44, 39, 33)
-        Atm.Glare = 0.36
-        Atm.Haze = 1.72
-        Atm.Parent = Lighting
-
-        Lighting.Ambient                 = Color3.fromRGB(2, 2, 2)
-        Lighting.Brightness              = 2.25
-        Lighting.ColorShift_Bottom       = Color3.fromRGB(0, 0, 0)
-        Lighting.ColorShift_Top          = Color3.fromRGB(0, 0, 0)
-        Lighting.EnvironmentDiffuseScale = 0.2
-        Lighting.EnvironmentSpecularScale = 0.2
-        Lighting.GlobalShadows           = true
-        Lighting.OutdoorAmbient          = Color3.fromRGB(0, 0, 0)
-        Lighting.ShadowSoftness          = 0.2
-        Lighting.ClockTime               = 17
-        Lighting.GeographicLatitude      = 45
-        Lighting.ExposureCompensation    = 0.5
-
-        local CoreGui = game:GetService("CoreGui")
-        if not CoreGui:FindFirstChild("RTX_Vignette") then
-            local Gui = Instance.new("ScreenGui")
-            Gui.Name = "RTX_Vignette"
-            Gui.IgnoreGuiInset = true
-            Gui.ResetOnSpawn = false
-            Gui.Parent = CoreGui
-
-            local ShadowFrame = Instance.new("ImageLabel")
-            ShadowFrame.Parent = Gui
-            ShadowFrame.AnchorPoint = Vector2.new(0.5, 1)
-            ShadowFrame.Position = UDim2.new(0.5, 0, 1, 0)
-            ShadowFrame.Size = UDim2.new(1, 0, 1.05, 0)
-            ShadowFrame.BackgroundTransparency = 1
-            ShadowFrame.Image = "rbxassetid://4576475446"
-            ShadowFrame.ImageTransparency = 0.3
-            ShadowFrame.ZIndex = 10
-        end
-    end,
-})
 do
     local painelActive = false
     local painelBillboard = nil
@@ -7033,12 +6848,13 @@ pcall(function()
         Notify("Script", "Loading...", 2)
         pcall(function() loadstring(game:HttpGet("https://pastebin.com/raw/AxSTCHu3"))() end)
     end })
-
-ScriptsTab:CreateButton({ Title = "The strongest battlefield ", Callback = function()
+    
+    ScriptsTab:CreateButton({ Title = "The strongest battlefield ", Callback = function()
         Notify("Script", "Loading...", 2)
         pcall(function() loadstring(game:HttpGet("https://pastebin.com/raw/tCXuPwLJ"))() end)
     end })
     
+
     ScriptsTab:CreateButton({ Title = "Mouse Cell Phone", Callback = function()
         Notify("Script", "Loading...", 2)
         pcall(function() loadstring(game:HttpGet("https://pastebin.com/raw/CHQVXc0C"))() end)
@@ -7960,7 +7776,130 @@ pcall(function()
     })
 end)
 
+-- =============================================
+-- KILL ALL NPC / KILL ALL NPC LOOP
+-- =============================================
+pcall(function()
+    if not ExtraTab then return end
+    ExtraTab:CreateButton({
+        Title = "Kill All NPC",
+        Callback = function()
+            local killed = 0
+            for _, d in pairs(workspace:GetDescendants()) do
+                if d:IsA("Humanoid") and d.Parent then
+                    local parent = d.Parent
+                    if parent.Name ~= player.Name and not game.Players:GetPlayerFromCharacter(parent) then
+                        pcall(function() d.Health = 0; killed = killed + 1 end)
+                    end
+                end
+            end
+            Notify("Kill All NPC", "Killed " .. killed .. " NPCs", 2)
+        end,
+    })
 
+    local killAllNPCLoopActive = false
+    local killAllNPCLoopConn = nil
+    ExtraTab:CreateToggle({
+        Title = "Kill All NPC Loop",
+        Default = false,
+        Callback = function(Value)
+            killAllNPCLoopActive = Value
+            if Value then
+                pcall(function()
+                    sethiddenproperty(player, "SimulationRadius", 112412400000)
+                    sethiddenproperty(player, "MaxSimulationRadius", 112412400000)
+                end)
+                killAllNPCLoopConn = game:GetService("RunService").Heartbeat:Connect(function()
+                    if not killAllNPCLoopActive then return end
+                    for _, d in pairs(workspace:GetDescendants()) do
+                        if d:IsA("Humanoid") and d.Parent then
+                            local parent = d.Parent
+                            if parent.Name ~= player.Name and not game.Players:GetPlayerFromCharacter(parent) then
+                                pcall(function() d.Health = 0 end)
+                            end
+                        end
+                    end
+                end)
+                Notify("Kill All NPC Loop", "Enabled", 2)
+            else
+                if killAllNPCLoopConn then killAllNPCLoopConn:Disconnect(); killAllNPCLoopConn = nil end
+                Notify("Kill All NPC Loop", "Disabled", 1)
+            end
+        end,
+    })
+end)
+
+-- =============================================
+-- ANTI NPC
+-- =============================================
+pcall(function()
+    if not ExtraTab then return end
+    local antiNPCActive = false
+    local antiNPCConn = nil
+    local antiNPCDescConn = nil
+    local antiNPCHumanoids = {}
+    local antiNPCWalkSpeed = {}
+
+    ExtraTab:CreateToggle({
+        Title = "Anti NPC",
+        Default = false,
+        Callback = function(Value)
+            antiNPCActive = Value
+            if Value then
+                for _, d in pairs(workspace:GetDescendants()) do
+                    if d:IsA("Humanoid") and d.Parent then
+                        local parent = d.Parent
+                        if parent.Name ~= player.Name and not game.Players:GetPlayerFromCharacter(parent) then
+                            pcall(function()
+                                if not antiNPCWalkSpeed[d] then antiNPCWalkSpeed[d] = d.WalkSpeed end
+                                if not table.find(antiNPCHumanoids, d) then table.insert(antiNPCHumanoids, d) end
+                                d.WalkSpeed = 0
+                            end)
+                        end
+                    end
+                end
+                antiNPCDescConn = workspace.DescendantAdded:Connect(function(desc)
+                    if not antiNPCActive then return end
+                    if desc:IsA("Humanoid") and desc.Parent then
+                        local parent = desc.Parent
+                        if parent.Name ~= player.Name and not game.Players:GetPlayerFromCharacter(parent) then
+                            pcall(function()
+                                if not antiNPCWalkSpeed[desc] then antiNPCWalkSpeed[desc] = desc.WalkSpeed end
+                                if not table.find(antiNPCHumanoids, desc) then table.insert(antiNPCHumanoids, desc) end
+                                desc.WalkSpeed = 0
+                            end)
+                        end
+                    end
+                end)
+                antiNPCConn = game:GetService("RunService").Heartbeat:Connect(function()
+                    if not antiNPCActive then return end
+                    for _, hum in pairs(antiNPCHumanoids) do
+                        if hum and hum.Parent and hum.WalkSpeed ~= 0 then
+                            pcall(function() hum.WalkSpeed = 0 end)
+                        end
+                    end
+                    for i = #antiNPCHumanoids, 1, -1 do
+                        if not antiNPCHumanoids[i] or not antiNPCHumanoids[i].Parent then
+                            table.remove(antiNPCHumanoids, i)
+                        end
+                    end
+                end)
+                Notify("Anti NPC", "Enabled", 2)
+            else
+                for _, hum in pairs(antiNPCHumanoids) do
+                    if hum and hum.Parent then
+                        pcall(function() hum.WalkSpeed = antiNPCWalkSpeed[hum] or 16 end)
+                    end
+                end
+                antiNPCHumanoids = {}
+                antiNPCWalkSpeed = {}
+                if antiNPCConn then antiNPCConn:Disconnect(); antiNPCConn = nil end
+                if antiNPCDescConn then antiNPCDescConn:Disconnect(); antiNPCDescConn = nil end
+                Notify("Anti NPC", "Disabled", 1)
+            end
+        end,
+    })
+end)
 
 -- =============================================
 -- X-RAY
@@ -13150,663 +13089,3 @@ pcall(function()
         end,
     })
 end)
--- ------------------------------------------------------------
--- Toolbringnpc (grab/hold/throw NPCs)
--- ------------------------------------------------------------
-ToolTab:CreateButton({
-    Title = "Toolbringnpc",
-    Callback = function()
-        local runService = game:GetService("RunService")
-
-        local tool = Instance.new("Tool")
-        tool.Name = "toolbringnpc"
-        tool.RequiresHandle = true
-
-        local handle = Instance.new("Part")
-        handle.Name = "Handle"
-        handle.Size = Vector3.new(0.1, 0.1, 0.1)
-        handle.Transparency = 1
-        handle.CanCollide = false
-        handle.Parent = tool
-
-        tool.Parent = LocalPlayer:WaitForChild("Backpack")
-
-        local heldNpc = nil
-        local isEquipped = false
-        local lastClick = 0
-        local originalCollisions = {}
-        local conn, renderConn = nil, nil
-
-        local function disableNpcCollision(model)
-            if originalCollisions[model] then return end
-            originalCollisions[model] = {}
-            for _, p in ipairs(model:GetDescendants()) do
-                if p:IsA("BasePart") then
-                    originalCollisions[model][p] = p.CanCollide
-                    p.CanCollide = false
-                end
-            end
-        end
-
-        local function restoreNpcCollision(model)
-            if originalCollisions[model] then
-                for p, state in pairs(originalCollisions[model]) do
-                    if p and p.Parent then p.CanCollide = state end
-                end
-                originalCollisions[model] = nil
-            end
-        end
-
-        tool.Equipped:Connect(function()
-            isEquipped = true
-            local mouse = LocalPlayer:GetMouse()
-
-            conn = mouse.Button1Down:Connect(function()
-                if not isEquipped then return end
-                local now = tick()
-
-                if (now - lastClick) <= 0.3 and heldNpc then
-                    local char = LocalPlayer.Character
-                    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-                    local npcRoot = heldNpc:FindFirstChild("HumanoidRootPart")
-
-                    if myRoot and npcRoot then
-                        local hitPos = mouse.Hit.Position
-                        local npcToThrow = heldNpc
-                        heldNpc = nil
-
-                        task.spawn(function()
-                            local startCFrame = myRoot.CFrame
-                            local targetLook = CFrame.lookAt(myRoot.Position, Vector3.new(hitPos.X, myRoot.Position.Y, hitPos.Z))
-
-                            for i = 0, 1, 0.15 do
-                                if not myRoot or not myRoot.Parent then break end
-                                myRoot.CFrame = startCFrame:Lerp(targetLook, i) * CFrame.Angles(0, math.rad(i * 360), 0)
-                                task.wait(0.02)
-                            end
-                            if myRoot then myRoot.CFrame = targetLook end
-
-                            if npcToThrow and npcToThrow.Parent then
-                                local finalRoot = npcToThrow:FindFirstChild("HumanoidRootPart")
-                                if finalRoot then
-                                    local throwDir = (hitPos - finalRoot.Position).Unit
-                                    finalRoot.AssemblyLinearVelocity = throwDir * 160 + Vector3.new(0, 60, 0)
-                                end
-                                task.delay(0.3, function()
-                                    restoreNpcCollision(npcToThrow)
-                                end)
-                            end
-                        end)
-                    end
-
-                    lastClick = 0
-                    return
-                end
-
-                lastClick = now
-
-                if not heldNpc then
-                    local target = mouse.Target
-                    if target and target.Parent then
-                        local hum = target.Parent:FindFirstChildOfClass("Humanoid")
-                        if hum and not Players:GetPlayerFromCharacter(target.Parent) then
-                            local npcRoot = target.Parent:FindFirstChild("HumanoidRootPart")
-                            local char = LocalPlayer.Character
-                            local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-
-                            if npcRoot and myRoot and (npcRoot.Position - myRoot.Position).Magnitude <= 15 then
-                                heldNpc = target.Parent
-                                disableNpcCollision(heldNpc)
-                            end
-                        end
-                    end
-                end
-            end)
-
-            renderConn = runService.RenderStepped:Connect(function()
-                if not isEquipped or not heldNpc then return end
-                local char = LocalPlayer.Character
-                local rightArm = char and (char:FindFirstChild("Right Arm") or char:FindFirstChild("RightHand"))
-                local npcRoot = heldNpc:FindFirstChild("HumanoidRootPart")
-
-                if rightArm and npcRoot then
-                    npcRoot.CFrame = rightArm.CFrame * CFrame.new(0, -1, -1.5) * CFrame.Angles(math.rad(90), 0, 0)
-                    npcRoot.AssemblyLinearVelocity = Vector3.zero
-                    npcRoot.AssemblyAngularVelocity = Vector3.zero
-                end
-            end)
-        end)
-
-        tool.Unequipped:Connect(function()
-            isEquipped = false
-            if conn then conn:Disconnect() end
-            if renderConn then renderConn:Disconnect() end
-            if heldNpc then
-                restoreNpcCollision(heldNpc)
-                heldNpc = nil
-            end
-        end)
-    end,
-})
-
---- ------------------------------------------------------------
--- ToolAttach (fling players to void on click) - com anti-delay
--- ------------------------------------------------------------
-ToolTab:CreateButton({
-    Title = "ToolAttach",
-    Callback = function()
-        local RunService = game:GetService("RunService")
-        local me = LocalPlayer
-        local mouse = me:GetMouse()
-
-        -- anti-delay
-        local function attach(P1, P2)
-            if sethiddenproperty and InstanceHandle then
-                pcall(function()
-                    sethiddenproperty(P1, "PhysicsRepRootRef", InstanceHandle.new(P2 or P1))
-                end)
-            end
-        end
-        local function detach(P1)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(P1, "PhysicsRepRootRef", nil)
-                end)
-            end
-        end
-
-        task.spawn(function()
-            while true do
-                RunService.Heartbeat:Wait()
-                local char = me.Character
-                local root = char and char:FindFirstChild("HumanoidRootPart")
-                local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-
-                if humanoid then
-                    humanoid.MaxHealth = math.huge
-                    humanoid.Health = humanoid.MaxHealth
-                end
-
-                local destroyHeight = workspace.FallenPartsDestroyHeight or -500
-                if root and root.Position.Y < destroyHeight + 100 then
-                    root.CFrame = CFrame.new(root.Position.X, 50, root.Position.Z)
-                    root.Velocity = Vector3.zero
-                    root.RotVelocity = Vector3.zero
-                end
-            end
-        end)
-
-        local function WalkFlingVoid(state)
-            if not state then
-                _G.WalkFlingVoidActive = false
-                if _G.WalkFlingVoidThread then
-                    task.cancel(_G.WalkFlingVoidThread)
-                    _G.WalkFlingVoidThread = nil
-                end
-                local char = me.Character
-                local root = char and char:FindFirstChild("HumanoidRootPart")
-                if root then
-                    root.Velocity = Vector3.zero
-                    root.RotVelocity = Vector3.zero
-                    detach(root)
-                end
-                return
-            end
-
-            _G.WalkFlingVoidActive = true
-            _G.WalkFlingVoidThread = task.spawn(function()
-                repeat
-                    RunService.Heartbeat:Wait()
-                    if not _G.WalkFlingVoidActive then break end
-                    local character = me.Character
-                    local root = character and character:FindFirstChild("HumanoidRootPart")
-                    if not root then break end
-
-                    root.Velocity = Vector3.new(0, -10000, 0)
-                    RunService.RenderStepped:Wait()
-                    if _G.WalkFlingVoidActive and character and character.Parent and root and root.Parent then
-                        root.Velocity = Vector3.new(0, -10000, 0)
-                    end
-                    RunService.Stepped:Wait()
-                    if _G.WalkFlingVoidActive and character and character.Parent and root and root.Parent then
-                        root.Velocity = Vector3.new(0, -10000, 0)
-                    end
-                until not _G.WalkFlingVoidActive
-            end)
-        end
-
-        local tool = Instance.new("Tool")
-        tool.Name = "attach"
-        tool.RequiresHandle = false
-        tool.CanBeDropped = false
-
-        local isExecuting = false
-
-        tool.Activated:Connect(function()
-            if isExecuting then return end
-
-            local myChar = me.Character
-            local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-            if not myRoot then return end
-
-            local targetPart = mouse.Target
-            if not targetPart then return end
-
-            local targetChar = targetPart:FindFirstAncestorOfClass("Model")
-            local targetPlayer = Players:GetPlayerFromCharacter(targetChar)
-            local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
-
-            if targetPlayer and targetPlayer ~= me and targetRoot then
-                isExecuting = true
-                local originalCFrame = myRoot.CFrame
-                WalkFlingVoid(true)
-
-                local startTime = tick()
-                local connection
-                connection = RunService.Heartbeat:Connect(function()
-                    if tick() - startTime < 2 and targetRoot and targetRoot.Parent and myRoot and myRoot.Parent then
-                        myRoot.CFrame = targetRoot.CFrame * CFrame.Angles(math.rad(90), 0, 0)
-                        attach(myRoot, targetRoot)
-                    else
-                        connection:Disconnect()
-                    end
-                end)
-
-                task.wait(2)
-
-                detach(myRoot)
-                WalkFlingVoid(false)
-                if myRoot and myRoot.Parent then
-                    myRoot.CFrame = originalCFrame
-                    myRoot.Velocity = Vector3.zero
-                    myRoot.RotVelocity = Vector3.zero
-                end
-
-                isExecuting = false
-            end
-        end)
-
-        tool.GripPos = Vector3.new(0, 9e99, 0)
-        tool.Parent = me.Character or me:WaitForChild("Backpack")
-    end,
-})
--- ============================================================
--- ABA NPC (nova)
--- ============================================================
-local NPCTab = Window:CreateTab("NPC", "users")
-
-local NPCTarget = nil
-local NPCDropdown = nil
-
-local function RefreshNPCList()
-    local list = {}
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
-    end
-    table.sort(list)
-    if NPCDropdown and NPCDropdown.Update then
-        pcall(function() NPCDropdown:Update({ Options = list }) end)
-    end
-end
-
-local function GetNPCTarget()
-    if not NPCTarget or NPCTarget == "" then return nil end
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Name == NPCTarget then return plr end
-    end
-    return nil
-end
-
-NPCDropdown = NPCTab:CreateDropdown({
-    Title = "Select Target Player",
-    Options = {},
-    Callback = function(Value) NPCTarget = Value end,
-})
-RefreshNPCList()
-
-NPCTab:CreateButton({
-    Title = "Refresh Player List",
-    Callback = function() RefreshNPCList() end,
-})
-
-local function shp()
-    return sethiddenproperty or function() return false end
-end
-
--- ------------------------------------------------------------
--- KillNpc (toggle)
--- ------------------------------------------------------------
-NPCTab:CreateToggle({
-    Title = "KillNpc",
-    Default = false,
-    Callback = function(Value)
-        if not Value then
-            _G.KillAllNpcActive = false
-            if _G.KillAllNpcThread then task.cancel(_G.KillAllNpcThread); _G.KillAllNpcThread = nil end
-            return
-        end
-        _G.KillAllNpcActive = true
-        local sethiddenproperty = shp()
-        if _G.KillAllNpcThread then task.cancel(_G.KillAllNpcThread) end
-        _G.KillAllNpcThread = task.spawn(function()
-            while _G.KillAllNpcActive do
-                task.wait(0.9)
-                pcall(function()
-                    sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
-                    sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
-                end)
-                for _, d in ipairs(workspace:GetDescendants()) do
-                    if d.ClassName == "Humanoid" and d.Parent then
-                        if not Players:GetPlayerFromCharacter(d.Parent) then
-                            pcall(function() d.Health = 0 end)
-                        end
-                    end
-                end
-            end
-        end)
-    end,
-})
-
--- ------------------------------------------------------------
--- BringNpc
--- ------------------------------------------------------------
-NPCTab:CreateButton({
-    Title = "BringNpc",
-    Callback = function()
-        local target = GetNPCTarget()
-        if not target or not target.Character then return end
-        local targetRoot = target.Character:FindFirstChild("HumanoidRootPart")
-        if not targetRoot then return end
-        local sethiddenproperty = shp()
-        pcall(function()
-            sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
-            sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
-        end)
-        local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not myRoot then return end
-        for _, d in ipairs(workspace:GetDescendants()) do
-            if d.ClassName == "Humanoid" and d.Parent then
-                if not Players:GetPlayerFromCharacter(d.Parent) then
-                    local root = d.Parent:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        local dist = (root.Position - myRoot.Position).Magnitude
-                        if dist <= 30 then
-                            pcall(function()
-                                root.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
-                            end)
-                        end
-                    end
-                end
-            end
-        end
-    end,
-})
-
--- ------------------------------------------------------------
--- LoopBringNpc
--- ------------------------------------------------------------
-NPCTab:CreateToggle({
-    Title = "LoopBringNpc",
-    Default = false,
-    Callback = function(Value)
-        if not Value then
-            _G.LoopBringNpcActive = false
-            _G.LoopBringNpcTarget = nil
-            if _G.LoopBringNpcThread then task.cancel(_G.LoopBringNpcThread); _G.LoopBringNpcThread = nil end
-            return
-        end
-        local target = GetNPCTarget()
-        if not target then return end
-        _G.LoopBringNpcActive = true
-        _G.LoopBringNpcTarget = target
-        local sethiddenproperty = shp()
-        _G.LoopBringNpcThread = task.spawn(function()
-            while _G.LoopBringNpcActive and _G.LoopBringNpcTarget == target do
-                task.wait(0.3)
-                pcall(function()
-                    sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
-                    sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
-                end)
-                local tChar = target.Character
-                local targetRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
-                local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if targetRoot and myRoot then
-                    for _, d in ipairs(workspace:GetDescendants()) do
-                        if d.ClassName == "Humanoid" and d.Parent then
-                            if not Players:GetPlayerFromCharacter(d.Parent) then
-                                local root = d.Parent:FindFirstChild("HumanoidRootPart")
-                                if root then
-                                    local dist = (root.Position - myRoot.Position).Magnitude
-                                    if dist <= 30 then
-                                        pcall(function()
-                                            root.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
-                                        end)
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-    end,
-})
-
--- ------------------------------------------------------------
--- LoopTpBringNpc
--- ------------------------------------------------------------
-NPCTab:CreateToggle({
-    Title = "LoopTpBringNpc",
-    Default = false,
-    Callback = function(Value)
-        if not Value then
-            _G.LoopTpBringNpcActive = false
-            _G.LoopTpBringNpcTarget = nil
-            if _G.LoopTpBringNpcThread then task.cancel(_G.LoopTpBringNpcThread); _G.LoopTpBringNpcThread = nil end
-            if _G.LoopTpBringNpcConn then _G.LoopTpBringNpcConn:Disconnect(); _G.LoopTpBringNpcConn = nil end
-            return
-        end
-        local target = GetNPCTarget()
-        if not target then return end
-        _G.LoopTpBringNpcActive = true
-        _G.LoopTpBringNpcTarget = target
-        if _G.LoopTpBringNpcConn then _G.LoopTpBringNpcConn:Disconnect() end
-        _G.LoopTpBringNpcConn = Players.PlayerRemoving:Connect(function(p)
-            if p == _G.LoopTpBringNpcTarget then
-                _G.LoopTpBringNpcActive = false
-                _G.LoopTpBringNpcTarget = nil
-                if _G.LoopTpBringNpcThread then task.cancel(_G.LoopTpBringNpcThread); _G.LoopTpBringNpcThread = nil end
-            end
-        end)
-        local sethiddenproperty = shp()
-        _G.LoopTpBringNpcThread = task.spawn(function()
-            while _G.LoopTpBringNpcActive and _G.LoopTpBringNpcTarget == target and target.Parent do
-                pcall(function()
-                    sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
-                    sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
-                end)
-                local tChar = target.Character
-                local targetRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
-                local myChar = LocalPlayer.Character
-                local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-                if not myChar or not myRoot or not myChar:FindFirstChild("Humanoid") or myChar.Humanoid.Health <= 0 then
-                    task.wait(0.5)
-                elseif targetRoot then
-                    local npcTargets = {}
-                    pcall(function()
-                        for _, d in ipairs(workspace:GetDescendants()) do
-                            if d and d.ClassName == "Humanoid" and d.Parent then
-                                if not Players:GetPlayerFromCharacter(d.Parent) then
-                                    local root = d.Parent:FindFirstChild("HumanoidRootPart")
-                                    if root and d.Health > 0 then table.insert(npcTargets, root) end
-                                end
-                            end
-                        end
-                    end)
-                    if #npcTargets > 0 then
-                        for _, root in ipairs(npcTargets) do
-                            if not _G.LoopTpBringNpcActive or _G.LoopTpBringNpcTarget ~= target then break end
-                            if root and root.Parent and root.Parent:FindFirstChild("Humanoid") then
-                                local hum = root.Parent.Humanoid
-                                if hum and hum.Health > 0 then
-                                    local startTime = tick()
-                                    while tick() - startTime < 0.2 do
-                                        if not _G.LoopTpBringNpcActive then break end
-                                        local curMyRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                                        if curMyRoot and root and root.Parent then
-                                            pcall(function()
-                                                curMyRoot.CFrame = root.CFrame + Vector3.new(0, 6.5, 0)
-                                                curMyRoot.Velocity = Vector3.zero
-                                            end)
-                                        end
-                                        task.wait()
-                                    end
-                                    local currentTargetRoot = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
-                                    if currentTargetRoot then
-                                        pcall(function()
-                                            root.CFrame = currentTargetRoot.CFrame + Vector3.new(0, 5, 0)
-                                            root.Velocity = Vector3.zero
-                                        end)
-                                        task.wait(0.1)
-                                    end
-                                end
-                            end
-                        end
-                    else
-                        task.wait(0.2)
-                    end
-                end
-                task.wait()
-            end
-            _G.LoopTpBringNpcActive = false
-            _G.LoopTpBringNpcTarget = nil
-        end)
-    end,
-})
-
--- ------------------------------------------------------------
--- SitNpc
--- ------------------------------------------------------------
-NPCTab:CreateButton({
-    Title = "SitNpc",
-    Callback = function()
-        local sethiddenproperty = shp()
-        pcall(function()
-            sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
-            sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
-        end)
-        for _, d in ipairs(workspace:GetDescendants()) do
-            if d.ClassName == "Humanoid" and d.Parent then
-                if not Players:GetPlayerFromCharacter(d.Parent) then
-                    pcall(function() d.Sit = true end)
-                end
-            end
-        end
-    end,
-})
-
--- ------------------------------------------------------------
--- FlingNpc
--- ------------------------------------------------------------
-NPCTab:CreateButton({
-    Title = "FlingNpc",
-    Callback = function()
-        local sethiddenproperty = shp()
-        pcall(function()
-            sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
-            sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
-        end)
-        for _, d in ipairs(workspace:GetDescendants()) do
-            if d.ClassName == "Humanoid" and d.Parent then
-                if not Players:GetPlayerFromCharacter(d.Parent) then
-                    local root = d.Parent:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        pcall(function()
-                            root.Velocity = Vector3.new(9e9, 9e9, 9e9)
-                            root.RotVelocity = Vector3.new(9e9, 9e9, 9e9)
-                        end)
-                    end
-                end
-            end
-        end
-    end,
-})
-
--- ------------------------------------------------------------
--- VoidNpc
--- ------------------------------------------------------------
-NPCTab:CreateButton({
-    Title = "VoidNpc",
-    Callback = function()
-        local sethiddenproperty = shp()
-        pcall(function()
-            sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
-            sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
-        end)
-        for _, d in ipairs(workspace:GetDescendants()) do
-            if d.ClassName == "Humanoid" and d.Parent then
-                if not Players:GetPlayerFromCharacter(d.Parent) then
-                    local root = d.Parent:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        pcall(function()
-                            root.CFrame = root.CFrame - Vector3.new(0, 500, 0)
-                        end)
-                    end
-                end
-            end
-        end
-    end,
-})
-
--- ------------------------------------------------------------
--- StunNpc
--- ------------------------------------------------------------
-NPCTab:CreateToggle({
-    Title = "StunNpc",
-    Default = false,
-    Callback = function(Value)
-        if not Value then
-            _G.StunNpcActive = false
-            if _G.StunNpcThread then task.cancel(_G.StunNpcThread); _G.StunNpcThread = nil end
-            for _, d in ipairs(workspace:GetDescendants()) do
-                if d.ClassName == "Humanoid" and d.Parent then
-                    if not Players:GetPlayerFromCharacter(d.Parent) then
-                        pcall(function()
-                            d.WalkSpeed = 16
-                            d.JumpPower = 50
-                            d.PlatformStand = false
-                        end)
-                        local root = d.Parent:FindFirstChild("HumanoidRootPart")
-                        if root then pcall(function() root.Anchored = false end) end
-                    end
-                end
-            end
-            return
-        end
-        _G.StunNpcActive = true
-        local sethiddenproperty = shp()
-        _G.StunNpcThread = task.spawn(function()
-            while _G.StunNpcActive do
-                task.wait(0.5)
-                pcall(function()
-                    sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
-                    sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
-                end)
-                for _, d in ipairs(workspace:GetDescendants()) do
-                    if d.ClassName == "Humanoid" and d.Parent then
-                        if not Players:GetPlayerFromCharacter(d.Parent) then
-                            pcall(function()
-                                d.WalkSpeed = 0
-                                d.JumpPower = 0
-                                d.JumpHeight = 0
-                                d.PlatformStand = true
-                            end)
-                            local root = d.Parent:FindFirstChild("HumanoidRootPart")
-                            if root then pcall(function() root.Anchored = true end) end
-                        end
-                    end
-                end
-            end
-        end)
-    end,
-})

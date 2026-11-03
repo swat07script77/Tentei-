@@ -12241,7 +12241,6 @@ pcall(function()
         end,
     })
 end)
--- 
 AbuseTab:CreateToggle({
     Title = "Camera Bug",
     Default = false,

@@ -12241,61 +12241,65 @@ pcall(function()
         end,
     })
 end)
+-- ============================================================
+-- VARIÁVEIS UPVALUES (declaradas antes do elemento)
+-- ============================================================
+local raknetActive       = false
+local raknetConn         = nil
+local raknetDiedConn     = nil
+local raknetCharConn     = nil
+local raknetClone        = nil
+local raknetChar         = nil
+local raknetRoot         = nil
+local raknetHum          = nil
+local raknetOriginalCF   = nil
+local raknetSavedParts     = {}
+local raknetSavedDecals    = {}
+local raknetSavedParticles = {}
+
+local startRaknetDesync
+local stopRaknetDesync
+
+-- ============================================================
+-- ELEMENTO EM CIMA
+-- ============================================================
 AbuseTab:CreateToggle({
     Title = "Raknet Desync",
     Default = false,
     Callback = function(Value)
         if Value then
-            startRaknetDesync()
+            if startRaknetDesync then startRaknetDesync() end
         else
-            stopRaknetDesync()
+            if stopRaknetDesync then stopRaknetDesync() end
         end
     end,
 })
 
 -- ============================================================
--- RAKNET DESYNC - variáveis e funções DEPOIS do elemento
+-- LÓGICA DEPOIS
 -- ============================================================
-local raknetActive = false
-local raknetConn = nil
-local raknetDiedConn = nil
-local raknetCharConn = nil
-local raknetClone = nil
-local raknetChar = nil
-local raknetRoot = nil
-local raknetHum = nil
-local raknetOriginalCF = nil
-local raknetSavedParts = {}
-local raknetSavedDecals = {}
-local raknetSavedParticles = {}
-local raknetSavedHighlights = {}
-
 local function saveCharacterProperties(char)
-    raknetSavedParts = {}
-    raknetSavedDecals = {}
+    raknetSavedParts     = {}
+    raknetSavedDecals    = {}
     raknetSavedParticles = {}
-    raknetSavedHighlights = {}
 
     for _, v in ipairs(char:GetDescendants()) do
         if v:IsA("BasePart") then
             raknetSavedParts[v] = {
-                Material = v.Material,
-                Color = v.Color,
+                Material     = v.Material,
+                Color        = v.Color,
                 Transparency = v.Transparency,
-                CanCollide = v.CanCollide,
-                Anchored = v.Anchored,
+                CanCollide   = v.CanCollide,
+                Anchored     = v.Anchored,
             }
         elseif v:IsA("Decal") or v:IsA("Texture") then
             raknetSavedDecals[v] = {
                 Transparency = v.Transparency,
-                Color3 = v.Color3,
+                Color3       = v.Color3,
             }
-        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
-            raknetSavedParticles[v] = {
-                Enabled = v.Enabled,
-            }
-        elseif v:IsA("Highlight") then
-            raknetSavedHighlights[v] = true
+        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam")
+            or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
+            raknetSavedParticles[v] = { Enabled = v.Enabled }
         end
     end
 end
@@ -12306,11 +12310,11 @@ local function restoreCharacterProperties(char)
     for part, data in pairs(raknetSavedParts) do
         if part and part.Parent then
             pcall(function()
-                part.Material = data.Material
-                part.Color = data.Color
+                part.Material     = data.Material
+                part.Color        = data.Color
                 part.Transparency = data.Transparency
-                part.CanCollide = data.CanCollide
-                part.Anchored = data.Anchored
+                part.CanCollide   = data.CanCollide
+                part.Anchored     = data.Anchored
             end)
         end
     end
@@ -12326,28 +12330,31 @@ local function restoreCharacterProperties(char)
 
     for particle, data in pairs(raknetSavedParticles) do
         if particle and particle.Parent then
-            pcall(function()
-                particle.Enabled = data.Enabled
-            end)
+            pcall(function() particle.Enabled = data.Enabled end)
         end
     end
 
-    raknetSavedParts = {}
-    raknetSavedDecals = {}
+    raknetSavedParts     = {}
+    raknetSavedDecals    = {}
     raknetSavedParticles = {}
-    raknetSavedHighlights = {}
 end
 
-local function stopRaknetDesync()
+stopRaknetDesync = function()
     raknetActive = false
 
-    if raknetConn then raknetConn:Disconnect(); raknetConn = nil end
+    if raknetConn     then raknetConn:Disconnect();     raknetConn = nil     end
     if raknetDiedConn then raknetDiedConn:Disconnect(); raknetDiedConn = nil end
     if raknetCharConn then raknetCharConn:Disconnect(); raknetCharConn = nil end
 
     if raknetClone then
         pcall(function() raknetClone:Destroy() end)
         raknetClone = nil
+    end
+
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj.Name == "ServerClone" then
+            pcall(function() obj:Destroy() end)
+        end
     end
 
     local char = game.Players.LocalPlayer.Character
@@ -12357,8 +12364,8 @@ local function stopRaknetDesync()
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
             pcall(function()
-                hum.CameraOffset = Vector3.zero
-                hum.PlatformStand = false
+                hum.CameraOffset   = Vector3.zero
+                hum.PlatformStand  = false
             end)
         end
 
@@ -12368,7 +12375,7 @@ local function stopRaknetDesync()
                 pcall(function() root.CFrame = raknetOriginalCF end)
             end
             pcall(function()
-                root.Velocity = Vector3.zero
+                root.Velocity    = Vector3.zero
                 root.RotVelocity = Vector3.zero
             end)
         end
@@ -12383,39 +12390,45 @@ local function stopRaknetDesync()
         end
     end
 
-    raknetChar = nil
-    raknetRoot = nil
-    raknetHum = nil
+    raknetChar       = nil
+    raknetRoot       = nil
+    raknetHum        = nil
     raknetOriginalCF = nil
 end
 
-local function startRaknetDesync()
+startRaknetDesync = function()
     if raknetActive then stopRaknetDesync() end
 
     local char = game.Players.LocalPlayer.Character or game.Players.LocalPlayer.CharacterAdded:Wait()
     local root = char:WaitForChild("HumanoidRootPart")
-    local hum = char:WaitForChild("Humanoid")
+    local hum  = char:WaitForChild("Humanoid")
 
-    raknetChar = char
-    raknetRoot = root
-    raknetHum = hum
+    raknetChar       = char
+    raknetRoot       = root
+    raknetHum        = hum
     raknetOriginalCF = root.CFrame
-    raknetActive = true
+    raknetActive     = true
 
     saveCharacterProperties(char)
 
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj.Name == "ServerClone" then
+            pcall(function() obj:Destroy() end)
+        end
+    end
+
     char.Archivable = true
     raknetClone = char:Clone()
-    raknetClone.Name = "ServerClone"
+    raknetClone.Name   = "ServerClone"
     raknetClone.Parent = workspace
 
     for _, v in ipairs(raknetClone:GetDescendants()) do
         if v:IsA("BasePart") then
-            v.Anchored = true
-            v.CanCollide = false
+            v.Anchored     = true
+            v.CanCollide   = false
             v.Transparency = 0.5
-            v.Material = Enum.Material.SmoothPlastic
-            v.Color = Color3.fromRGB(0, 150, 255)
+            v.Material     = Enum.Material.SmoothPlastic
+            v.Color        = Color3.fromRGB(0, 150, 255)
         elseif v:IsA("Decal") or v:IsA("Texture") then
             v.Transparency = 0.5
         elseif v:IsA("Script") or v:IsA("LocalScript") or v:IsA("ModuleScript") then
@@ -12430,8 +12443,8 @@ local function startRaknetDesync()
     for _, v in ipairs(char:GetDescendants()) do
         if v:IsA("BasePart") then
             v.Transparency = 0.2
-            v.Material = Enum.Material.ForceField
-            v.Color = Color3.fromRGB(0, 160, 255)
+            v.Material     = Enum.Material.ForceField
+            v.Color        = Color3.fromRGB(0, 160, 255)
         elseif v:IsA("Decal") or v:IsA("Texture") then
             v.Transparency = 0.2
         elseif v:IsA("Highlight") then
@@ -12443,10 +12456,8 @@ local function startRaknetDesync()
         if not raknetActive then return end
 
         local curChar = game.Players.LocalPlayer.Character
-        if not curChar then
-            stopRaknetDesync()
-            return
-        end
+        if not curChar then stopRaknetDesync(); return end
+
         local curRoot = curChar:FindFirstChild("HumanoidRootPart")
         local curHum  = curChar:FindFirstChildOfClass("Humanoid")
         if not curRoot or not curHum or curHum.Health <= 0 then
@@ -12457,8 +12468,9 @@ local function startRaknetDesync()
         local oldCF = curRoot.CFrame
         curRoot.CFrame = raknetOriginalCF
         curHum.CameraOffset = raknetOriginalCF:ToObjectSpace(CFrame.new(oldCF.Position)).Position
+
         task.defer(function()
-            if curRoot and curRoot.Parent then
+            if raknetActive and curRoot and curRoot.Parent then
                 curRoot.CFrame = oldCF
                 curHum.CameraOffset = Vector3.zero
             end
@@ -12471,9 +12483,7 @@ local function startRaknetDesync()
 
     if raknetCharConn then raknetCharConn:Disconnect() end
     raknetCharConn = game.Players.LocalPlayer.CharacterAdded:Connect(function()
-        if raknetActive then
-            stopRaknetDesync()
-        end
+        if raknetActive then stopRaknetDesync() end
     end)
 end
 AbuseTab:CreateToggle({

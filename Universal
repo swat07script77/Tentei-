@@ -204,7 +204,107 @@ MainTab:CreateButton({
         end)
     end,
 })
+-- ============================================================
+-- KILL (Button) - Main
+-- ============================================================
+local killRunning = false
 
+MainTab:CreateButton({
+    Title = "Kill",
+    Callback = function()
+        if killRunning then return end
+
+        local t = GetPlayTarget()
+        if not t or not t.Character then
+            Window:Notify({
+                Title       = "Kill",
+                Description = "Select a player in the dropdown first.",
+                Duration    = 2,
+                Type        = "warning",
+            })
+            return
+        end
+
+        local char = LocalPlayer.Character
+        if not char then return end
+
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum  = char:FindFirstChildOfClass("Humanoid")
+        local targetRoot = t.Character:FindFirstChild("HumanoidRootPart")
+        if not root or not hum or not targetRoot then
+            Window:Notify({
+                Title       = "Kill",
+                Description = "Character or target incomplete.",
+                Duration    = 2,
+                Type        = "warning",
+            })
+            return
+        end
+
+        killRunning = true
+        local KILL_DURATION = 1.5
+        local originalCFrame = root.CFrame
+        local originalPlatform = hum.PlatformStand
+        hum.PlatformStand = true
+
+        local UP_FORCE = Vector3.new(0, 9e9, 0)
+        local bobbingSpeed = 20
+        local startTime = tick()
+        local conn
+
+        conn = RunService.Heartbeat:Connect(function()
+            if tick() - startTime >= KILL_DURATION then
+                conn:Disconnect()
+                if root and root.Parent then
+                    root.CFrame = originalCFrame
+                    root.Velocity = Vector3.zero
+                    root.RotVelocity = Vector3.zero
+                end
+                if hum and hum.Parent then
+                    hum.PlatformStand = originalPlatform or false
+                end
+                detach(root)
+                killRunning = false
+                Window:Notify({
+                    Title       = "Kill",
+                    Description = "Returned to original position.",
+                    Duration    = 1.5,
+                    Type        = "success",
+                })
+                return
+            end
+
+            local curChar = LocalPlayer.Character
+            if not curChar then conn:Disconnect(); killRunning = false; return end
+
+            local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+            local curHum  = curChar:FindFirstChildOfClass("Humanoid")
+            if not curRoot or not curHum then conn:Disconnect(); killRunning = false; return end
+
+            local curTarget = t.Character
+            if not curTarget then return end
+            local tRoot = curTarget:FindFirstChild("HumanoidRootPart")
+            local tHead = curTarget:FindFirstChild("Head")
+            if not tRoot or not tHead then return end
+
+            curHum.PlatformStand = true
+
+            local headPos = tHead.Position
+            local bellyPos = tRoot.Position
+            local cycle = (tick() * bobbingSpeed) % 1
+            local y = headPos.Y + (bellyPos.Y - headPos.Y) * (0.5 - 0.5 * math.cos(cycle * 2 * math.pi))
+
+            curRoot.CFrame = CFrame.new(headPos.X, y, headPos.Z)
+            curRoot.Velocity = Vector3.zero
+            curRoot.RotVelocity = Vector3.zero
+
+            tRoot.Velocity = UP_FORCE
+            tRoot.RotVelocity = Vector3.zero
+
+            attach(curRoot, tRoot)
+        end)
+    end,
+})
 local loopKillActive = false
 local loopKillConn = nil
 local loopKillOriginalCFrame = nil
@@ -6393,44 +6493,7 @@ AnimTab:CreateButton({
         end)
     end,
 })
--- ============================================================
--- SISTEMA EXTRA (dropdown + Bang + Bang Target + Jerk)
--- ============================================================
-local ExtraTarget = nil
-local ExtraDropdown = nil
-
-local function GetExtraTarget()
-    if not ExtraTarget or ExtraTarget == "" then return nil end
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Name == ExtraTarget then return plr end
-    end
-    return nil
-end
-
-local function RefreshExtraTargets()
-    local list = {}
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
-    end
-    table.sort(list)
-    if ExtraDropdown and ExtraDropdown.Update then
-        pcall(function() ExtraDropdown:Update({ Options = list }) end)
-    end
-end
-
-ExtraDropdown = ExtraTab:CreateDropdown({
-    Title = "Select Target",
-    Options = {},
-    Callback = function(Value) ExtraTarget = Value end,
-})
-RefreshExtraTargets()
-
-ExtraTab:CreateButton({
-    Title = "Refresh Target List",
-    Callback = function() RefreshExtraTargets() end,
-})
-
--- ============================================================
+--- ============================================================
 -- BANG NORMAL
 -- ============================================================
 local bangSpeed = 3
@@ -6457,14 +6520,18 @@ local function startBang()
     bangAnim = Instance.new("Animation")
     bangAnim.AnimationId = not isR15 and "rbxassetid://148840371" or "rbxassetid://5918726674"
     bangTrack = hum:LoadAnimation(bangAnim)
-    bangTrack:Play(0.1, 1, 1)
-    bangTrack:AdjustSpeed(bangSpeed)
+    bangTrack:Play(0.1, 1, bangSpeed)
     bangDiedConn = hum.Died:Connect(function() stopBang() end)
     bangConn = RunService.Heartbeat:Connect(function()
         if not bangActive then return end
-        if bangTrack and not bangTrack.IsPlaying then
-            bangTrack:Play(0.1, 1, 1)
-            bangTrack:AdjustSpeed(bangSpeed)
+        if bangTrack then
+            if not bangTrack.IsPlaying then
+                bangTrack:Play(0.1, 1, bangSpeed)
+            end
+            -- ✅ Reaplica a velocidade a cada frame
+            if bangTrack.Speed ~= bangSpeed then
+                pcall(function() bangTrack:AdjustSpeed(bangSpeed) end)
+            end
         end
     end)
 end
@@ -6524,8 +6591,7 @@ local function startBangTarget(targetPlayer)
     bangTargetAnim = Instance.new("Animation")
     bangTargetAnim.AnimationId = not isR15 and "rbxassetid://148840371" or "rbxassetid://5918726674"
     bangTargetTrack = hum:LoadAnimation(bangTargetAnim)
-    bangTargetTrack:Play(0.1, 1, 1)
-    bangTargetTrack:AdjustSpeed(bangSpeed)
+    bangTargetTrack:Play(0.1, 1, bangSpeed)
     bangTargetDiedConn = hum.Died:Connect(function() stopBangTarget() end)
     bangTargetConn = RunService.Heartbeat:Connect(function()
         if not bangTargetActive then return end
@@ -6545,9 +6611,14 @@ local function startBangTarget(targetPlayer)
         localRoot.Velocity = Vector3.zero
         localRoot.RotVelocity = Vector3.zero
         attach(localRoot, targetRoot)
-        if bangTargetTrack and not bangTargetTrack.IsPlaying then
-            bangTargetTrack:Play(0.1, 1, 1)
-            bangTargetTrack:AdjustSpeed(bangSpeed)
+        if bangTargetTrack then
+            if not bangTargetTrack.IsPlaying then
+                bangTargetTrack:Play(0.1, 1, bangSpeed)
+            end
+            -- ✅ Reaplica a velocidade a cada frame
+            if bangTargetTrack.Speed ~= bangSpeed then
+                pcall(function() bangTargetTrack:AdjustSpeed(bangSpeed) end)
+            end
         end
     end)
 end
@@ -6577,8 +6648,12 @@ ExtraTab:CreateSlider({
     Title = "Bang Speed", Min = 1, Max = 1000, Default = 3,
     Callback = function(value)
         bangSpeed = value
-        if bangActive and bangTrack then bangTrack:AdjustSpeed(value) end
-        if bangTargetActive and bangTargetTrack then bangTargetTrack:AdjustSpeed(value) end
+        if bangActive and bangTrack then
+            pcall(function() bangTrack:AdjustSpeed(value) end)
+        end
+        if bangTargetActive and bangTargetTrack then
+            pcall(function() bangTargetTrack:AdjustSpeed(value) end)
+        end
     end,
 })
 
@@ -7886,131 +7961,6 @@ pcall(function()
             speedMirageSpeed = value
             if animationTrack and speedMirageEnabled then
                 pcall(function() animationTrack:AdjustSpeed(speedMirageSpeed) end)
-            end
-        end,
-    })
-end)
-
--- =============================================
--- KILL ALL NPC / KILL ALL NPC LOOP
--- =============================================
-pcall(function()
-    if not ExtraTab then return end
-    ExtraTab:CreateButton({
-        Title = "Kill All NPC",
-        Callback = function()
-            local killed = 0
-            for _, d in pairs(workspace:GetDescendants()) do
-                if d:IsA("Humanoid") and d.Parent then
-                    local parent = d.Parent
-                    if parent.Name ~= player.Name and not game.Players:GetPlayerFromCharacter(parent) then
-                        pcall(function() d.Health = 0; killed = killed + 1 end)
-                    end
-                end
-            end
-            Notify("Kill All NPC", "Killed " .. killed .. " NPCs", 2)
-        end,
-    })
-
-    local killAllNPCLoopActive = false
-    local killAllNPCLoopConn = nil
-    ExtraTab:CreateToggle({
-        Title = "Kill All NPC Loop",
-        Default = false,
-        Callback = function(Value)
-            killAllNPCLoopActive = Value
-            if Value then
-                pcall(function()
-                    sethiddenproperty(player, "SimulationRadius", 112412400000)
-                    sethiddenproperty(player, "MaxSimulationRadius", 112412400000)
-                end)
-                killAllNPCLoopConn = game:GetService("RunService").Heartbeat:Connect(function()
-                    if not killAllNPCLoopActive then return end
-                    for _, d in pairs(workspace:GetDescendants()) do
-                        if d:IsA("Humanoid") and d.Parent then
-                            local parent = d.Parent
-                            if parent.Name ~= player.Name and not game.Players:GetPlayerFromCharacter(parent) then
-                                pcall(function() d.Health = 0 end)
-                            end
-                        end
-                    end
-                end)
-                Notify("Kill All NPC Loop", "Enabled", 2)
-            else
-                if killAllNPCLoopConn then killAllNPCLoopConn:Disconnect(); killAllNPCLoopConn = nil end
-                Notify("Kill All NPC Loop", "Disabled", 1)
-            end
-        end,
-    })
-end)
-
--- =============================================
--- ANTI NPC
--- =============================================
-pcall(function()
-    if not ExtraTab then return end
-    local antiNPCActive = false
-    local antiNPCConn = nil
-    local antiNPCDescConn = nil
-    local antiNPCHumanoids = {}
-    local antiNPCWalkSpeed = {}
-
-    ExtraTab:CreateToggle({
-        Title = "Anti NPC",
-        Default = false,
-        Callback = function(Value)
-            antiNPCActive = Value
-            if Value then
-                for _, d in pairs(workspace:GetDescendants()) do
-                    if d:IsA("Humanoid") and d.Parent then
-                        local parent = d.Parent
-                        if parent.Name ~= player.Name and not game.Players:GetPlayerFromCharacter(parent) then
-                            pcall(function()
-                                if not antiNPCWalkSpeed[d] then antiNPCWalkSpeed[d] = d.WalkSpeed end
-                                if not table.find(antiNPCHumanoids, d) then table.insert(antiNPCHumanoids, d) end
-                                d.WalkSpeed = 0
-                            end)
-                        end
-                    end
-                end
-                antiNPCDescConn = workspace.DescendantAdded:Connect(function(desc)
-                    if not antiNPCActive then return end
-                    if desc:IsA("Humanoid") and desc.Parent then
-                        local parent = desc.Parent
-                        if parent.Name ~= player.Name and not game.Players:GetPlayerFromCharacter(parent) then
-                            pcall(function()
-                                if not antiNPCWalkSpeed[desc] then antiNPCWalkSpeed[desc] = desc.WalkSpeed end
-                                if not table.find(antiNPCHumanoids, desc) then table.insert(antiNPCHumanoids, desc) end
-                                desc.WalkSpeed = 0
-                            end)
-                        end
-                    end
-                end)
-                antiNPCConn = game:GetService("RunService").Heartbeat:Connect(function()
-                    if not antiNPCActive then return end
-                    for _, hum in pairs(antiNPCHumanoids) do
-                        if hum and hum.Parent and hum.WalkSpeed ~= 0 then
-                            pcall(function() hum.WalkSpeed = 0 end)
-                        end
-                    end
-                    for i = #antiNPCHumanoids, 1, -1 do
-                        if not antiNPCHumanoids[i] or not antiNPCHumanoids[i].Parent then
-                            table.remove(antiNPCHumanoids, i)
-                        end
-                    end
-                end)
-                Notify("Anti NPC", "Enabled", 2)
-            else
-                for _, hum in pairs(antiNPCHumanoids) do
-                    if hum and hum.Parent then
-                        pcall(function() hum.WalkSpeed = antiNPCWalkSpeed[hum] or 16 end)
-                    end
-                end
-                antiNPCHumanoids = {}
-                antiNPCWalkSpeed = {}
-                if antiNPCConn then antiNPCConn:Disconnect(); antiNPCConn = nil end
-                if antiNPCDescConn then antiNPCDescConn:Disconnect(); antiNPCDescConn = nil end
-                Notify("Anti NPC", "Disabled", 1)
             end
         end,
     })
@@ -12036,26 +11986,127 @@ AbuseTab:CreateToggle({
     end,
 })
 
+-- ============================================================
+-- RAKNET DESYNC (variáveis + funções ANTES do Toggle)
+-- ============================================================
+local raknetDesyncActive = false
+local raknetDesyncConn = nil
+local raknetDesyncClone = nil
+local raknetDesyncOriginalCF = nil
+local raknetDesyncChar = nil
+local raknetDesyncRoot = nil
+local raknetDesyncHumanoid = nil
+local raknetDesyncDiedConn = nil
+local raknetDesyncMaterials = {}
+local raknetDesyncColors = {}
+local raknetDesyncTransparencies = {}
+
+local function saveOriginalProperties(part)
+    if not raknetDesyncMaterials[part] then
+        raknetDesyncMaterials[part] = part.Material
+        raknetDesyncColors[part] = part.Color
+        raknetDesyncTransparencies[part] = part.Transparency
+    end
+end
+
+local function stopRaknetDesync()
+    raknetDesyncActive = false
+    if raknetDesyncConn then raknetDesyncConn:Disconnect(); raknetDesyncConn = nil end
+    if raknetDesyncDiedConn then raknetDesyncDiedConn:Disconnect(); raknetDesyncDiedConn = nil end
+    if raknetDesyncClone then pcall(function() raknetDesyncClone:Destroy() end); raknetDesyncClone = nil end
+
+    local char = game.Players.LocalPlayer.Character
+    if char then
+        for _, v in pairs(char:GetDescendants()) do
+            if v:IsA("BasePart") then
+                if raknetDesyncMaterials[v] then
+                    v.Material = raknetDesyncMaterials[v]
+                    raknetDesyncMaterials[v] = nil
+                else
+                    v.Material = Enum.Material.Plastic
+                end
+                if raknetDesyncColors[v] then
+                    v.Color = raknetDesyncColors[v]
+                    raknetDesyncColors[v] = nil
+                else
+                    v.Color = Color3.fromRGB(255, 255, 255)
+                end
+                if raknetDesyncTransparencies[v] then
+                    v.Transparency = raknetDesyncTransparencies[v]
+                    raknetDesyncTransparencies[v] = nil
+                else
+                    v.Transparency = 0
+                end
+                v.CanCollide = true
+                if v:FindFirstChild("ForceField") then v.ForceField:Destroy() end
+            elseif v:IsA("Decal") then
+                v.Transparency = 0
+            elseif v:IsA("Highlight") then
+                v:Destroy()
+            end
+        end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.CameraOffset = Vector3.new(0, 0, 0)
+            hum.PlatformStand = false
+        end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            if raknetDesyncOriginalCF then
+                root.CFrame = raknetDesyncOriginalCF
+                raknetDesyncOriginalCF = nil
+            end
+            root.Velocity = Vector3.zero
+            root.RotVelocity = Vector3.zero
+        end
+        local animate = char:FindFirstChild("Animate")
+        if animate then
+            animate.Disabled = true
+            task.wait(0.05)
+            animate.Disabled = false
+        end
+        for _, v in pairs(char:GetDescendants()) do
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") then
+                v.Enabled = false
+                task.wait(0.1)
+                v:Destroy()
+            end
+        end
+    end
+
+    raknetDesyncChar = nil
+    raknetDesyncRoot = nil
+    raknetDesyncHumanoid = nil
+    raknetDesyncOriginalCF = nil
+end
+
 AbuseTab:CreateToggle({
     Title = "Raknet Desync",
     Default = false,
     Callback = function(Value)
         raknetDesyncActive = Value
         if Value then
-            local char = player.Character or player.CharacterAdded:Wait()
+            local char = game.Players.LocalPlayer.Character or game.Players.LocalPlayer.CharacterAdded:Wait()
             local rootPart = char:WaitForChild("HumanoidRootPart")
             local humanoid = char:WaitForChild("Humanoid")
+            raknetDesyncChar = char
+            raknetDesyncRoot = rootPart
+            raknetDesyncHumanoid = humanoid
             raknetDesyncOriginalCF = rootPart.CFrame
+
             for _, v in pairs(char:GetDescendants()) do
                 if v:IsA("BasePart") then saveOriginalProperties(v) end
             end
+
             char.Archivable = true
             raknetDesyncClone = char:Clone()
             raknetDesyncClone.Name = "ServerClone"
             raknetDesyncClone.Parent = workspace
+
             for _, v in pairs(raknetDesyncClone:GetDescendants()) do
                 if v:IsA("Highlight") then v:Destroy() end
             end
+
             for _, v in pairs(raknetDesyncClone:GetDescendants()) do
                 if v:IsA("BasePart") then
                     v.Anchored = true
@@ -12069,6 +12120,7 @@ AbuseTab:CreateToggle({
                     v:Destroy()
                 end
             end
+
             for _, v in pairs(char:GetDescendants()) do
                 if v:IsA("BasePart") then
                     v.Transparency = 0.2
@@ -12080,8 +12132,12 @@ AbuseTab:CreateToggle({
                     v:Destroy()
                 end
             end
+
             raknetDesyncConn = RunService.Heartbeat:Connect(function()
-                if not raknetDesyncActive then stopRaknetDesync() return end
+                if not raknetDesyncActive then
+                    stopRaknetDesync()
+                    return
+                end
                 if not char or not char.Parent or not rootPart or not rootPart.Parent then
                     if raknetDesyncClone then raknetDesyncClone:Destroy() end
                     if raknetDesyncConn then raknetDesyncConn:Disconnect() end
@@ -12096,6 +12152,7 @@ AbuseTab:CreateToggle({
                 rootPart.CFrame = oldCF
                 humanoid.CameraOffset = oldOffset
             end)
+
             if raknetDesyncDiedConn then raknetDesyncDiedConn:Disconnect() end
             raknetDesyncDiedConn = humanoid.Died:Connect(function()
                 if raknetDesyncClone then raknetDesyncClone:Destroy() end
@@ -12107,117 +12164,6 @@ AbuseTab:CreateToggle({
         end
     end,
 })
--- =============================================
--- BYPASS SUPER FLING
--- =============================================
-pcall(function()
-    local bypassSuperFlingActive = false
-    local bypassSuperFlingConn = nil
-    local bypassSuperFlingCharConn = nil
-    local bypassSuperFlingTarget = nil
-    local bypassSuperFlingOriginalCFrame = nil
-    local bypassSuperFlingOffset = Vector3.new(0, -3, 0)
-    local bypassSuperFlingBvTable = {}
-
-    local function resetCharacter()
-        local char = LocalPlayer.Character
-        local humanoid = char and char:FindFirstChildWhichIsA("Humanoid")
-        local success = false
-        pcall(function()
-            if replicatesignal then replicatesignal(LocalPlayer.Kill); success = true end
-        end)
-        if not success and humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Dead); humanoid.Health = 0 end
-    end
-
-    local function stopBypassSuperFling()
-        bypassSuperFlingActive = false
-        if bypassSuperFlingConn then bypassSuperFlingConn:Disconnect(); bypassSuperFlingConn = nil end
-        if bypassSuperFlingCharConn then bypassSuperFlingCharConn:Disconnect(); bypassSuperFlingCharConn = nil end
-        for _, bv in pairs(bypassSuperFlingBvTable) do pcall(function() bv:Destroy() end) end
-        bypassSuperFlingBvTable = {}
-        bypassSuperFlingTarget = nil
-        local char = LocalPlayer.Character
-        if char then
-            local root = char:FindFirstChild("HumanoidRootPart")
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if root then
-                if bypassSuperFlingOriginalCFrame then root.CFrame = bypassSuperFlingOriginalCFrame; bypassSuperFlingOriginalCFrame = nil end
-                root.Velocity = Vector3.zero
-                root.RotVelocity = Vector3.zero
-                detach(root)
-            end
-            if hum then hum.PlatformStand = false end
-        end
-    end
-
-    local function startBypassSuperFling(plr)
-        if bypassSuperFlingConn then bypassSuperFlingConn:Disconnect(); bypassSuperFlingConn = nil end
-        bypassSuperFlingTarget = plr
-        bypassSuperFlingActive = true
-        local function setupAttack()
-            local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-            local root = char:WaitForChild("HumanoidRootPart", 5)
-            local hum = char:WaitForChild("Humanoid", 5)
-            if not root or not hum then return end
-            local targetChar = plr.Character
-            if not targetChar then return end
-            local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-            if not targetRoot then return end
-            if not bypassSuperFlingOriginalCFrame then bypassSuperFlingOriginalCFrame = root.CFrame end
-            hum.PlatformStand = true
-            if not bypassSuperFlingBvTable[targetRoot] then
-                local bv = Instance.new("BodyVelocity")
-                bv.Name = "EpixVel"
-                bv.Velocity = Vector3.new(9e18, 9e18, 9e18)
-                bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-                bv.Parent = targetRoot
-                bypassSuperFlingBvTable[targetRoot] = bv
-            end
-            pcall(function()
-                targetRoot.Parent:FindFirstChildOfClass("Humanoid"):SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-            end)
-            local resetTimer = 1.5
-            bypassSuperFlingConn = RunService.Heartbeat:Connect(function(dt)
-                if not bypassSuperFlingActive then return end
-                local curChar = LocalPlayer.Character
-                if not curChar then return end
-                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
-                local curHum = curChar:FindFirstChildOfClass("Humanoid")
-                if not curRoot or not curHum or curHum.Health <= 0 then return end
-                local curTarget = bypassSuperFlingTarget
-                if not curTarget or not curTarget.Character then return end
-                local curTargetRoot = curTarget.Character:FindFirstChild("HumanoidRootPart")
-                if not curTargetRoot then return end
-                curRoot.CFrame = CFrame.new(curTargetRoot.Position + bypassSuperFlingOffset) * CFrame.Angles(-math.pi/2, 0, 0)
-                curRoot.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
-                curRoot.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
-                attach(curRoot, curTargetRoot)
-                resetTimer = resetTimer - dt
-                if resetTimer <= 0 then resetTimer = 1.5; resetCharacter() end
-            end)
-        end
-        setupAttack()
-        if not bypassSuperFlingCharConn then
-            bypassSuperFlingCharConn = LocalPlayer.CharacterAdded:Connect(function()
-                if bypassSuperFlingActive and bypassSuperFlingTarget then
-                    task.wait(0.2)
-                    setupAttack()
-                end
-            end)
-        end
-    end
-
-    AbuseTab:CreateToggle({
-        Title = "Bypass Super Fling",
-        Default = false,
-        Callback = function(Value)
-            if not Value then stopBypassSuperFling() return end
-            local t = GetAbuseTarget()
-            if not t then return end
-            startBypassSuperFling(t)
-        end,
-    })
-end)
 
 -- =============================================
 -- BYPASS FLING

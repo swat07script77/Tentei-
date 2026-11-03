@@ -12242,6 +12242,131 @@ pcall(function()
     })
 end)
 -- =============================================
+-- CAMERA BUG (Toggle) - Abuse
+-- =============================================
+local cameraBugActive = false
+local cameraBugConn = nil
+local cameraBugTarget = nil
+local cameraBugOriginalCF = nil
+local cameraBugOriginalPlatform = false
+local cameraBugCharConn = nil
+
+local function StopCameraBug()
+    cameraBugActive = false
+    if cameraBugConn then cameraBugConn:Disconnect(); cameraBugConn = nil end
+    if cameraBugCharConn then cameraBugCharConn:Disconnect(); cameraBugCharConn = nil end
+
+    local char = LocalPlayer.Character
+    if char then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum  = char:FindFirstChildOfClass("Humanoid")
+        if root then
+            if cameraBugOriginalCF then
+                root.CFrame = cameraBugOriginalCF
+                cameraBugOriginalCF = nil
+            end
+            root.Velocity    = Vector3.zero
+            root.RotVelocity = Vector3.zero
+            detach(root)
+        end
+        if hum then
+            hum.PlatformStand = cameraBugOriginalPlatform or false
+        end
+    end
+    cameraBugTarget = nil
+end
+
+local function StartCameraBug(targetPlayer)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum  = char:FindFirstChildOfClass("Humanoid")
+    if not root or not hum then return end
+    if not targetPlayer or not targetPlayer.Character then return end
+    local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not targetRoot then return end
+
+    cameraBugTarget = targetPlayer
+    cameraBugActive = true
+    cameraBugOriginalCF = root.CFrame
+    cameraBugOriginalPlatform = hum.PlatformStand
+    hum.PlatformStand = true
+
+    local offset   = Vector3.zero
+    local rotation = CFrame.Angles(0, 0, 0)
+
+    cameraBugConn = RunService.Heartbeat:Connect(function()
+        if not cameraBugActive then return end
+
+        local curChar = LocalPlayer.Character
+        if not curChar then
+            StopCameraBug()
+            return
+        end
+        local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+        local curHum  = curChar:FindFirstChildOfClass("Humanoid")
+        if not curRoot or not curHum or curHum.Health <= 0 then
+            StopCameraBug()
+            return
+        end
+
+        local t = cameraBugTarget
+        if not t or not t.Character then
+            StopCameraBug()
+            return
+        end
+        local tRoot = t.Character:FindFirstChild("HumanoidRootPart")
+        if not tRoot then
+            StopCameraBug()
+            return
+        end
+
+        curHum.PlatformStand = true
+
+        local targetCFrame   = tRoot.CFrame
+        local targetPosition = targetCFrame:PointToWorldSpace(offset)
+        local targetRotation = targetCFrame - targetCFrame.Position
+
+        curRoot.CFrame      = CFrame.new(targetPosition) * targetRotation * rotation
+        curRoot.Velocity    = Vector3.zero
+        curRoot.RotVelocity = Vector3.zero
+
+        attach(curRoot, tRoot)
+    end)
+
+    if cameraBugCharConn then cameraBugCharConn:Disconnect() end
+    cameraBugCharConn = LocalPlayer.CharacterAdded:Connect(function()
+        if cameraBugActive and cameraBugTarget then
+            task.wait(0.3)
+            StopCameraBug()
+            local t = GetAbuseTarget()
+            if t then StartCameraBug(t) end
+        end
+    end)
+end
+
+AbuseTab:CreateToggle({
+    Title = "Camera Bug",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            local t = GetAbuseTarget()
+            if not t then
+                Window:Notify({
+                    Title       = "Camera Bug",
+                    Description = "Select a player in the dropdown first.",
+                    Duration    = 2,
+                    Type        = "warning",
+                })
+                return
+            end
+            StartCameraBug(t)
+        else
+            StopCameraBug()
+        end
+    end,
+})
+-- =============================================
 -- GLITTER PLAY ALL LOOP
 -- =============================================
 pcall(function()
@@ -13624,121 +13749,5 @@ NPCTab:CreateToggle({
                 end
             end
         end)
-    end,
-})
--- =============================================
--- CAMERA BUG (Toggle) - Abuse
--- =============================================
-local cameraBugActive = false
-local cameraBugConn = nil
-local cameraBugTarget = nil
-local cameraBugOriginalCF = nil
-local cameraBugOriginalPlatform = false
-local cameraBugCharConn = nil
-
-local function StopCameraBug()
-    cameraBugActive = false
-    if cameraBugConn then cameraBugConn:Disconnect(); cameraBugConn = nil end
-    if cameraBugCharConn then cameraBugCharConn:Disconnect(); cameraBugCharConn = nil end
-
-    local char = LocalPlayer.Character
-    if char then
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local hum  = char:FindFirstChildOfClass("Humanoid")
-        if root then
-            if cameraBugOriginalCF then
-                root.CFrame = cameraBugOriginalCF
-                cameraBugOriginalCF = nil
-            end
-            root.Velocity    = Vector3.zero
-            root.RotVelocity = Vector3.zero
-            detach(root)
-        end
-        if hum then
-            hum.PlatformStand = cameraBugOriginalPlatform or false
-        end
-    end
-    cameraBugTarget = nil
-end
-
-local function StartCameraBug(targetPlayer)
-    local char = LocalPlayer.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local hum  = char:FindFirstChildOfClass("Humanoid")
-    if not root or not hum then return end
-    if not targetPlayer or not targetPlayer.Character then return end
-    local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not targetRoot then return end
-
-    cameraBugTarget = targetPlayer
-    cameraBugActive = true
-    cameraBugOriginalCF = root.CFrame
-    cameraBugOriginalPlatform = hum.PlatformStand
-    hum.PlatformStand = true
-
-    local offset   = Vector3.zero
-    local rotation = CFrame.Angles(0, 0, 0)
-
-    cameraBugConn = RunService.Heartbeat:Connect(function()
-        if not cameraBugActive then return end
-
-        local curChar = LocalPlayer.Character
-        if not curChar then StopCameraBug() return end
-        local curRoot = curChar:FindFirstChild("HumanoidRootPart")
-        local curHum  = curChar:FindFirstChildOfClass("Humanoid")
-        if not curRoot or not curHum or curHum.Health <= 0 then
-            StopCameraBug()
-            return
-        end
-
-        local t = cameraBugTarget
-        if not t or not t.Character then StopCameraBug() return end
-        local tRoot = t.Character:FindFirstChild("HumanoidRootPart")
-        if not tRoot then StopCameraBug() return end
-
-        curHum.PlatformStand = true
-
-        local targetCFrame   = tRoot.CFrame
-        local targetPosition = targetCFrame:PointToWorldSpace(offset)
-
-        curRoot.CFrame      = CFrame.new(targetPosition) * targetCFrame.Rotation * rotation
-        curRoot.Velocity    = Vector3.zero
-        curRoot.RotVelocity = Vector3.zero
-
-        attach(curRoot, tRoot)
-    end)
-
-    if cameraBugCharConn then cameraBugCharConn:Disconnect() end
-    cameraBugCharConn = LocalPlayer.CharacterAdded:Connect(function()
-        if cameraBugActive and cameraBugTarget then
-            task.wait(0.3)
-            StopCameraBug()
-            if GetAbuseTarget() then
-                StartCameraBug(GetAbuseTarget())
-            end
-        end
-    end)
-end
-
-AbuseTab:CreateToggle({
-    Title = "Camera Bug",
-    Default = false,
-    Callback = function(Value)
-        if Value then
-            local t = GetAbuseTarget()
-            if not t then
-                Window:Notify({
-                    Title       = "Camera Bug",
-                    Description = "Select a player in the dropdown first.",
-                    Duration    = 2,
-                    Type        = "warning",
-                })
-                return
-            end
-            StartCameraBug(t)
-        else
-            StopCameraBug()
-        end
     end,
 })

@@ -214,7 +214,8 @@ MainTab:CreateButton({
     Callback = function()
         if killRunning then return end
 
-        local t = GetPlayTarget()
+        -- ✅ USA O DROPDOWN DA MAIN, NÃO O DA PLAY
+        local t = GetTarget and GetTarget() or nil
         if not t or not t.Character then
             Window:Notify({
                 Title       = "Kill",
@@ -231,7 +232,8 @@ MainTab:CreateButton({
         local root = char:FindFirstChild("HumanoidRootPart")
         local hum  = char:FindFirstChildOfClass("Humanoid")
         local targetRoot = t.Character:FindFirstChild("HumanoidRootPart")
-        if not root or not hum or not targetRoot then
+        local targetHead = t.Character:FindFirstChild("Head")
+        if not root or not hum or not targetRoot or not targetHead then
             Window:Notify({
                 Title       = "Kill",
                 Description = "Character or target incomplete.",
@@ -253,6 +255,7 @@ MainTab:CreateButton({
         local conn
 
         conn = RunService.Heartbeat:Connect(function()
+            -- ✅ TEMPO ESGOTADO
             if tick() - startTime >= KILL_DURATION then
                 conn:Disconnect()
                 if root and root.Parent then
@@ -263,7 +266,7 @@ MainTab:CreateButton({
                 if hum and hum.Parent then
                     hum.PlatformStand = originalPlatform or false
                 end
-                detach(root)
+                if detach then detach(root) end
                 killRunning = false
                 Window:Notify({
                     Title       = "Kill",
@@ -274,18 +277,35 @@ MainTab:CreateButton({
                 return
             end
 
+            -- ✅ PERSONAGEM LOCAL
             local curChar = LocalPlayer.Character
-            if not curChar then conn:Disconnect(); killRunning = false; return end
-
+            if not curChar then
+                conn:Disconnect()
+                killRunning = false
+                return
+            end
             local curRoot = curChar:FindFirstChild("HumanoidRootPart")
             local curHum  = curChar:FindFirstChildOfClass("Humanoid")
-            if not curRoot or not curHum then conn:Disconnect(); killRunning = false; return end
+            if not curRoot or not curHum or curHum.Health <= 0 then
+                conn:Disconnect()
+                killRunning = false
+                return
+            end
 
+            -- ✅ ALVO AINDA VIVO
             local curTarget = t.Character
-            if not curTarget then return end
+            if not curTarget then
+                conn:Disconnect()
+                killRunning = false
+                return
+            end
             local tRoot = curTarget:FindFirstChild("HumanoidRootPart")
             local tHead = curTarget:FindFirstChild("Head")
-            if not tRoot or not tHead then return end
+            if not tRoot or not tHead then
+                conn:Disconnect()
+                killRunning = false
+                return
+            end
 
             curHum.PlatformStand = true
 
@@ -301,7 +321,7 @@ MainTab:CreateButton({
             tRoot.Velocity = UP_FORCE
             tRoot.RotVelocity = Vector3.zero
 
-            attach(curRoot, tRoot)
+            if attach then attach(curRoot, tRoot) end
         end)
     end,
 })

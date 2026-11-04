@@ -242,7 +242,7 @@ MainTab:CreateButton({
             return
         end
 
-        killRunning = false
+        killRunning = true
 
         local KILL_DURATION = 1.5
         local originalCFrame = root.CFrame
@@ -329,7 +329,7 @@ MainTab:CreateButton({
                 return
             end
 
-            curHum.PlatformStand = false
+            curHum.PlatformStand = true
 
             local headPos = tHead.Position
             local bellyPos = tRoot.Position

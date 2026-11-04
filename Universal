@@ -204,7 +204,7 @@ MainTab:CreateButton({
         end)
     end,
 })
--- ============================================================
+--- ============================================================
 -- KILL (Button) - Main
 -- ============================================================
 local killRunning = false
@@ -245,7 +245,7 @@ MainTab:CreateButton({
         killRunning = true
 
         local KILL_DURATION = 1.5
-        local SAVED_CFRAME  = root.CFrame   -- 🔑 salva de verdade
+        local originalCFrame = root.CFrame
         local originalPlatform = hum.PlatformStand
         hum.PlatformStand = true
 
@@ -254,23 +254,6 @@ MainTab:CreateButton({
         local startTime = tick()
         local conn
         local done = false
-
-        local function restorePosition()
-            -- Força o CFrame original por 8 frames seguidos
-            -- (o servidor do Roblox precisa de ~3-5 frames pra replicar)
-            task.spawn(function()
-                for i = 1, 8 do
-                    local curChar = LocalPlayer.Character
-                    if not curChar then return end
-                    local curRoot = curChar:FindFirstChild("HumanoidRootPart")
-                    if not curRoot or not curRoot.Parent then return end
-                    curRoot.CFrame      = SAVED_CFRAME
-                    curRoot.Velocity    = Vector3.zero
-                    curRoot.RotVelocity = Vector3.zero
-                    RunService.RenderStepped:Wait()
-                end
-            end)
-        end
 
         local function finishKill()
             if done then return end
@@ -282,28 +265,24 @@ MainTab:CreateButton({
                 conn = nil
             end
 
-            -- 🔑 1. detach PRIMEIRO (libera o PhysicsRepRootRef)
             pcall(function()
                 local curChar = LocalPlayer.Character
-                if curChar then
-                    local curRoot = curChar:FindFirstChild("HumanoidRootPart")
-                    if curRoot then detach(curRoot) end
+                if not curChar then return end
+
+                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+                local curHum  = curChar:FindFirstChildOfClass("Humanoid")
+
+                if curHum and curHum.Parent then
+                    curHum.PlatformStand = originalPlatform or false
+                end
+
+                if curRoot and curRoot.Parent then
+                    attach(curRoot, nil)
+                    curRoot.Velocity    = Vector3.zero
+                    curRoot.RotVelocity = Vector3.zero
+                    curRoot.CFrame      = originalCFrame
                 end
             end)
-
-            -- 🔑 2. Restaura PlatformStand
-            pcall(function()
-                local curChar = LocalPlayer.Character
-                if curChar then
-                    local curHum = curChar:FindFirstChildOfClass("Humanoid")
-                    if curHum then
-                        curHum.PlatformStand = originalPlatform or false
-                    end
-                end
-            end)
-
-            -- 🔑 3. Força o CFrame original por 8 frames
-            restorePosition()
         end
 
         conn = RunService.Heartbeat:Connect(function()

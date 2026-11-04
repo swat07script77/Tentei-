@@ -2427,7 +2427,173 @@ pcall(function()
     createToggleFunction("Backpack", Vector3.new(0, 0, 1), CFrame.Angles(0, math.rad(180), 0), true, false)
     createToggleFunction("Anti Side", Vector3.new(1.7, 0.7, 0), CFrame.Angles(0, 0, 0), false, true)
     createToggleFunction("Smash Target", Vector3.new(0, 2, 0), CFrame.Angles(-math.pi/2, 0, 0), false, true)
+-- ============================================================
+-- BANG NORMAL
+-- ============================================================
+local bangSpeed = 3
+local bangActive = false
+local bangAnim = nil
+local bangTrack = nil
+local bangConn = nil
+local bangDiedConn = nil
 
+local function stopBang()
+    bangActive = false
+    if bangConn then bangConn:Disconnect(); bangConn = nil end
+    if bangDiedConn then bangDiedConn:Disconnect(); bangDiedConn = nil end
+    if bangTrack then pcall(function() bangTrack:Stop() end); bangTrack = nil end
+    if bangAnim then bangAnim:Destroy(); bangAnim = nil end
+end
+
+local function startBang()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    local isR15 = hum.RigType == Enum.HumanoidRigType.R15
+    bangAnim = Instance.new("Animation")
+    bangAnim.AnimationId = not isR15 and "rbxassetid://148840371" or "rbxassetid://5918726674"
+    bangTrack = hum:LoadAnimation(bangAnim)
+    bangTrack:Play(0.1, 1, bangSpeed)
+    bangDiedConn = hum.Died:Connect(function() stopBang() end)
+    bangConn = RunService.Heartbeat:Connect(function()
+        if not bangActive then return end
+        if bangTrack then
+            if not bangTrack.IsPlaying then
+                bangTrack:Play(0.1, 1, bangSpeed)
+            end
+            if bangTrack.Speed ~= bangSpeed then
+                pcall(function() bangTrack:AdjustSpeed(bangSpeed) end)
+            end
+        end
+    end)
+end
+
+-- ============================================================
+-- BANG TARGET (usa GetPlayTarget)
+-- ============================================================
+local bangTargetActive = false
+local bangTargetConn = nil
+local bangTargetAnim = nil
+local bangTargetTrack = nil
+local bangTargetPlayer = nil
+local bangTargetDiedConn = nil
+local bangTargetOriginalPos = nil
+local bangTargetLocalRoot = nil
+
+local function stopBangTarget()
+    bangTargetActive = false
+    if bangTargetConn then bangTargetConn:Disconnect(); bangTargetConn = nil end
+    if bangTargetDiedConn then bangTargetDiedConn:Disconnect(); bangTargetDiedConn = nil end
+    if bangTargetTrack then pcall(function() bangTargetTrack:Stop() end); bangTargetTrack = nil end
+    if bangTargetAnim then bangTargetAnim:Destroy(); bangTargetAnim = nil end
+    if bangTargetLocalRoot and bangTargetOriginalPos then
+        bangTargetLocalRoot.CFrame = bangTargetOriginalPos
+        bangTargetLocalRoot.Velocity = Vector3.zero
+        bangTargetLocalRoot.RotVelocity = Vector3.zero
+        detach(bangTargetLocalRoot)
+    end
+    bangTargetPlayer = nil
+    bangTargetOriginalPos = nil
+    bangTargetLocalRoot = nil
+end
+
+local function startBangTarget(targetPlayer)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    bangTargetLocalRoot = char:FindFirstChild("HumanoidRootPart")
+    if not bangTargetLocalRoot then return end
+    bangTargetPlayer = targetPlayer
+    bangTargetOriginalPos = bangTargetLocalRoot.CFrame
+    local isR15 = hum.RigType == Enum.HumanoidRigType.R15
+    bangTargetAnim = Instance.new("Animation")
+    bangTargetAnim.AnimationId = not isR15 and "rbxassetid://148840371" or "rbxassetid://5918726674"
+    bangTargetTrack = hum:LoadAnimation(bangTargetAnim)
+    bangTargetTrack:Play(0.1, 1, bangSpeed)
+    bangTargetDiedConn = hum.Died:Connect(function() stopBangTarget() end)
+    bangTargetConn = RunService.Heartbeat:Connect(function()
+        if not bangTargetActive then return end
+        if not bangTargetPlayer then return end
+        local targetChar = bangTargetPlayer.Character
+        if not targetChar then stopBangTarget() return end
+        local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+        if not targetRoot then return end
+        local localChar = LocalPlayer.Character
+        if not localChar then return end
+        local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+        if not localRoot then return end
+        local targetCF = targetRoot.CFrame
+        local backOffset = targetCF.LookVector * -1.1
+        local targetPos = targetRoot.Position + backOffset
+        localRoot.CFrame = CFrame.new(targetPos, targetRoot.Position)
+        localRoot.Velocity = Vector3.zero
+        localRoot.RotVelocity = Vector3.zero
+        attach(localRoot, targetRoot)
+        if bangTargetTrack then
+            if not bangTargetTrack.IsPlaying then
+                bangTargetTrack:Play(0.1, 1, bangSpeed)
+            end
+            if bangTargetTrack.Speed ~= bangSpeed then
+                pcall(function() bangTargetTrack:AdjustSpeed(bangSpeed) end)
+            end
+        end
+    end)
+end
+
+-- ============================================================
+-- ELEMENTOS (por último)
+-- ============================================================
+PlayTab:CreateToggle({
+    Title = "Bang",
+    Default = false,
+    Callback = function(value)
+        bangActive = value
+        if value then
+            startBang()
+        else
+            stopBang()
+        end
+    end,
+})
+
+PlayTab:CreateToggle({
+    Title = "Bang Target",
+    Default = false,
+    Callback = function(value)
+        bangTargetActive = value
+        if value then
+            local t = GetPlayTarget()
+            if not t then
+                bangTargetActive = false
+                Window:Notify({
+                    Title       = "Bang Target",
+                    Description = "Select a player in the dropdown first.",
+                    Duration    = 2,
+                    Type        = "warning",
+                })
+                return
+            end
+            startBangTarget(t)
+        else
+            stopBangTarget()
+        end
+    end,
+})
+
+PlayTab:CreateSlider({
+    Title = "Bang Speed", Min = 1, Max = 1000, Default = 3,
+    Callback = function(value)
+        bangSpeed = value
+        if bangActive and bangTrack then
+            pcall(function() bangTrack:AdjustSpeed(value) end)
+        end
+        if bangTargetActive and bangTargetTrack then
+            pcall(function() bangTargetTrack:AdjustSpeed(value) end)
+        end
+    end,
+})
     local stairActive = false
     PlayTab:CreateToggle({
         Title = "Stair",
@@ -6493,169 +6659,7 @@ AnimTab:CreateButton({
         end)
     end,
 })
---- ============================================================
--- BANG NORMAL
--- ============================================================
-local bangSpeed = 3
-local bangActive = false
-local bangAnim = nil
-local bangTrack = nil
-local bangConn = nil
-local bangDiedConn = nil
-
-local function stopBang()
-    bangActive = false
-    if bangConn then bangConn:Disconnect(); bangConn = nil end
-    if bangDiedConn then bangDiedConn:Disconnect(); bangDiedConn = nil end
-    if bangTrack then pcall(function() bangTrack:Stop() end); bangTrack = nil end
-    if bangAnim then bangAnim:Destroy(); bangAnim = nil end
-end
-
-local function startBang()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    local isR15 = hum.RigType == Enum.HumanoidRigType.R15
-    bangAnim = Instance.new("Animation")
-    bangAnim.AnimationId = not isR15 and "rbxassetid://148840371" or "rbxassetid://5918726674"
-    bangTrack = hum:LoadAnimation(bangAnim)
-    bangTrack:Play(0.1, 1, bangSpeed)
-    bangDiedConn = hum.Died:Connect(function() stopBang() end)
-    bangConn = RunService.Heartbeat:Connect(function()
-        if not bangActive then return end
-        if bangTrack then
-            if not bangTrack.IsPlaying then
-                bangTrack:Play(0.1, 1, bangSpeed)
-            end
-            -- ✅ Reaplica a velocidade a cada frame
-            if bangTrack.Speed ~= bangSpeed then
-                pcall(function() bangTrack:AdjustSpeed(bangSpeed) end)
-            end
-        end
-    end)
-end
-
-ExtraTab:CreateToggle({
-    Title = "Bang",
-    Default = false,
-    Callback = function(value)
-        bangActive = value
-        if value then
-            startBang()
-        else
-            stopBang()
-        end
-    end,
-})
-
--- ============================================================
--- BANG TARGET (usa dropdown)
--- ============================================================
-local bangTargetActive = false
-local bangTargetConn = nil
-local bangTargetAnim = nil
-local bangTargetTrack = nil
-local bangTargetPlayer = nil
-local bangTargetDiedConn = nil
-local bangTargetOriginalPos = nil
-local bangTargetLocalRoot = nil
-
-local function stopBangTarget()
-    bangTargetActive = false
-    if bangTargetConn then bangTargetConn:Disconnect(); bangTargetConn = nil end
-    if bangTargetDiedConn then bangTargetDiedConn:Disconnect(); bangTargetDiedConn = nil end
-    if bangTargetTrack then pcall(function() bangTargetTrack:Stop() end); bangTargetTrack = nil end
-    if bangTargetAnim then bangTargetAnim:Destroy(); bangTargetAnim = nil end
-    if bangTargetLocalRoot and bangTargetOriginalPos then
-        bangTargetLocalRoot.CFrame = bangTargetOriginalPos
-        bangTargetLocalRoot.Velocity = Vector3.zero
-        bangTargetLocalRoot.RotVelocity = Vector3.zero
-        detach(bangTargetLocalRoot)
-    end
-    bangTargetPlayer = nil
-    bangTargetOriginalPos = nil
-    bangTargetLocalRoot = nil
-end
-
-local function startBangTarget(targetPlayer)
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    bangTargetLocalRoot = char:FindFirstChild("HumanoidRootPart")
-    if not bangTargetLocalRoot then return end
-    bangTargetPlayer = targetPlayer
-    bangTargetOriginalPos = bangTargetLocalRoot.CFrame
-    local isR15 = hum.RigType == Enum.HumanoidRigType.R15
-    bangTargetAnim = Instance.new("Animation")
-    bangTargetAnim.AnimationId = not isR15 and "rbxassetid://148840371" or "rbxassetid://5918726674"
-    bangTargetTrack = hum:LoadAnimation(bangTargetAnim)
-    bangTargetTrack:Play(0.1, 1, bangSpeed)
-    bangTargetDiedConn = hum.Died:Connect(function() stopBangTarget() end)
-    bangTargetConn = RunService.Heartbeat:Connect(function()
-        if not bangTargetActive then return end
-        if not bangTargetPlayer then return end
-        local targetChar = bangTargetPlayer.Character
-        if not targetChar then stopBangTarget() return end
-        local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-        if not targetRoot then return end
-        local localChar = LocalPlayer.Character
-        if not localChar then return end
-        local localRoot = localChar:FindFirstChild("HumanoidRootPart")
-        if not localRoot then return end
-        local targetCF = targetRoot.CFrame
-        local backOffset = targetCF.LookVector * -1.1
-        local targetPos = targetRoot.Position + backOffset
-        localRoot.CFrame = CFrame.new(targetPos, targetRoot.Position)
-        localRoot.Velocity = Vector3.zero
-        localRoot.RotVelocity = Vector3.zero
-        attach(localRoot, targetRoot)
-        if bangTargetTrack then
-            if not bangTargetTrack.IsPlaying then
-                bangTargetTrack:Play(0.1, 1, bangSpeed)
-            end
-            -- ✅ Reaplica a velocidade a cada frame
-            if bangTargetTrack.Speed ~= bangSpeed then
-                pcall(function() bangTargetTrack:AdjustSpeed(bangSpeed) end)
-            end
-        end
-    end)
-end
-
-ExtraTab:CreateToggle({
-    Title = "Bang Target",
-    Default = false,
-    Callback = function(value)
-        bangTargetActive = value
-        if value then
-            local t = GetExtraTarget()
-            if not t then
-                bangTargetActive = false
-                return
-            end
-            startBangTarget(t)
-        else
-            stopBangTarget()
-        end
-    end,
-})
-
--- ============================================================
--- BANG SPEED (slider)
--- ============================================================
-ExtraTab:CreateSlider({
-    Title = "Bang Speed", Min = 1, Max = 1000, Default = 3,
-    Callback = function(value)
-        bangSpeed = value
-        if bangActive and bangTrack then
-            pcall(function() bangTrack:AdjustSpeed(value) end)
-        end
-        if bangTargetActive and bangTargetTrack then
-            pcall(function() bangTargetTrack:AdjustSpeed(value) end)
-        end
-    end,
-})
+--
 
 -- ============================================================
 -- JERK

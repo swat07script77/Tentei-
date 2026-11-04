@@ -208,6 +208,12 @@ MainTab:CreateButton({
 -- KILL (Button) - Main
 -- ============================================================
 local killRunning = false
+local killConn = nil
+
+local function stopKill()
+    if killConn then killConn:Disconnect(); killConn = nil end
+    killRunning = false
+end
 
 MainTab:CreateButton({
     Title = "Kill",
@@ -230,10 +236,12 @@ MainTab:CreateButton({
 
         local root = char:FindFirstChild("HumanoidRootPart")
         local hum  = char:FindFirstChildOfClass("Humanoid")
-        if not root or not hum then
+        local targetRoot = t.Character:FindFirstChild("HumanoidRootPart")
+        local targetHead = t.Character:FindFirstChild("Head")
+        if not root or not hum or not targetRoot or not targetHead then
             Window:Notify({
                 Title       = "Kill",
-                Description = "Character incomplete.",
+                Description = "Character or target incomplete.",
                 Duration    = 2,
                 Type        = "warning",
             })
@@ -241,72 +249,80 @@ MainTab:CreateButton({
         end
 
         killRunning = true
-
         local KILL_DURATION = 1.5
         local originalCFrame = root.CFrame
         local originalPlatform = hum.PlatformStand
+        hum.PlatformStand = true
+
         local UP_FORCE = Vector3.new(0, 9e9, 0)
         local bobbingSpeed = 20
         local startTime = tick()
-        local conn
+        local finished = false
 
-        hum.PlatformStand = true
+        local function finish()
+            if finished then return end
+            finished = true
 
-        -- ✅ Salva o estado inicial
-        local function cleanup()
-            if conn then conn:Disconnect(); conn = nil end
+            if killConn then killConn:Disconnect(); killConn = nil end
 
-            local curChar = LocalPlayer.Character
-            if curChar then
-                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
-                local curHum  = curChar:FindFirstChildOfClass("Humanoid")
-                if curRoot then
-                    pcall(function() curRoot.CFrame = originalCFrame end)
-                    pcall(function()
-                        curRoot.Velocity    = Vector3.zero
-                        curRoot.RotVelocity = Vector3.zero
-                    end)
-                    detach(curRoot)
+            local c = LocalPlayer.Character
+            if c then
+                local r = c:FindFirstChild("HumanoidRootPart")
+                local h = c:FindFirstChildOfClass("Humanoid")
+                if r and r.Parent then
+                    r.CFrame = originalCFrame
+                    r.Velocity = Vector3.zero
+                    r.RotVelocity = Vector3.zero
                 end
-                if curHum then
-                    pcall(function() curHum.PlatformStand = originalPlatform or false end)
+                if h and h.Parent then
+                    h.PlatformStand = originalPlatform or false
                 end
+                if r then detach(r) end
             end
 
             killRunning = false
+
+            Window:Notify({
+                Title       = "Kill",
+                Description = "Returned to original position.",
+                Duration    = 1.5,
+                Type        = "success",
+            })
         end
 
-        conn = RunService.Heartbeat:Connect(function()
-            -- ✅ Tempo esgotado
+        killConn = RunService.Heartbeat:Connect(function()
+            -- Tempo esgotado
             if tick() - startTime >= KILL_DURATION then
-                cleanup()
-                Window:Notify({
-                    Title       = "Kill",
-                    Description = "Returned to original position.",
-                    Duration    = 1.5,
-                    Type        = "success",
-                })
+                finish()
                 return
             end
 
-            -- ✅ Personagem local
+            -- Personagem local sumiu/morreu
             local curChar = LocalPlayer.Character
-            if not curChar then cleanup(); return end
+            if not curChar then
+                finish()
+                return
+            end
 
             local curRoot = curChar:FindFirstChild("HumanoidRootPart")
             local curHum  = curChar:FindFirstChildOfClass("Humanoid")
             if not curRoot or not curHum or curHum.Health <= 0 then
-                cleanup()
+                finish()
                 return
             end
 
-            -- ✅ Alvo
+            -- Alvo sumiu/morreu
             local curTarget = t.Character
-            if not curTarget then cleanup(); return end
-
+            if not curTarget then
+                finish()
+                return
+            end
             local tRoot = curTarget:FindFirstChild("HumanoidRootPart")
             local tHead = curTarget:FindFirstChild("Head")
-            if not tRoot or not tHead then cleanup(); return end
+            if not tRoot or not tHead then
+                finish()
+                return
+            end
 
             curHum.PlatformStand = true
 

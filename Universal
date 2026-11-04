@@ -208,12 +208,6 @@ MainTab:CreateButton({
 -- KILL (Button) - Main
 -- ============================================================
 local killRunning = false
-local killConn = nil
-
-local function stopKill()
-    if killConn then killConn:Disconnect(); killConn = nil end
-    killRunning = false
-end
 
 MainTab:CreateButton({
     Title = "Kill",
@@ -249,6 +243,7 @@ MainTab:CreateButton({
         end
 
         killRunning = true
+
         local KILL_DURATION = 1.5
         local originalCFrame = root.CFrame
         local originalPlatform = hum.PlatformStand
@@ -257,70 +252,63 @@ MainTab:CreateButton({
         local UP_FORCE = Vector3.new(0, 9e9, 0)
         local bobbingSpeed = 20
         local startTime = tick()
-        local finished = false
+        local conn
 
-        local function finish()
-            if finished then return end
-            finished = true
-
-            if killConn then killConn:Disconnect(); killConn = nil end
-
-            local c = LocalPlayer.Character
-            if c then
-                local r = c:FindFirstChild("HumanoidRootPart")
-                local h = c:FindFirstChildOfClass("Humanoid")
-                if r and r.Parent then
-                    r.CFrame = originalCFrame
-                    r.Velocity = Vector3.zero
-                    r.RotVelocity = Vector3.zero
+        -- ✅ Função de cleanup (chamada em TODOS os caminhos)
+        local function finishKill()
+            if conn then conn:Disconnect(); conn = nil end
+            local curChar = LocalPlayer.Character
+            if curChar then
+                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+                local curHum  = curChar:FindFirstChildOfClass("Humanoid")
+                if curRoot and curRoot.Parent then
+                    curRoot.CFrame = originalCFrame
+                    curRoot.Velocity = Vector3.zero
+                    curRoot.RotVelocity = Vector3.zero
                 end
-                if h and h.Parent then
-                    h.PlatformStand = originalPlatform or false
+                if curHum and curHum.Parent then
+                    curHum.PlatformStand = originalPlatform or false
                 end
-                if r then detach(r) end
+                if curRoot then detach(curRoot) end
             end
-
             killRunning = false
-
-            Window:Notify({
-                Title       = "Kill",
-                Description = "Returned to original position.",
-                Duration    = 1.5,
-                Type        = "success",
-            })
         end
 
-        killConn = RunService.Heartbeat:Connect(function()
-            -- Tempo esgotado
+        conn = RunService.Heartbeat:Connect(function()
+            -- ✅ TEMPO ESGOTADO
             if tick() - startTime >= KILL_DURATION then
-                finish()
+                finishKill()
+                Window:Notify({
+                    Title       = "Kill",
+                    Description = "Returned to original position.",
+                    Duration    = 1.5,
+                    Type        = "success",
+                })
                 return
             end
 
-            -- Personagem local sumiu/morreu
             local curChar = LocalPlayer.Character
             if not curChar then
-                finish()
+                finishKill()
                 return
             end
 
             local curRoot = curChar:FindFirstChild("HumanoidRootPart")
             local curHum  = curChar:FindFirstChildOfClass("Humanoid")
             if not curRoot or not curHum or curHum.Health <= 0 then
-                finish()
+                finishKill()
                 return
             end
 
-            -- Alvo sumiu/morreu
             local curTarget = t.Character
             if not curTarget then
-                finish()
+                finishKill()
                 return
             end
             local tRoot = curTarget:FindFirstChild("HumanoidRootPart")
             local tHead = curTarget:FindFirstChild("Head")
             if not tRoot or not tHead then
-                finish()
+                finishKill()
                 return
             end
 

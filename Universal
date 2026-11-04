@@ -230,12 +230,10 @@ MainTab:CreateButton({
 
         local root = char:FindFirstChild("HumanoidRootPart")
         local hum  = char:FindFirstChildOfClass("Humanoid")
-        local targetRoot = t.Character:FindFirstChild("HumanoidRootPart")
-        local targetHead = t.Character:FindFirstChild("Head")
-        if not root or not hum or not targetRoot or not targetHead then
+        if not root or not hum then
             Window:Notify({
                 Title       = "Kill",
-                Description = "Character or target incomplete.",
+                Description = "Character incomplete.",
                 Duration    = 2,
                 Type        = "warning",
             })
@@ -243,29 +241,45 @@ MainTab:CreateButton({
         end
 
         killRunning = true
+
         local KILL_DURATION = 1.5
         local originalCFrame = root.CFrame
         local originalPlatform = hum.PlatformStand
-        hum.PlatformStand = true
-
         local UP_FORCE = Vector3.new(0, 9e9, 0)
         local bobbingSpeed = 20
         local startTime = tick()
         local conn
 
+        hum.PlatformStand = true
+
+        -- ✅ Salva o estado inicial
+        local function cleanup()
+            if conn then conn:Disconnect(); conn = nil end
+
+            local curChar = LocalPlayer.Character
+            if curChar then
+                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+                local curHum  = curChar:FindFirstChildOfClass("Humanoid")
+                if curRoot then
+                    pcall(function() curRoot.CFrame = originalCFrame end)
+                    pcall(function()
+                        curRoot.Velocity    = Vector3.zero
+                        curRoot.RotVelocity = Vector3.zero
+                    end)
+                    detach(curRoot)
+                end
+                if curHum then
+                    pcall(function() curHum.PlatformStand = originalPlatform or false end)
+                end
+            end
+
+            killRunning = false
+        end
+
         conn = RunService.Heartbeat:Connect(function()
+            -- ✅ Tempo esgotado
             if tick() - startTime >= KILL_DURATION then
-                conn:Disconnect()
-                if root and root.Parent then
-                    root.CFrame = originalCFrame
-                    root.Velocity = Vector3.zero
-                    root.RotVelocity = Vector3.zero
-                end
-                if hum and hum.Parent then
-                    hum.PlatformStand = originalPlatform or false
-                end
-                detach(root)
-                killRunning = false
+                cleanup()
                 Window:Notify({
                     Title       = "Kill",
                     Description = "Returned to original position.",
@@ -275,26 +289,24 @@ MainTab:CreateButton({
                 return
             end
 
+            -- ✅ Personagem local
             local curChar = LocalPlayer.Character
-            if not curChar then
-                conn:Disconnect()
-                killRunning = false
-                return
-            end
+            if not curChar then cleanup(); return end
 
             local curRoot = curChar:FindFirstChild("HumanoidRootPart")
             local curHum  = curChar:FindFirstChildOfClass("Humanoid")
-            if not curRoot or not curHum then
-                conn:Disconnect()
-                killRunning = false
+            if not curRoot or not curHum or curHum.Health <= 0 then
+                cleanup()
                 return
             end
 
+            -- ✅ Alvo
             local curTarget = t.Character
-            if not curTarget then return end
+            if not curTarget then cleanup(); return end
+
             local tRoot = curTarget:FindFirstChild("HumanoidRootPart")
             local tHead = curTarget:FindFirstChild("Head")
-            if not tRoot or not tHead then return end
+            if not tRoot or not tHead then cleanup(); return end
 
             curHum.PlatformStand = true
 

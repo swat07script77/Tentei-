@@ -214,7 +214,7 @@ MainTab:CreateButton({
     Callback = function()
         if killRunning then return end
 
-        local t = GetPlayTarget()
+        local t = GetTarget()
         if not t or not t.Character then
             Window:Notify({
                 Title       = "Kill",
@@ -231,7 +231,8 @@ MainTab:CreateButton({
         local root = char:FindFirstChild("HumanoidRootPart")
         local hum  = char:FindFirstChildOfClass("Humanoid")
         local targetRoot = t.Character:FindFirstChild("HumanoidRootPart")
-        if not root or not hum or not targetRoot then
+        local targetHead = t.Character:FindFirstChild("Head")
+        if not root or not hum or not targetRoot or not targetHead then
             Window:Notify({
                 Title       = "Kill",
                 Description = "Character or target incomplete.",
@@ -275,11 +276,19 @@ MainTab:CreateButton({
             end
 
             local curChar = LocalPlayer.Character
-            if not curChar then conn:Disconnect(); killRunning = false; return end
+            if not curChar then
+                conn:Disconnect()
+                killRunning = false
+                return
+            end
 
             local curRoot = curChar:FindFirstChild("HumanoidRootPart")
             local curHum  = curChar:FindFirstChildOfClass("Humanoid")
-            if not curRoot or not curHum then conn:Disconnect(); killRunning = false; return end
+            if not curRoot or not curHum then
+                conn:Disconnect()
+                killRunning = false
+                return
+            end
 
             local curTarget = t.Character
             if not curTarget then return end

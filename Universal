@@ -12245,128 +12245,377 @@ pcall(function()
         end,
     })
 end)
-AbuseTab:CreateToggle({
-    Title = "Camera Bug",
-    Default = false,
-    Callback = function(Value)
-        local cameraBugActive = false
-        local cameraBugConn = nil
-        local cameraBugTarget = nil
-        local cameraBugOriginalCF = nil
-        local cameraBugOriginalPlatform = false
-        local cameraBugCharConn = nil
+pcall(function()
+    if not AbuseTab then
+        warn("AbuseTab não encontrada")
+        return
+    end
 
-        local function StopCameraBug()
-            cameraBugActive = false
-            if cameraBugConn then cameraBugConn:Disconnect(); cameraBugConn = nil end
-            if cameraBugCharConn then cameraBugCharConn:Disconnect(); cameraBugCharConn = nil end
+    -- ============================================================
+    -- STUN PLAY - variáveis e funções
+    -- ============================================================
+    local stunActive = false
+    local stunConn = nil
+    local stunTarget = nil
+    local stunOriginalCFrame = nil
+    local customRotation = CFrame.Angles(math.rad(70), 0, 0)
 
-            local char = LocalPlayer.Character
-            if char then
-                local root = char:FindFirstChild("HumanoidRootPart")
-                local hum  = char:FindFirstChildOfClass("Humanoid")
-                if root then
-                    if cameraBugOriginalCF then
-                        root.CFrame = cameraBugOriginalCF
-                        cameraBugOriginalCF = nil
-                    end
-                    root.Velocity    = Vector3.zero
-                    root.RotVelocity = Vector3.zero
-                    detach(root)
-                end
-                if hum then
-                    hum.PlatformStand = cameraBugOriginalPlatform or false
-                end
-            end
-            cameraBugTarget = nil
-        end
-
-        local function StartCameraBug(targetPlayer)
-            local char = LocalPlayer.Character
-            if not char then return end
+    local function stopStun()
+        stunActive = false
+        if stunConn then stunConn:Disconnect(); stunConn = nil end
+        stunTarget = nil
+        local char = LocalPlayer.Character
+        if char then
             local root = char:FindFirstChild("HumanoidRootPart")
             local hum  = char:FindFirstChildOfClass("Humanoid")
-            if not root or not hum then return end
-            if not targetPlayer or not targetPlayer.Character then return end
-            local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if not targetRoot then return end
-
-            cameraBugTarget = targetPlayer
-            cameraBugActive = true
-            cameraBugOriginalCF = root.CFrame
-            cameraBugOriginalPlatform = hum.PlatformStand
-            hum.PlatformStand = true
-
-            local offset   = Vector3.zero
-            local rotation = CFrame.Angles(0, 0, 0)
-
-            cameraBugConn = RunService.Heartbeat:Connect(function()
-                if not cameraBugActive then return end
-
-                local curChar = LocalPlayer.Character
-                if not curChar then
-                    StopCameraBug()
-                    return
-                end
-                local curRoot = curChar:FindFirstChild("HumanoidRootPart")
-                local curHum  = curChar:FindFirstChildOfClass("Humanoid")
-                if not curRoot or not curHum or curHum.Health <= 0 then
-                    StopCameraBug()
-                    return
-                end
-
-                local t = cameraBugTarget
-                if not t or not t.Character then
-                    StopCameraBug()
-                    return
-                end
-                local tRoot = t.Character:FindFirstChild("HumanoidRootPart")
-                if not tRoot then
-                    StopCameraBug()
-                    return
-                end
-
-                curHum.PlatformStand = true
-
-                local targetCFrame   = tRoot.CFrame
-                local targetPosition = targetCFrame:PointToWorldSpace(offset)
-                local targetRotation = targetCFrame - targetCFrame.Position
-
-                curRoot.CFrame      = CFrame.new(targetPosition) * targetRotation * rotation
-                curRoot.Velocity    = Vector3.zero
-                curRoot.RotVelocity = Vector3.zero
-
-                attach(curRoot, tRoot)
-            end)
-
-            if cameraBugCharConn then cameraBugCharConn:Disconnect() end
-            cameraBugCharConn = LocalPlayer.CharacterAdded:Connect(function()
-                if cameraBugActive and cameraBugTarget then
-                    task.wait(0.3)
-                    StopCameraBug()
-                    local t = GetAbuseTarget()
-                    if t then StartCameraBug(t) end
-                end
-            end)
+            if root then
+                if stunOriginalCFrame then root.CFrame = stunOriginalCFrame end
+                root.Velocity    = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                detach(root)
+            end
+            if hum then
+                hum.PlatformStand = false
+                hum.Sit = false
+            end
         end
+        stunOriginalCFrame = nil
+    end
 
-        if Value then
-            local t = GetAbuseTarget()
-            if not t then
-                Window:Notify({
-                    Title       = "Camera Bug",
-                    Description = "Select a player in the dropdown first.",
-                    Duration    = 2,
-                    Type        = "warning",
-                })
+    local function startStun(targetPlayer)
+        local char = LocalPlayer.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum  = char:FindFirstChildOfClass("Humanoid")
+        if not root or not hum then return end
+        if not targetPlayer or not targetPlayer.Character then return end
+
+        stunTarget = targetPlayer
+        stunActive = true
+        stunOriginalCFrame = root.CFrame
+        hum.PlatformStand = true
+
+        stunConn = RunService.Heartbeat:Connect(function()
+            if not stunActive or not stunTarget then
+                stopStun()
                 return
             end
-            StartCameraBug(t)
-        else
-            StopCameraBug()
+
+            local curTarget = stunTarget.Character
+            if not curTarget then return end
+            local targetRoot = curTarget:FindFirstChild("HumanoidRootPart")
+            if not targetRoot then return end
+
+            local curChar = LocalPlayer.Character
+            if not curChar then return end
+            local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+            if not curRoot then return end
+
+            local offset = Vector3.new(0, 1, 0)
+            local targetPosition = targetRoot.CFrame:PointToWorldSpace(offset)
+            local targetRotation = targetRoot.CFrame - targetRoot.CFrame.Position
+
+            curRoot.CFrame      = CFrame.new(targetPosition) * targetRotation * customRotation
+            curRoot.Velocity    = Vector3.zero
+            curRoot.RotVelocity = Vector3.zero
+
+            attach(curRoot, targetRoot)
+        end)
+    end
+
+    -- ============================================================
+    -- CAMERA BUG - variáveis e funções
+    -- ============================================================
+    local cameraBugActive = false
+    local cameraBugConn = nil
+    local cameraBugTarget = nil
+    local cameraBugOriginalCF = nil
+    local cameraBugOriginalPlatform = false
+    local cameraBugCharConn = nil
+
+    local function StopCameraBug()
+        cameraBugActive = false
+        if cameraBugConn then cameraBugConn:Disconnect(); cameraBugConn = nil end
+        if cameraBugCharConn then cameraBugCharConn:Disconnect(); cameraBugCharConn = nil end
+
+        local char = LocalPlayer.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local hum  = char:FindFirstChildOfClass("Humanoid")
+            if root then
+                if cameraBugOriginalCF then
+                    root.CFrame = cameraBugOriginalCF
+                    cameraBugOriginalCF = nil
+                end
+                root.Velocity    = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                detach(root)
+            end
+            if hum then
+                hum.PlatformStand = cameraBugOriginalPlatform or false
+            end
         end
-    end,
-})
+        cameraBugTarget = nil
+    end
+
+    local function StartCameraBug(targetPlayer)
+        local char = LocalPlayer.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum  = char:FindFirstChildOfClass("Humanoid")
+        if not root or not hum then return end
+        if not targetPlayer or not targetPlayer.Character then return end
+        local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not targetRoot then return end
+
+        cameraBugTarget = targetPlayer
+        cameraBugActive = true
+        cameraBugOriginalCF = root.CFrame
+        cameraBugOriginalPlatform = hum.PlatformStand
+        hum.PlatformStand = true
+
+        local offset   = Vector3.zero
+        local rotation = CFrame.Angles(0, 0, 0)
+
+        cameraBugConn = RunService.Heartbeat:Connect(function()
+            if not cameraBugActive then return end
+
+            local curChar = LocalPlayer.Character
+            if not curChar then StopCameraBug() return end
+            local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+            local curHum  = curChar:FindFirstChildOfClass("Humanoid")
+            if not curRoot or not curHum or curHum.Health <= 0 then StopCameraBug() return end
+
+            local t = cameraBugTarget
+            if not t or not t.Character then StopCameraBug() return end
+            local tRoot = t.Character:FindFirstChild("HumanoidRootPart")
+            if not tRoot then StopCameraBug() return end
+
+            curHum.PlatformStand = true
+
+            local targetCFrame   = tRoot.CFrame
+            local targetPosition = targetCFrame:PointToWorldSpace(offset)
+            local targetRotation = targetCFrame - targetCFrame.Position
+
+            curRoot.CFrame      = CFrame.new(targetPosition) * targetRotation * rotation
+            curRoot.Velocity    = Vector3.zero
+            curRoot.RotVelocity = Vector3.zero
+
+            attach(curRoot, tRoot)
+        end)
+
+        if cameraBugCharConn then cameraBugCharConn:Disconnect() end
+        cameraBugCharConn = LocalPlayer.CharacterAdded:Connect(function()
+            if cameraBugActive and cameraBugTarget then
+                task.wait(0.3)
+                StopCameraBug()
+                local t = GetAbuseTarget()
+                if t then StartCameraBug(t) end
+            end
+        end)
+    end
+
+    -- ============================================================
+    -- BYPASS SUPER FLING - variáveis e funções
+    -- ============================================================
+    local bypassActive = false
+    local bypassConn = nil
+    local bypassCharConn = nil
+    local bypassTarget = nil
+    local bypassOriginalCFrame = nil
+    local bypassOffset = Vector3.new(0, -3, 0)
+    local bypassBvTable = {}
+
+    local function resetCharacter()
+        local char = LocalPlayer.Character
+        local humanoid = char and char:FindFirstChildWhichIsA("Humanoid")
+        local success = false
+        pcall(function()
+            if replicatesignal then
+                replicatesignal(LocalPlayer.Kill)
+                success = true
+            end
+        end)
+        if not success and humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Dead)
+            humanoid.Health = 0
+        elseif not success and char then
+            char:BreakJoints()
+        end
+    end
+
+    local function stopBypass()
+        bypassActive = false
+        if bypassConn then bypassConn:Disconnect(); bypassConn = nil end
+        if bypassCharConn then bypassCharConn:Disconnect(); bypassCharConn = nil end
+        for _, bv in pairs(bypassBvTable) do
+            pcall(function() bv:Destroy() end)
+        end
+        bypassBvTable = {}
+        bypassTarget = nil
+
+        local char = LocalPlayer.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local hum  = char:FindFirstChildOfClass("Humanoid")
+            if root then
+                if bypassOriginalCFrame then
+                    root.CFrame = bypassOriginalCFrame
+                    bypassOriginalCFrame = nil
+                end
+                root.Velocity    = Vector3.zero
+                root.RotVelocity = Vector3.zero
+                detach(root)
+            end
+            if hum then
+                hum.PlatformStand = false
+            end
+        end
+    end
+
+    local function setupBypassAttack(plr)
+        local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        local root = char:WaitForChild("HumanoidRootPart", 5)
+        local hum  = char:WaitForChild("Humanoid", 5)
+        if not root or not hum then return end
+
+        local targetChar = plr.Character
+        if not targetChar then return end
+        local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+        if not targetRoot then return end
+
+        if not bypassOriginalCFrame then
+            bypassOriginalCFrame = root.CFrame
+        end
+        hum.PlatformStand = true
+
+        if not bypassBvTable[targetRoot] then
+            local bv = Instance.new("BodyVelocity")
+            bv.Name = "EpixVel"
+            bv.Velocity = Vector3.new(9e18, 9e18, 9e18)
+            bv.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+            bv.Parent = targetRoot
+            bypassBvTable[targetRoot] = bv
+        end
+
+        pcall(function()
+            targetRoot.Parent:FindFirstChildOfClass("Humanoid"):SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+        end)
+
+        local resetTimer = 1.5
+
+        bypassConn = RunService.Heartbeat:Connect(function(dt)
+            if not bypassActive then return end
+
+            local curChar = LocalPlayer.Character
+            if not curChar then return end
+            local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+            local curHum  = curChar:FindFirstChildOfClass("Humanoid")
+            if not curRoot or not curHum or curHum.Health <= 0 then return end
+
+            local curTarget = bypassTarget
+            if not curTarget or not curTarget.Character then return end
+            local curTargetRoot = curTarget.Character:FindFirstChild("HumanoidRootPart")
+            if not curTargetRoot then return end
+
+            curRoot.CFrame = CFrame.new(curTargetRoot.Position + bypassOffset) * CFrame.Angles(-math.pi/2, 0, 0)
+            curRoot.Velocity    = Vector3.new(9e7, 9e7 * 10, 9e7)
+            curRoot.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+
+            attach(curRoot, curTargetRoot)
+
+            resetTimer = resetTimer - dt
+            if resetTimer <= 0 then
+                resetTimer = 1.5
+                resetCharacter()
+            end
+        end)
+    end
+
+    local function startBypass(plr)
+        if bypassConn then bypassConn:Disconnect(); bypassConn = nil end
+        bypassTarget = plr
+        bypassActive = true
+        setupBypassAttack(plr)
+
+        if bypassCharConn then bypassCharConn:Disconnect() end
+        bypassCharConn = LocalPlayer.CharacterAdded:Connect(function()
+            if bypassActive and bypassTarget then
+                task.wait(0.2)
+                setupBypassAttack(bypassTarget)
+            end
+        end)
+    end
+
+    -- ============================================================
+    -- ELEMENTOS (Toggle) - DEPOIS das funções
+    -- ============================================================
+    AbuseTab:CreateToggle({
+        Title = "Stun Play",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                local t = GetAbuseTarget()
+                if not t then
+                    Window:Notify({
+                        Title       = "Stun Play",
+                        Description = "Select a player in the dropdown first.",
+                        Duration    = 2,
+                        Type        = "warning",
+                    })
+                    return
+                end
+                startStun(t)
+            else
+                stopStun()
+            end
+        end,
+    })
+
+    AbuseTab:CreateToggle({
+        Title = "Camera Bug",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                local t = GetAbuseTarget()
+                if not t then
+                    Window:Notify({
+                        Title       = "Camera Bug",
+                        Description = "Select a player in the dropdown first.",
+                        Duration    = 2,
+                        Type        = "warning",
+                    })
+                    return
+                end
+                StartCameraBug(t)
+            else
+                StopCameraBug()
+            end
+        end,
+    })
+
+    AbuseTab:CreateToggle({
+        Title = "Bypass Super Fling",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                local t = GetAbuseTarget()
+                if not t then
+                    Window:Notify({
+                        Title       = "Bypass Super Fling",
+                        Description = "Select a player in the dropdown first.",
+                        Duration    = 2,
+                        Type        = "warning",
+                    })
+                    return
+                end
+                startBypass(t)
+            else
+                stopBypass()
+            end
+        end,
+    })
+end)
 -- =============================================
 -- GLITTER PLAY ALL LOOP
 -- =============================================
@@ -13674,7 +13923,7 @@ NPCTab:CreateButton({
     end,
 })
 
--- -----------------------------------------------------------
+-- ------------------------------------------------------------
 -- VoidNpc
 -- ------------------------------------------------------------
 NPCTab:CreateButton({

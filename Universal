@@ -3863,35 +3863,209 @@ do
     })
 end
 local AntiTab = Window:CreateTab("Anti", "shield")
-
 -- ============================================================
--- ANTI FLING
+-- ANTI FLING (com salvamento de colisões, sem Tool)
 -- ============================================================
 pcall(function()
-    local antiFling = nil
+    local antiFlingConn = nil
+    local savedCollisions = {}
+
+    local function SaveCollision(part)
+        if savedCollisions[part] == nil then
+            savedCollisions[part] = part.CanCollide
+        end
+    end
+
+    local function RestoreAllCollisions()
+        for part, original in pairs(savedCollisions) do
+            if part and part.Parent then
+                pcall(function() part.CanCollide = original end)
+            end
+        end
+        savedCollisions = {}
+    end
+
+    local function ProcessCharacter(character)
+        if not character then return end
+        -- Só as partes do CORPO (filhos diretos do character)
+        for _, v in ipairs(character:GetChildren()) do
+            if v:IsA("BasePart") then
+                SaveCollision(v)
+                v.CanCollide = false
+                v.Velocity = Vector3.zero
+                v.RotVelocity = Vector3.zero
+            end
+        end
+        -- Acessórios (chapéus, etc.) — fazem parte do corpo
+        for _, v in ipairs(character:GetChildren()) do
+            if v:IsA("Accessory") then
+                for _, p in ipairs(v:GetDescendants()) do
+                    if p:IsA("BasePart") then
+                        SaveCollision(p)
+                        p.CanCollide = false
+                        p.Velocity = Vector3.zero
+                        p.RotVelocity = Vector3.zero
+                    end
+                end
+            end
+        end
+    end
+
     AntiTab:CreateToggle({
         Title = "Anti Fling",
         Default = false,
         Callback = function(Value)
-            if antiFling then antiFling:Disconnect(); antiFling = nil end
-            if not Value then return end
-            antiFling = RunService.Stepped:Connect(function()
+            if antiFlingConn then antiFlingConn:Disconnect(); antiFlingConn = nil end
+            if not Value then
+                RestoreAllCollisions()
+                return
+            end
+
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer then
+                    ProcessCharacter(plr.Character)
+                end
+            end
+
+            antiFlingConn = RunService.Heartbeat:Connect(function()
                 for _, plr in ipairs(Players:GetPlayers()) do
-                    if plr ~= LocalPlayer and plr.Character then
-                        for _, v in ipairs(plr.Character:GetDescendants()) do
-                            if v:IsA("BasePart") then
-                                v.CanCollide = false
-                                v.Velocity = Vector3.zero
-                                v.RotVelocity = Vector3.zero
-                            end
-                        end
+                    if plr ~= LocalPlayer then
+                        ProcessCharacter(plr.Character)
                     end
                 end
             end)
         end,
     })
 end)
+-- ============================================================
+-- ANTI FLING BYPASS (reage a respawn e reaplica rápido)
+-- ============================================================
+pcall(function()
+    local bypassActive = false
+    local bypassConn = nil
+    local bypassCharConns = {}   -- [Player] = RBXScriptConnection
+    local savedCollisions = {}
 
+    local function SaveCollision(part)
+        if savedCollisions[part] == nil then
+            savedCollisions[part] = part.CanCollide
+        end
+    end
+
+    local function ApplyCollision(character)
+        if not character then return end
+        for _, v in ipairs(character:GetChildren()) do
+            if v:IsA("BasePart") then
+                SaveCollision(v)
+                v.CanCollide = false
+                v.Velocity = Vector3.zero
+                v.RotVelocity = Vector3.zero
+            end
+        end
+        for _, v in ipairs(character:GetChildren()) do
+            if v:IsA("Accessory") then
+                for _, p in ipairs(v:GetDescendants()) do
+                    if p:IsA("BasePart") then
+                        SaveCollision(p)
+                        p.CanCollide = false
+                        p.Velocity = Vector3.zero
+                        p.RotVelocity = Vector3.zero
+                    end
+                end
+            end
+        end
+    end
+
+    local function RestoreAllCollisions()
+        for part, original in pairs(savedCollisions) do
+            if part and part.Parent then
+                pcall(function() part.CanCollide = original end)
+            end
+        end
+        savedCollisions = {}
+    end
+
+    -- Conecta CharacterAdded de um jogador: quando ele morrer e respawnar,
+    -- o Bypass reaplica a colisão IMEDIATAMENTE (antes do fling conseguir pegar)
+    local function BindCharacterRespawn(plr)
+        if bypassCharConns[plr] then
+            bypassCharConns[plr]:Disconnect()
+            bypassCharConns[plr] = nil
+        end
+        bypassCharConns[plr] = plr.CharacterAdded:Connect(function(newChar)
+            if not bypassActive then return end
+            -- Espera o HumanoidRootPart existir e reaplica
+            local root = newChar:WaitForChild("HumanoidRootPart", 3)
+            if not root then return end
+            ApplyCollision(newChar)
+            -- Reaplica mais 3x em intervalos curtos (caso o jogo recrie partes)
+            task.delay(0.1, function() if bypassActive then ApplyCollision(newChar) end end)
+            task.delay(0.3, function() if bypassActive then ApplyCollision(newChar) end end)
+            task.delay(0.6, function() if bypassActive then ApplyCollision(newChar) end end)
+        end)
+        -- Se o personagem atual já existe, aplica agora
+        if plr.Character then
+            ApplyCollision(plr.Character)
+        end
+    end
+
+    local function UnbindAll()
+        for plr, conn in pairs(bypassCharConns) do
+            if conn then conn:Disconnect() end
+        end
+        bypassCharConns = {}
+    end
+
+    local function ProcessAllPlayers()
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer then
+                BindCharacterRespawn(plr)
+            end
+        end
+    end
+
+    AntiTab:CreateToggle({
+        Title = "Anti Fling Bypass",
+        Default = false,
+        Callback = function(Value)
+            bypassActive = Value
+
+            if bypassConn then bypassConn:Disconnect(); bypassConn = nil end
+
+            if not Value then
+                UnbindAll()
+                RestoreAllCollisions()
+                return
+            end
+
+            -- Processa 1x
+            ProcessAllPlayers()
+
+            -- Reaplica a cada 0.15s (leve, sem travar)
+            bypassConn = RunService.Heartbeat:Connect(function()
+                if not bypassActive then return end
+                local now = tick()
+                if not bypassConn._lastRun or now - bypassConn._lastRun >= 0.15 then
+                    bypassConn._lastRun = now
+                    for _, plr in ipairs(Players:GetPlayers()) do
+                        if plr ~= LocalPlayer and plr.Character then
+                            ApplyCollision(plr.Character)
+                        end
+                    end
+                end
+            end)
+
+            -- Detecta jogadores que entram no jogo
+            bypassConn = bypassConn and bypassConn or nil
+            local playerAddedConn = Players.PlayerAdded:Connect(function(plr)
+                if bypassActive and plr ~= LocalPlayer then
+                    BindCharacterRespawn(plr)
+                end
+            end)
+            table.insert(bypassCharConns, playerAddedConn)
+        end,
+    })
+end)
 -- ============================================================
 -- ANTI SIT
 -- ============================================================

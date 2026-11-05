@@ -3864,85 +3864,13 @@ do
 end
 local AntiTab = Window:CreateTab("Anti", "shield")
 -- ============================================================
--- ANTI FLING (com salvamento de colisões, sem Tool)
--- ============================================================
-pcall(function()
-    local antiFlingConn = nil
-    local savedCollisions = {}
-
-    local function SaveCollision(part)
-        if savedCollisions[part] == nil then
-            savedCollisions[part] = part.CanCollide
-        end
-    end
-
-    local function RestoreAllCollisions()
-        for part, original in pairs(savedCollisions) do
-            if part and part.Parent then
-                pcall(function() part.CanCollide = original end)
-            end
-        end
-        savedCollisions = {}
-    end
-
-    local function ProcessCharacter(character)
-        if not character then return end
-        -- Só as partes do CORPO (filhos diretos do character)
-        for _, v in ipairs(character:GetChildren()) do
-            if v:IsA("BasePart") then
-                SaveCollision(v)
-                v.CanCollide = false
-                v.Velocity = Vector3.zero
-                v.RotVelocity = Vector3.zero
-            end
-        end
-        -- Acessórios (chapéus, etc.) — fazem parte do corpo
-        for _, v in ipairs(character:GetChildren()) do
-            if v:IsA("Accessory") then
-                for _, p in ipairs(v:GetDescendants()) do
-                    if p:IsA("BasePart") then
-                        SaveCollision(p)
-                        p.CanCollide = false
-                        p.Velocity = Vector3.zero
-                        p.RotVelocity = Vector3.zero
-                    end
-                end
-            end
-        end
-    end
-
-    AntiTab:CreateToggle({
-        Title = "Anti Fling",
-        Default = false,
-        Callback = function(Value)
-            if antiFlingConn then antiFlingConn:Disconnect(); antiFlingConn = nil end
-            if not Value then
-                RestoreAllCollisions()
-                return
-            end
-
-            for _, plr in ipairs(Players:GetPlayers()) do
-                if plr ~= LocalPlayer then
-                    ProcessCharacter(plr.Character)
-                end
-            end
-
-            antiFlingConn = RunService.Heartbeat:Connect(function()
-                for _, plr in ipairs(Players:GetPlayers()) do
-                    if plr ~= LocalPlayer then
-                        ProcessCharacter(plr.Character)
-                    end
-                end
-            end)
-        end,
-    })
-end)
--- ============================================================
 -- ANTI FLING BYPASS (reage a respawn e reaplica rápido)
 -- ============================================================
 pcall(function()
     local bypassActive = false
     local bypassConn = nil
+    local bypassLastRun = 0
+    local bypassPlayerAddedConn = nil
     local bypassCharConns = {}   -- [Player] = RBXScriptConnection
     local savedCollisions = {}
 
@@ -3985,8 +3913,6 @@ pcall(function()
         savedCollisions = {}
     end
 
-    -- Conecta CharacterAdded de um jogador: quando ele morrer e respawnar,
-    -- o Bypass reaplica a colisão IMEDIATAMENTE (antes do fling conseguir pegar)
     local function BindCharacterRespawn(plr)
         if bypassCharConns[plr] then
             bypassCharConns[plr]:Disconnect()
@@ -3994,26 +3920,27 @@ pcall(function()
         end
         bypassCharConns[plr] = plr.CharacterAdded:Connect(function(newChar)
             if not bypassActive then return end
-            -- Espera o HumanoidRootPart existir e reaplica
             local root = newChar:WaitForChild("HumanoidRootPart", 3)
             if not root then return end
             ApplyCollision(newChar)
-            -- Reaplica mais 3x em intervalos curtos (caso o jogo recrie partes)
             task.delay(0.1, function() if bypassActive then ApplyCollision(newChar) end end)
             task.delay(0.3, function() if bypassActive then ApplyCollision(newChar) end end)
             task.delay(0.6, function() if bypassActive then ApplyCollision(newChar) end end)
         end)
-        -- Se o personagem atual já existe, aplica agora
         if plr.Character then
             ApplyCollision(plr.Character)
         end
     end
 
     local function UnbindAll()
-        for plr, conn in pairs(bypassCharConns) do
+        for _, conn in pairs(bypassCharConns) do
             if conn then conn:Disconnect() end
         end
         bypassCharConns = {}
+        if bypassPlayerAddedConn then
+            bypassPlayerAddedConn:Disconnect()
+            bypassPlayerAddedConn = nil
+        end
     end
 
     local function ProcessAllPlayers()
@@ -4031,6 +3958,7 @@ pcall(function()
             bypassActive = Value
 
             if bypassConn then bypassConn:Disconnect(); bypassConn = nil end
+            bypassLastRun = 0
 
             if not Value then
                 UnbindAll()
@@ -4038,31 +3966,97 @@ pcall(function()
                 return
             end
 
-            -- Processa 1x
             ProcessAllPlayers()
 
-            -- Reaplica a cada 0.15s (leve, sem travar)
             bypassConn = RunService.Heartbeat:Connect(function()
                 if not bypassActive then return end
                 local now = tick()
-                if not bypassConn._lastRun or now - bypassConn._lastRun >= 0.15 then
-                    bypassConn._lastRun = now
-                    for _, plr in ipairs(Players:GetPlayers()) do
-                        if plr ~= LocalPlayer and plr.Character then
-                            ApplyCollision(plr.Character)
-                        end
+                if now - bypassLastRun < 0.15 then return end
+                bypassLastRun = now
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= LocalPlayer and plr.Character then
+                        ApplyCollision(plr.Character)
                     end
                 end
             end)
 
-            -- Detecta jogadores que entram no jogo
-            bypassConn = bypassConn and bypassConn or nil
-            local playerAddedConn = Players.PlayerAdded:Connect(function(plr)
+            bypassPlayerAddedConn = Players.PlayerAdded:Connect(function(plr)
                 if bypassActive and plr ~= LocalPlayer then
                     BindCharacterRespawn(plr)
                 end
             end)
-            table.insert(bypassCharConns, playerAddedConn)
+        end,
+    })
+end)
+--- ============================================================
+-- ANTI FLING (com salvamento de colisões)
+-- ============================================================
+pcall(function()
+    local antiFlingConn = nil
+    local savedCollisions = {}
+
+    local function SaveCollision(part)
+        if savedCollisions[part] == nil then
+            savedCollisions[part] = part.CanCollide
+        end
+    end
+
+    local function RestoreAllCollisions()
+        for part, original in pairs(savedCollisions) do
+            if part and part.Parent then
+                pcall(function() part.CanCollide = original end)
+            end
+        end
+        savedCollisions = {}
+    end
+
+    local function ProcessCharacter(character)
+        if not character then return end
+        for _, v in ipairs(character:GetChildren()) do
+            if v:IsA("BasePart") then
+                SaveCollision(v)
+                v.CanCollide = false
+                v.Velocity = Vector3.zero
+                v.RotVelocity = Vector3.zero
+            end
+        end
+        for _, v in ipairs(character:GetChildren()) do
+            if v:IsA("Accessory") then
+                for _, p in ipairs(v:GetDescendants()) do
+                    if p:IsA("BasePart") then
+                        SaveCollision(p)
+                        p.CanCollide = false
+                        p.Velocity = Vector3.zero
+                        p.RotVelocity = Vector3.zero
+                    end
+                end
+            end
+        end
+    end
+
+    AntiTab:CreateToggle({
+        Title = "Anti Fling",
+        Default = false,
+        Callback = function(Value)
+            if antiFlingConn then antiFlingConn:Disconnect(); antiFlingConn = nil end
+            if not Value then
+                RestoreAllCollisions()
+                return
+            end
+
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer then
+                    ProcessCharacter(plr.Character)
+                end
+            end
+
+            antiFlingConn = RunService.Heartbeat:Connect(function()
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= LocalPlayer then
+                        ProcessCharacter(plr.Character)
+                    end
+                end
+            end)
         end,
     })
 end)
@@ -5550,7 +5544,176 @@ do
         end,
     })
 end
+-- ============================================================
+-- RTX (Toggle) - CFG
+-- ============================================================
+local rtxActive = false
 
+local function EnableRTX()
+    if rtxActive then return end
+    local Lighting = game:GetService("Lighting")
+    local CoreGui = game:GetService("CoreGui")
+
+    _G.RTXBackup = {
+        Ambient = Lighting.Ambient,
+        Brightness = Lighting.Brightness,
+        ColorShift_Bottom = Lighting.ColorShift_Bottom,
+        ColorShift_Top = Lighting.ColorShift_Top,
+        EnvironmentDiffuseScale = Lighting.EnvironmentDiffuseScale,
+        EnvironmentSpecularScale = Lighting.EnvironmentSpecularScale,
+        GlobalShadows = Lighting.GlobalShadows,
+        OutdoorAmbient = Lighting.OutdoorAmbient,
+        ShadowSoftness = Lighting.ShadowSoftness,
+        ClockTime = Lighting.ClockTime,
+        GeographicLatitude = Lighting.GeographicLatitude,
+        ExposureCompensation = Lighting.ExposureCompensation,
+        Effects = {},
+    }
+
+    for _, v in pairs(Lighting:GetChildren()) do
+        if v:IsA("PostEffect") or v:IsA("Sky") or v:IsA("Atmosphere") then
+            table.insert(_G.RTXBackup.Effects, v)
+            v.Parent = nil
+        end
+    end
+
+    local Bloom = Instance.new("BloomEffect")
+    Bloom.Name = "RTX_Bloom"
+    Bloom.Intensity = 0.3
+    Bloom.Size = 10
+    Bloom.Threshold = 0.8
+    Bloom.Parent = Lighting
+
+    local Blur = Instance.new("BlurEffect")
+    Blur.Name = "RTX_Blur"
+    Blur.Size = 5
+    Blur.Parent = Lighting
+
+    local ColorCor = Instance.new("ColorCorrectionEffect")
+    ColorCor.Name = "RTX_Color"
+    ColorCor.Brightness = 0.1
+    ColorCor.Contrast = 0.5
+    ColorCor.Saturation = -0.3
+    ColorCor.TintColor = Color3.fromRGB(255, 235, 203)
+    ColorCor.Parent = Lighting
+
+    local SunRays = Instance.new("SunRaysEffect")
+    SunRays.Name = "RTX_SunRays"
+    SunRays.Intensity = 0.075
+    SunRays.Spread = 0.727
+    SunRays.Parent = Lighting
+
+    local Sky = Instance.new("Sky")
+    Sky.Name = "RTX_Sky"
+    Sky.SkyboxBk = "rbxassetid://151165214"
+    Sky.SkyboxDn = "rbxassetid://151165197"
+    Sky.SkyboxFt = "rbxassetid://151165224"
+    Sky.SkyboxLf = "rbxassetid://151165191"
+    Sky.SkyboxRt = "rbxassetid://151165206"
+    Sky.SkyboxUp = "rbxassetid://151165227"
+    Sky.SunAngularSize = 10
+    Sky.Parent = Lighting
+
+    local Atm = Instance.new("Atmosphere")
+    Atm.Name = "RTX_Atmosphere"
+    Atm.Density = 0.364
+    Atm.Offset = 0.556
+    Atm.Color = Color3.fromRGB(199, 175, 166)
+    Atm.Decay = Color3.fromRGB(44, 39, 33)
+    Atm.Glare = 0.36
+    Atm.Haze = 1.72
+    Atm.Parent = Lighting
+
+    Lighting.Ambient = Color3.fromRGB(2, 2, 2)
+    Lighting.Brightness = 2.25
+    Lighting.ColorShift_Bottom = Color3.fromRGB(0, 0, 0)
+    Lighting.ColorShift_Top = Color3.fromRGB(0, 0, 0)
+    Lighting.EnvironmentDiffuseScale = 0.2
+    Lighting.EnvironmentSpecularScale = 0.2
+    Lighting.GlobalShadows = true
+    Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0)
+    Lighting.ShadowSoftness = 0.2
+    Lighting.ClockTime = 17
+    Lighting.GeographicLatitude = 45
+    Lighting.ExposureCompensation = 0.5
+
+    if not CoreGui:FindFirstChild("RTX_Vignette") then
+        local Gui = Instance.new("ScreenGui")
+        Gui.Name = "RTX_Vignette"
+        Gui.IgnoreGuiInset = true
+        Gui.ResetOnSpawn = false
+        pcall(function() Gui.Parent = CoreGui end)
+        if not Gui.Parent then
+            Gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        end
+
+        local ShadowFrame = Instance.new("ImageLabel")
+        ShadowFrame.Parent = Gui
+        ShadowFrame.AnchorPoint = Vector2.new(0.5, 1)
+        ShadowFrame.Position = UDim2.new(0.5, 0, 1, 0)
+        ShadowFrame.Size = UDim2.new(1, 0, 1.05, 0)
+        ShadowFrame.BackgroundTransparency = 1
+        ShadowFrame.Image = "rbxassetid://4576475446"
+        ShadowFrame.ImageTransparency = 0.3
+        ShadowFrame.ZIndex = 10
+    end
+
+    rtxActive = true
+end
+
+local function DisableRTX()
+    if not rtxActive then return end
+    local Lighting = game:GetService("Lighting")
+    local CoreGui = game:GetService("CoreGui")
+
+    for _, v in pairs(Lighting:GetChildren()) do
+        if v:IsA("PostEffect") or v:IsA("Sky") or v:IsA("Atmosphere") then
+            v:Destroy()
+        end
+    end
+
+    if _G.RTXBackup then
+        local b = _G.RTXBackup
+        Lighting.Ambient = b.Ambient
+        Lighting.Brightness = b.Brightness
+        Lighting.ColorShift_Bottom = b.ColorShift_Bottom
+        Lighting.ColorShift_Top = b.ColorShift_Top
+        Lighting.EnvironmentDiffuseScale = b.EnvironmentDiffuseScale
+        Lighting.EnvironmentSpecularScale = b.EnvironmentSpecularScale
+        Lighting.GlobalShadows = b.GlobalShadows
+        Lighting.OutdoorAmbient = b.OutdoorAmbient
+        Lighting.ShadowSoftness = b.ShadowSoftness
+        Lighting.ClockTime = b.ClockTime
+        Lighting.GeographicLatitude = b.GeographicLatitude
+        Lighting.ExposureCompensation = b.ExposureCompensation
+
+        for _, v in pairs(b.Effects) do
+            if v then v.Parent = Lighting end
+        end
+    end
+
+    _G.RTXBackup = nil
+
+    local vig = CoreGui:FindFirstChild("RTX_Vignette")
+    if not vig then
+        vig = LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("RTX_Vignette")
+    end
+    if vig then vig:Destroy() end
+
+    rtxActive = false
+end
+
+CfgTab:CreateToggle({
+    Title = "RTX",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            EnableRTX()
+        else
+            DisableRTX()
+        end
+    end,
+})
 do
     local painelActive = false
     local painelBillboard = nil

@@ -4365,88 +4365,96 @@ end)
 -- ============================================================
 -- ANTI VOID
 -- ============================================================
-local DEFAULT_FALL_HEIGHT = workspace.FallenPartsDestroyHeight
-local VOID_RANGE = 9e6
-local RESCUE_Y = 8999998
+pcall(function()
+    if not AntiTab then return end
 
-local AntiVoidActive   = false
-local HealthLockActive = false
-local RescueActive     = false
-local DeadBlockActive  = false
-local VoidDmgActive    = false
+    local DEFAULT_FALL_HEIGHT = workspace.FallenPartsDestroyHeight
+    local VOID_RANGE = 9e6
+    local RESCUE_Y = -8999998
+    
+    local AntiVoidActive   = false
+    local HealthLockActive = false
+    local RescueActive     = false
+    local DeadBlockActive  = false
+    local VoidDmgActive    = false
 
-local HealthLockConn = nil
-local RescueConn     = nil
-local DeadBlockConn  = nil
-local VoidDmgConn    = nil
-local lastSafeCFrame = nil
+    local HealthLockConn = nil
+    local RescueConn     = nil
+    local DeadBlockConn  = nil
+    local VoidDmgConn    = nil
+    local lastSafeCFrame = nil
 
-AntiTab:CreateToggle({
-    Title   = "Anti Void",
-    Default = false,
-    Callback = function(state)
-        AntiVoidActive   = state
-        HealthLockActive = state
-        RescueActive     = state
-        DeadBlockActive  = state
-        VoidDmgActive    = state
+    AntiTab:CreateToggle({
+        Title   = "Anti Void",
+        Default = false,
+        Callback = function(state)
+            AntiVoidActive   = state
+            HealthLockActive = state
+            RescueActive     = state
+            DeadBlockActive  = state
+            VoidDmgActive    = state
 
-        if HealthLockConn then HealthLockConn:Disconnect(); HealthLockConn = nil end
-        if RescueConn     then RescueConn:Disconnect();     RescueConn = nil end
-        if DeadBlockConn  then DeadBlockConn:Disconnect();  DeadBlockConn = nil end
-        if VoidDmgConn    then VoidDmgConn:Disconnect();    VoidDmgConn = nil end
+            if HealthLockConn then HealthLockConn:Disconnect(); HealthLockConn = nil end
+            if RescueConn     then RescueConn:Disconnect();     RescueConn = nil end
+            if DeadBlockConn  then DeadBlockConn:Disconnect();  DeadBlockConn = nil end
+            if VoidDmgConn    then VoidDmgConn:Disconnect();    VoidDmgConn = nil end
 
-        if state then
-            pcall(function()
-                workspace.FallenPartsDestroyHeight = -VOID_RANGE
-            end)
+            if state then
+                pcall(function()
+                    workspace.FallenPartsDestroyHeight = -VOID_RANGE
+                end)
 
-            RescueConn = RunService.Heartbeat:Connect(function()
-                if not RescueActive then return end
-                local char = LocalPlayer.Character
-                local root = char and char:FindFirstChild("HumanoidRootPart")
-                if not root then return end
-                if root.Position.Y > RESCUE_Y + 50 then
-                    lastSafeCFrame = root.CFrame
-                elseif root.Position.Y < RESCUE_Y and lastSafeCFrame then
-                    pcall(function()
-                        root.CFrame      = lastSafeCFrame
-                        root.Velocity    = Vector3.zero
-                        root.RotVelocity = Vector3.zero
-                    end)
+                RescueConn = RunService.Heartbeat:Connect(function()
+                    if not RescueActive then return end
+                    local char = LocalPlayer.Character
+                    local root = char and char:FindFirstChild("HumanoidRootPart")
+                    if not root then return end
+                    if root.Position.Y > RESCUE_Y + 50 then
+                        lastSafeCFrame = root.CFrame
+                    elseif root.Position.Y < RESCUE_Y and lastSafeCFrame then
+                        pcall(function()
+                            root.CFrame      = lastSafeCFrame
+                            root.Velocity    = Vector3.zero
+                            root.RotVelocity = Vector3.zero
+                        end)
+                    end
+                end)
+
+                DeadBlockConn = RunService.Heartbeat:Connect(function()
+                    if not DeadBlockActive then return end
+                    local char = LocalPlayer.Character
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        pcall(function()
+                            hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+                        end)
+                    end
+                end)
+
+                if Window and Window.Notify then
+                    Window:Notify({
+                        Title       = "Anti Void",
+                        Description = "Enabled.",
+                        Duration    = 3,
+                        Type        = "success",
+                    })
                 end
-            end)
-
-            DeadBlockConn = RunService.Heartbeat:Connect(function()
-                if not DeadBlockActive then return end
-                local char = LocalPlayer.Character
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    pcall(function()
-                        hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-                    end)
+            else
+                pcall(function()
+                    workspace.FallenPartsDestroyHeight = DEFAULT_FALL_HEIGHT
+                end)
+                if Window and Window.Notify then
+                    Window:Notify({
+                        Title       = "Anti Void",
+                        Description = "Disabled.",
+                        Duration    = 2,
+                        Type        = "warning",
+                    })
                 end
-            end)
-
-            Window:Notify({
-                Title       = "Anti Void",
-                Description = "Enabled.",
-                Duration    = 3,
-                Type        = "success",
-            })
-        else
-            pcall(function()
-                workspace.FallenPartsDestroyHeight = DEFAULT_FALL_HEIGHT
-            end)
-            Window:Notify({
-                Title       = "Anti Void",
-                Description = "Disabled.",
-                Duration    = 2,
-                Type        = "warning",
-            })
-        end
-    end,
-})
+            end
+        end,
+    })
+end)
 -- ============================================================
 -- ANTI-KICK (Toggle) - Anti
 -- ============================================================

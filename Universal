@@ -4362,6 +4362,9 @@ pcall(function()
     })
 end)
 
+-- ============================================================
+-- ANTI VOID
+-- ============================================================
 local DEFAULT_FALL_HEIGHT = workspace.FallenPartsDestroyHeight
 local VOID_RANGE = 9e6
 local RESCUE_Y = 8999998
@@ -4398,7 +4401,6 @@ AntiTab:CreateToggle({
                 workspace.FallenPartsDestroyHeight = -VOID_RANGE
             end)
 
-            
             RescueConn = RunService.Heartbeat:Connect(function()
                 if not RescueActive then return end
                 local char = LocalPlayer.Character

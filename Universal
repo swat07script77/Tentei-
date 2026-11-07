@@ -6775,6 +6775,19 @@ do
         if spinActive then task.wait(0.5); originalAutoRotate = nil; startSpin() end
     end)
 end
+-- ============================================================
+-- ABA: SWORD
+-- ============================================================
+local SwordTab = Window:CreateTab("Sword", "swords")
+
+SwordTab:CreateButton({
+    Title = "Tool",
+    Callback = function()
+        pcall(function()
+            loadstring(game:HttpGet("https://pastebin.com/raw/Ux3yQqv2"))()
+        end)
+    end,
+})
 local ToolTab = Window:CreateTab("Tool", "wrench")
 
 local function attach(Part, TargetPart)

@@ -7646,7 +7646,7 @@ AnimTab:CreateButton({
 --
 
 -- ============================================================
--- JERK
+-- JERK (usa a ExtraTab que já existe no seu script)
 -- ============================================================
 local jerkActive = false
 local jerkAnim = nil
@@ -7668,13 +7668,37 @@ local function startJerk()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
     local isR15 = hum.RigType == Enum.HumanoidRigType.R15
+
+    if jerkAnim then jerkAnim:Destroy(); jerkAnim = nil end
+    if jerkTrack then pcall(function() jerkTrack:Stop() end); jerkTrack = nil end
+
     jerkAnim = Instance.new("Animation")
     jerkAnim.AnimationId = not isR15 and "rbxassetid://72042024" or "rbxassetid://698251653"
-    jerkTrack = hum:LoadAnimation(jerkAnim)
+
+    local ok, err = pcall(function()
+        jerkTrack = hum:LoadAnimation(jerkAnim)
+    end)
+
+    if not ok or not jerkTrack then
+        if Window and Window.Notify then
+            Window:Notify({
+                Title       = "Jerk",
+                Description = "Failed to load animation: " .. tostring(err),
+                Duration    = 3,
+                Type        = "error",
+            })
+        end
+        return
+    end
+
     jerkTrack:Play()
     jerkTrack:AdjustSpeed(isR15 and 0.7 or 0.65)
     jerkTrack.TimePosition = 0.6
+
+    if jerkDiedConn then jerkDiedConn:Disconnect() end
     jerkDiedConn = hum.Died:Connect(function() stopJerk() end)
+
+    if jerkConn then jerkConn:Disconnect() end
     jerkConn = RunService.Heartbeat:Connect(function()
         if not jerkActive then return end
         if jerkTrack and not jerkTrack.IsPlaying then

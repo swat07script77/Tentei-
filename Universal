@@ -3696,7 +3696,7 @@ ChatTab:CreateToggle({
         spamConn = RunService.Heartbeat:Connect(function()
             if not spamActive then return end
             local now = tick()
-            if now - spamLast >= 5 then
+            if now - spamLast >= 1 then
                 spamLast = now
                 sendChatMessage(spamMessages[spamIndex])
                 spamIndex = spamIndex % #spamMessages + 1
@@ -3730,7 +3730,7 @@ ChatTab:CreateToggle({
         fakeConn = RunService.Heartbeat:Connect(function()
             if not fakeActive then return end
             local now = tick()
-            if now - fakeLast >= 5 then
+            if now - fakeLast >= 1 then
                 fakeLast = now
                 sendChatMessage(fakeMessages[fakeIndex])
                 fakeIndex = fakeIndex % #fakeMessages + 1
@@ -4363,94 +4363,22 @@ pcall(function()
 end)
 
 -- ============================================================
--- ANTI VOID
+-- ANTI VOID (simples - FallenPartsDestroyHeight = -math.huge)
 -- ============================================================
 pcall(function()
-    if not AntiTab then return end
-
-    local DEFAULT_FALL_HEIGHT = workspace.FallenPartsDestroyHeight
-    local VOID_RANGE = 9e6
-    local RESCUE_Y = -8999998
-    
-    local AntiVoidActive   = false
-    local HealthLockActive = false
-    local RescueActive     = false
-    local DeadBlockActive  = false
-    local VoidDmgActive    = false
-
-    local HealthLockConn = nil
-    local RescueConn     = nil
-    local DeadBlockConn  = nil
-    local VoidDmgConn    = nil
-    local lastSafeCFrame = nil
-
+    local DEFAULT_FALL = workspace.FallenPartsDestroyHeight
     AntiTab:CreateToggle({
-        Title   = "Anti Void",
+        Title = "Anti Void",
         Default = false,
         Callback = function(state)
-            AntiVoidActive   = state
-            HealthLockActive = state
-            RescueActive     = state
-            DeadBlockActive  = state
-            VoidDmgActive    = state
-
-            if HealthLockConn then HealthLockConn:Disconnect(); HealthLockConn = nil end
-            if RescueConn     then RescueConn:Disconnect();     RescueConn = nil end
-            if DeadBlockConn  then DeadBlockConn:Disconnect();  DeadBlockConn = nil end
-            if VoidDmgConn    then VoidDmgConn:Disconnect();    VoidDmgConn = nil end
-
             if state then
                 pcall(function()
-                    workspace.FallenPartsDestroyHeight = -VOID_RANGE
+                    workspace.FallenPartsDestroyHeight = -9e6
                 end)
-
-                RescueConn = RunService.Heartbeat:Connect(function()
-                    if not RescueActive then return end
-                    local char = LocalPlayer.Character
-                    local root = char and char:FindFirstChild("HumanoidRootPart")
-                    if not root then return end
-                    if root.Position.Y > RESCUE_Y + 50 then
-                        lastSafeCFrame = root.CFrame
-                    elseif root.Position.Y < RESCUE_Y and lastSafeCFrame then
-                        pcall(function()
-                            root.CFrame      = lastSafeCFrame
-                            root.Velocity    = Vector3.zero
-                            root.RotVelocity = Vector3.zero
-                        end)
-                    end
-                end)
-
-                DeadBlockConn = RunService.Heartbeat:Connect(function()
-                    if not DeadBlockActive then return end
-                    local char = LocalPlayer.Character
-                    local hum = char and char:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        pcall(function()
-                            hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-                        end)
-                    end
-                end)
-
-                if Window and Window.Notify then
-                    Window:Notify({
-                        Title       = "Anti Void",
-                        Description = "Enabled.",
-                        Duration    = 3,
-                        Type        = "success",
-                    })
-                end
             else
                 pcall(function()
-                    workspace.FallenPartsDestroyHeight = DEFAULT_FALL_HEIGHT
+                    workspace.FallenPartsDestroyHeight = DEFAULT_FALL
                 end)
-                if Window and Window.Notify then
-                    Window:Notify({
-                        Title       = "Anti Void",
-                        Description = "Disabled.",
-                        Duration    = 2,
-                        Type        = "warning",
-                    })
-                end
             end
         end,
     })
@@ -4675,220 +4603,66 @@ pcall(function()
     })
 end)
 -- ============================================================
--- GOD MODE (turbinado)
+-- GOD MODE
 -- ============================================================
 local godModeActive = false
 local godModeConnections = {}
-local godModeSavedFall = nil
-local godModeSavedMaxHealth = nil
-local godModeSavedParts = {}   -- [BasePart] = {CanTouch, CanCollide}
 
-local function NotifyGod(title, desc, kind)
-    if Window and Window.Notify then
-        Window:Notify({
-            Title       = title,
-            Description = desc,
-            Duration    = 3,
-            Type        = kind or "success",
-        })
-    end
-end
-
-local function DestroyVoidKillers()
-    local destroyed = 0
-
-    -- 1. FallenPartsDestroyHeight (kill-plane do void)
-    godModeSavedFall = workspace.FallenPartsDestroyHeight
-    pcall(function()
-        workspace.FallenPartsDestroyHeight = -math.huge
-        destroyed = destroyed + 1
-    end)
-
-    -- 2. Destrói partes do mapa que ficam em Y muito baixo (kill-zone física)
-    local char = LocalPlayer.Character
-    if char then
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local myY = root and root.Position.Y or 0
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and not obj:IsDescendantOf(char) then
-                if obj.Position.Y < (myY - 500) then
-                    pcall(function() obj:Destroy(); destroyed = destroyed + 1 end)
-                end
-            end
-        end
-    end
-
-    -- 3. Remove kill-bricks que tocam o personagem (CanTouch)
-    if char then
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                godModeSavedParts[part] = { CanTouch = part.CanTouch }
-                part.CanTouch = false
-                destroyed = destroyed + 1
-            end
-        end
-    end
-
-    -- 4. Remove overlays de dano
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if pg then
-        for _, n in ipairs({
-            "HurtOverlay","DamageOverlay","RedEffect","BloodOverlay","DamageHud",
-            "StunOverlay","FreezeOverlay","IceOverlay","VoidOverlay",
-        }) do
-            local ov = pg:FindFirstChild(n)
-            if ov then pcall(function() ov:Destroy(); destroyed = destroyed + 1 end) end
-        end
-    end
-
-    -- 5. Remove ForceFields do personagem
-    if char then
-        for _, ff in ipairs(char:GetDescendants()) do
-            if ff:IsA("ForceField") then
-                pcall(function() ff:Destroy(); destroyed = destroyed + 1 end)
-            end
-        end
-    end
-
-    -- 6. Remove constraints físicas que te empurram pra baixo
-    if char then
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if root then
-            for _, c in ipairs(root:GetChildren()) do
-                if c:IsA("BodyPosition") or c:IsA("BodyVelocity")
-                or c:IsA("BodyGyro")     or c:IsA("AlignPosition")
-                or c:IsA("AlignOrientation") or c:IsA("AngularVelocity")
-                or c:IsA("RocketPropulsion") then
-                    pcall(function() c:Destroy(); destroyed = destroyed + 1 end)
-                end
-            end
-        end
-    end
-
-    return destroyed
-end
-
-local function EnableGodMode()
+local function enableGodMode()
     local char = LocalPlayer.Character
     if not char then return false end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum then return false end
-
-    godModeActive = true
-
-    -- 1. Vida infinita real
-    godModeSavedMaxHealth = hum.MaxHealth
-    pcall(function()
-        hum.MaxHealth = math.huge
-        hum.Health    = math.huge
-    end)
-
-    -- 2. Trava a vida a cada mudança
+    hum.MaxHealth = math.huge
+    hum.Health = math.huge
     table.insert(godModeConnections, hum.HealthChanged:Connect(function(newHealth)
         if not godModeActive then return end
-        if newHealth < math.huge then
-            pcall(function() hum.Health = math.huge end)
-        end
+        if newHealth < math.huge then hum.Health = math.huge end
     end))
-
-    -- 3. Trava a vida a cada frame (redundância pra servers que resetam)
-    table.insert(godModeConnections, RunService.Heartbeat:Connect(function()
-        if not godModeActive then return end
-        local c = LocalPlayer.Character
-        local h = c and c:FindFirstChildOfClass("Humanoid")
-        if h and h.Health < math.huge then
-            pcall(function()
-                h.MaxHealth = math.huge
-                h.Health    = math.huge
-            end)
-        end
-    end))
-
-    -- 4. Destrói kill-parts, overlays e constraints
-    local destroyed = DestroyVoidKillers()
-
-    -- 5. Reaplica CanTouch em partes novas
-    table.insert(godModeConnections, char.DescendantAdded:Connect(function(desc)
-        if not godModeActive then return end
-        if desc:IsA("BasePart") then
-            godModeSavedParts[desc] = { CanTouch = desc.CanTouch }
-            desc.CanTouch = false
-        end
-    end))
-
-    -- 6. Remove ForceField que aparecer
     table.insert(godModeConnections, char.ChildAdded:Connect(function(child)
         if not godModeActive then return end
         if child:IsA("ForceField") then child:Destroy() end
     end))
-
-    -- 7. Remove overlays a cada frame
+    local function removeDamageOverlay()
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if not playerGui then return end
+        for _, name in ipairs({"HurtOverlay", "DamageOverlay", "RedEffect", "BloodOverlay", "DamageHud"}) do
+            local overlay = playerGui:FindFirstChild(name)
+            if overlay then overlay:Destroy() end
+        end
+    end
+    removeDamageOverlay()
     table.insert(godModeConnections, RunService.Heartbeat:Connect(function()
         if not godModeActive then return end
-        local pg = LocalPlayer:FindFirstChild("PlayerGui")
-        if not pg then return end
-        for _, n in ipairs({
-            "HurtOverlay","DamageOverlay","RedEffect","BloodOverlay","DamageHud",
-            "StunOverlay","FreezeOverlay","IceOverlay","VoidOverlay",
-        }) do
-            local ov = pg:FindFirstChild(n)
-            if ov then ov:Destroy() end
-        end
+        removeDamageOverlay()
     end))
-
-    -- 8. Bloqueia estado Dead
-    pcall(function()
-        hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-    end)
-
-    NotifyGod("God Mode", "Enabled • " .. destroyed .. " void killers destroyed", "success")
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then part.CanTouch = false end
+    end
+    table.insert(godModeConnections, char.DescendantAdded:Connect(function(desc)
+        if not godModeActive then return end
+        if desc:IsA("BasePart") then desc.CanTouch = false end
+    end))
     return true
 end
 
-local function DisableGodMode()
-    godModeActive = false
-
-    for _, conn in ipairs(godModeConnections) do
-        pcall(function() conn:Disconnect() end)
-    end
+local function disableGodMode()
+    for _, conn in ipairs(godModeConnections) do conn:Disconnect() end
     godModeConnections = {}
-
-    -- Restaura FallenPartsDestroyHeight
-    if godModeSavedFall ~= nil then
-        pcall(function()
-            workspace.FallenPartsDestroyHeight = godModeSavedFall
-        end)
-        godModeSavedFall = nil
-    end
-
-    -- Restaura CanTouch
-    for part, saved in pairs(godModeSavedParts) do
-        if part and part.Parent then
-            pcall(function() part.CanTouch = saved.CanTouch end)
-        end
-    end
-    godModeSavedParts = {}
-
     local char = LocalPlayer.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            pcall(function()
-                hum.MaxHealth = godModeSavedMaxHealth or 100
-                hum.Health    = math.min(hum.Health, godModeSavedMaxHealth or 100)
-                hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
-            end)
+        if hum then hum.MaxHealth = 100; hum.Health = 100 end
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanTouch = true end
         end
     end
-    godModeSavedMaxHealth = nil
-
-    NotifyGod("God Mode", "Disabled", "warning")
 end
 
 LocalPlayer.CharacterAdded:Connect(function()
     if godModeActive then
-        task.wait(0.2)
-        EnableGodMode()
+        task.wait(0.1)
+        enableGodMode()
     end
 end)
 
@@ -4896,13 +4670,8 @@ MainTab:CreateToggle({
     Title = "God Mode",
     Default = false,
     Callback = function(Value)
-        if Value then
-            if not EnableGodMode() then
-                NotifyGod("God Mode", "Character/Humanoid missing", "error")
-            end
-        else
-            DisableGodMode()
-        end
+        godModeActive = Value
+        if Value then enableGodMode() else disableGodMode() end
     end,
 })
 
@@ -13425,7 +13194,6 @@ pcall(function()
         end,
     })
 end)
-
 -- ============================================================
 -- CALCULATOR (ScreenGui separada, aberta por botão)
 -- ============================================================

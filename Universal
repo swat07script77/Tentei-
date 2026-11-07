@@ -3696,7 +3696,7 @@ ChatTab:CreateToggle({
         spamConn = RunService.Heartbeat:Connect(function()
             if not spamActive then return end
             local now = tick()
-            if now - spamLast >= 1 then
+            if now - spamLast >= 5 then
                 spamLast = now
                 sendChatMessage(spamMessages[spamIndex])
                 spamIndex = spamIndex % #spamMessages + 1
@@ -3730,7 +3730,7 @@ ChatTab:CreateToggle({
         fakeConn = RunService.Heartbeat:Connect(function()
             if not fakeActive then return end
             local now = tick()
-            if now - fakeLast >= 1 then
+            if now - fakeLast >= 5 then
                 fakeLast = now
                 sendChatMessage(fakeMessages[fakeIndex])
                 fakeIndex = fakeIndex % #fakeMessages + 1
@@ -5106,7 +5106,316 @@ AimBotTab:CreateButton({
         aimBotRunning = false
     end,
 })
+-- ============================================================
+-- ABA: SWORDS
+-- ============================================================
+local SwordTab = Window:CreateTab("Swords", "swords")
 
+local function getRoot(c) return c and c:FindFirstChild("HumanoidRootPart") end
+local function getHum(c) return c and c:FindFirstChildOfClass("Humanoid") end
+local function getEquippedTool()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChildOfClass("Tool")
+end
+
+-- ============================================================
+-- REACH (Keybind ativa + Input valor)
+-- ============================================================
+local reachActive = false
+local reachValue = 60
+local reachOldSize = nil
+local reachOldGrip = nil
+
+local function EnableReach()
+    local char = LocalPlayer.Character
+    if not char then return end
+    reachActive = true
+    for _, v in ipairs(char:GetDescendants()) do
+        if v:IsA("Tool") and v:FindFirstChild("Handle") then
+            reachOldSize = v.Handle.Size
+            reachOldGrip = v.GripPos
+            v.Handle.Size = Vector3.new(0.5, 0.5, reachValue)
+            v.GripPos = Vector3.new(0, 0, 0)
+        end
+    end
+    Window:Notify({ Title = "Reach", Description = "Enabled (" .. reachValue .. ")", Duration = 1.5, Type = "success" })
+end
+
+local function DisableReach()
+    local char = LocalPlayer.Character
+    if char then
+        for _, v in ipairs(char:GetDescendants()) do
+            if v:IsA("Tool") and v:FindFirstChild("Handle") then
+                if reachOldSize then v.Handle.Size = reachOldSize end
+                if reachOldGrip then v.GripPos = reachOldGrip end
+            end
+        end
+    end
+    reachActive = false
+    Window:Notify({ Title = "Reach", Description = "Disabled", Duration = 1.5, Type = "info" })
+end
+
+SwordTab:CreateSlider({
+    Title = "Reach Value", Min = 1, Max = 200, Default = 60,
+    Callback = function(v) reachValue = v end,
+})
+
+SwordTab:CreateKeybind({
+    Title = "Reach Key",
+    Default = "R",
+    Callback = function(key)
+        if reachActive then DisableReach() else EnableReach() end
+    end,
+})
+
+-- ============================================================
+-- GRIPPOS (Keybind ativa + 3 sliders X/Y/Z)
+-- ============================================================
+local gripX, gripY, gripZ = 0, 0, 0
+
+local function ApplyGrip()
+    local char = LocalPlayer.Character
+    if not char then return end
+    for _, v in ipairs(char:GetDescendants()) do
+        if v:IsA("Tool") then
+            v.GripPos = Vector3.new(gripX, gripY, gripZ)
+        end
+    end
+    Window:Notify({ Title = "GripPos", Description = string.format("(%.1f, %.1f, %.1f)", gripX, gripY, gripZ), Duration = 1.5, Type = "success" })
+end
+
+SwordTab:CreateSlider({ Title = "Grip X", Min = -10, Max = 10, Default = 0, Callback = function(v) gripX = v end })
+SwordTab:CreateSlider({ Title = "Grip Y", Min = -10, Max = 10, Default = 0, Callback = function(v) gripY = v end })
+SwordTab:CreateSlider({ Title = "Grip Z", Min = -10, Max = 10, Default = 0, Callback = function(v) gripZ = v end })
+
+SwordTab:CreateKeybind({
+    Title = "GripPos Key",
+    Default = "G",
+    Callback = function(key) ApplyGrip() end,
+})
+
+-- ============================================================
+-- USETOOLS (Keybind ativa + Sliders amount/delay)
+-- ============================================================
+local useToolsAmount = 1
+local useToolsDelay = 0
+
+local function UseTools()
+    local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+    if not backpack then return end
+    for _, v in ipairs(backpack:GetChildren()) do
+        if v:IsA("Tool") then
+            local tool = v
+            tool.Parent = LocalPlayer.Character
+            task.spawn(function()
+                for _ = 1, useToolsAmount do
+                    pcall(function() tool:Activate() end)
+                    if useToolsDelay > 0 then task.wait(useToolsDelay) end
+                end
+                if tool and tool.Parent then
+                    tool.Parent = backpack
+                end
+            end)
+        end
+    end
+    Window:Notify({ Title = "UseTools", Description = "Activated all tools", Duration = 1.5, Type = "success" })
+end
+
+SwordTab:CreateSlider({ Title = "UseTools Amount", Min = 1, Max = 50, Default = 1, Callback = function(v) useToolsAmount = v end })
+SwordTab:CreateSlider({ Title = "UseTools Delay", Min = 0, Max = 10, Default = 0, Callback = function(v) useToolsDelay = v / 100 end })
+
+SwordTab:CreateKeybind({
+    Title = "UseTools Key",
+    Default = "T",
+    Callback = function(key) UseTools() end,
+})
+
+-- ============================================================
+-- COPYTOOLS (Button)
+-- ============================================================
+local copyPlayerName = ""
+local copyPlayerDropdown = nil
+
+local function RefreshCopyList()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
+    end
+    table.sort(list)
+    if copyPlayerDropdown and copyPlayerDropdown.Update then
+        pcall(function() copyPlayerDropdown:Update({ Options = list }) end)
+    end
+end
+
+copyPlayerDropdown = SwordTab:CreateDropdown({
+    Title = "Copy From Player",
+    Options = {},
+    Callback = function(v) copyPlayerName = v end,
+})
+RefreshCopyList()
+
+SwordTab:CreateButton({
+    Title = "Refresh Copy List",
+    Callback = function() RefreshCopyList() end,
+})
+
+SwordTab:CreateButton({
+    Title = "CopyTools",
+    Callback = function()
+        if copyPlayerName == "" then return end
+        local found = nil
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Name == copyPlayerName then found = p; break end
+        end
+        if not found then return end
+        local bp = found:FindFirstChildOfClass("Backpack")
+        local myBp = LocalPlayer:FindFirstChildOfClass("Backpack")
+        if bp and myBp then
+            for _, v in ipairs(bp:GetChildren()) do
+                if v:IsA("Tool") then
+                    pcall(function() v:Clone().Parent = myBp end)
+                end
+            end
+            Window:Notify({ Title = "CopyTools", Description = "Copied from " .. found.Name, Duration = 2, Type = "success" })
+        end
+    end,
+})
+
+-- ============================================================
+-- REMOVESPECIFICTOOL (TextBox + Button)
+-- ============================================================
+local rstList = {}
+local rstName = ""
+
+SwordTab:CreateInput({
+    Title = "Tool Name to Remove",
+    Placeholder = "Sword",
+    Callback = function(v) rstName = v end,
+})
+
+SwordTab:CreateButton({
+    Title = "Remove Specific Tool",
+    Callback = function()
+        if rstName == "" then return end
+        local key = rstName:lower()
+        if rstList[key] then return end
+        rstList[key] = RunService.RenderStepped:Connect(function()
+            local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+            if bp then
+                for _, v in ipairs(bp:GetChildren()) do
+                    if v:IsA("Tool") and v.Name:lower() == key then v:Destroy() end
+                end
+            end
+        end)
+        Window:Notify({ Title = "Remove Specific Tool", Description = "Removing " .. rstName, Duration = 2, Type = "success" })
+    end,
+})
+
+SwordTab:CreateButton({
+    Title = "UnRemove Specific Tool",
+    Callback = function()
+        if rstName == "" then return end
+        local key = rstName:lower()
+        if rstList[key] then
+            rstList[key]:Disconnect()
+            rstList[key] = nil
+            Window:Notify({ Title = "UnRemove", Description = "Stopped removing " .. rstName, Duration = 1.5, Type = "info" })
+        end
+    end,
+})
+
+SwordTab:CreateButton({
+    Title = "Clear All Removals",
+    Callback = function()
+        for _, v in pairs(rstList) do v:Disconnect() end
+        rstList = {}
+        Window:Notify({ Title = "Clear", Description = "All removals cleared", Duration = 1.5, Type = "success" })
+    end,
+})
+
+-- ============================================================
+-- TOOL HUB (kill aura, infinite inventory, tool view)
+-- ============================================================
+if not firetouchinterest then
+    Window:Notify({ Title = "Tool Hub", Description = "Executor doesn't support firetouchinterest", Duration = 3, Type = "warning" })
+    return
+end
+
+local function attackPlayer(targetPlayer, tool)
+    local handle = tool and tool:FindFirstChild("Handle")
+    if not handle then return end
+    if not targetPlayer.Character then return end
+    local hum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+    local root = hum and targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root or not hum or hum.Health <= 0 then return end
+    pcall(function()
+        firetouchinterest(handle, root, 1)
+        firetouchinterest(handle, root, 0)
+    end)
+end
+
+-- KILL AURA
+local killAuraEnabled = false
+local killAuraConn = nil
+SwordTab:CreateToggle({
+    Title = "Kill Aura",
+    Default = false,
+    Callback = function(Value)
+        killAuraEnabled = Value
+        if killAuraConn then killAuraConn:Disconnect(); killAuraConn = nil end
+        if not Value then return end
+        killAuraConn = RunService.Heartbeat:Connect(function()
+            if not killAuraEnabled then return end
+            local tool = getEquippedTool()
+            if not tool or not tool:FindFirstChild("Handle") then return end
+            for _, target in ipairs(Players:GetPlayers()) do
+                if target ~= LocalPlayer and target.Character then
+                    attackPlayer(target, tool)
+                end
+            end
+        end)
+    end,
+})
+
+-- AUTO TOOL
+local autoToolEnabled = false
+local autoToolLoop = nil
+SwordTab:CreateToggle({
+    Title = "Auto Tool",
+    Default = false,
+    Callback = function(Value)
+        autoToolEnabled = Value
+        if autoToolLoop then autoToolLoop:Disconnect(); autoToolLoop = nil end
+        if not Value then return end
+        autoToolLoop = RunService.Heartbeat:Connect(function()
+            if not autoToolEnabled then return end
+            local char = LocalPlayer.Character
+            if not char then return end
+            local backpack = LocalPlayer:FindFirstChild("Backpack")
+            if not backpack then return end
+            local tools = {}
+            for _, t in ipairs(backpack:GetChildren()) do
+                if t:IsA("Tool") then table.insert(tools, t) end
+            end
+            if #tools == 0 then return end
+            local currentTool = char:FindFirstChildOfClass("Tool")
+            local nextIndex = 1
+            if currentTool then
+                for i, t in ipairs(tools) do
+                    if t == currentTool then
+                        nextIndex = i + 1
+                        if nextIndex > #tools then nextIndex = 1 end
+                        break
+                    end
+                end
+            end
+            local nextTool = tools[nextIndex]
+            if nextTool and nextTool ~= currentTool then
+                pcall(function() char.Humanoid:EquipTool(nextTool) end)
+            end
+        end)
+    end,
+})
 -- ============================================================
 -- EXTRA TAB (Fullbright / Remove Fog / Infinity Jump)
 -- ============================================================
@@ -13425,6 +13734,7 @@ pcall(function()
         end,
     })
 end)
+
 -- ============================================================
 -- CALCULATOR (ScreenGui separada, aberta por botão)
 -- ============================================================

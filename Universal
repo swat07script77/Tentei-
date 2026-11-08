@@ -14496,3 +14496,485 @@ NPCTab:CreateToggle({
         end)
     end,
 })
+local S = _G.Swat
+local UtilsTab = S.Window:CreateTab("Utils", "wrench")
+
+UtilsTab:CreateButton({
+    Title = "Admin",
+    Callback = function()
+        pcall(function()
+            loadstring(game:HttpGet("https://pastebin.com/raw/u76Vt91p"))()
+        end)
+    end,
+})
+
+UtilsTab:CreateButton({
+    Title = "Bug Position",
+    Callback = function()
+        pcall(function()
+            local char = S.Player.Character
+            if not char then return end
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+            root.CFrame = CFrame.new(0/0, 0/0, 0/0)
+        end)
+    end,
+})
+
+UtilsTab:CreateButton({
+    Title = "Exit",
+    Callback = function()
+        pcall(function()
+            game:Shutdown()
+        end)
+    end,
+})
+
+UtilsTab:CreateButton({
+    Title = "Discord",
+    Callback = function()
+        pcall(function()
+            local req = request or http_request or (syn and syn.request)
+            if req then
+                pcall(function()
+                    req({
+                        Url = "http://127.0.0.1:6463/rpc?v=1",
+                        Method = "POST",
+                        Headers = {
+                            ["Content-Type"] = "application/json",
+                            Origin = "https://discord.com"
+                        },
+                        Body = game:GetService("HttpService"):JSONEncode({
+                            cmd = "INVITE_BROWSER",
+                            nonce = game:GetService("HttpService"):GenerateGUID(false),
+                            args = { code = "ACk4JyVJ6x" }
+                        })
+                    })
+                end)
+            end
+            if setclipboard then
+                setclipboard("https://discord.gg/G8J3k2nB34")
+            end
+            S.Window:Notify({
+                Title = "Discord",
+                Description = "https://discord.gg/G8J3k2nB34",
+                Duration = 4,
+                Type = "info",
+            })
+        end)
+    end,
+})
+
+UtilsTab:CreateButton({
+    Title = "Jump",
+    Callback = function()
+        pcall(function()
+            local char = S.Player.Character
+            if not char then return end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not hum then return end
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end)
+    end,
+})
+
+UtilsTab:CreateButton({
+    Title = "Punch",
+    Callback = function()
+        pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/FilteringEnabled/FE/main/punch", true))()
+        end)
+    end,
+})
+
+UtilsTab:CreateButton({
+    Title = "Day",
+    Callback = function()
+        pcall(function()
+            game:GetService("Lighting").ClockTime = 12
+        end)
+    end,
+})
+
+UtilsTab:CreateButton({
+    Title = "Night",
+    Callback = function()
+        pcall(function()
+            game:GetService("Lighting").ClockTime = 0
+        end)
+    end,
+})
+
+UtilsTab:CreateButton({
+    Title = "Copy JobId",
+    Callback = function()
+        pcall(function()
+            if setclipboard then
+                setclipboard("roblox://placeId=" .. game.PlaceId .. "&gameInstanceId=" .. game.JobId)
+            end
+        end)
+    end,
+})
+
+UtilsTab:CreateButton({
+    Title = "Notify JobId",
+    Callback = function()
+        pcall(function()
+            S.Window:Notify({
+                Title = "JobId / PlaceId",
+                Description = game.JobId .. " / " .. game.PlaceId,
+                Duration = 4,
+                Type = "success",
+            })
+        end)
+    end,
+})
+
+UtilsTab:CreateButton({
+    Title = "Break Loops",
+    Callback = function()
+        pcall(function()
+            getgenv().LastBreakTime = tick()
+        end)
+    end,
+})
+
+local GameTpBox = UtilsTab:CreateInput({
+    Title = "Place ID",
+    Placeholder = "Type place id...",
+    Callback = function() end,
+})
+
+UtilsTab:CreateButton({
+    Title = "Game Teleport",
+    Callback = function()
+        pcall(function()
+            local id = tonumber(GameTpBox.Value)
+            if not id then return end
+            game:GetService("TeleportService"):Teleport(id)
+        end)
+    end,
+})
+
+local AnchorActive = false
+UtilsTab:CreateToggle({
+    Title = "Anchor",
+    Default = false,
+    Callback = function(value)
+        AnchorActive = value
+        pcall(function()
+            local char = S.Player.Character
+            if not char then return end
+            local root = char:FindFirstChild("HumanoidRootPart")
+                or char:FindFirstChild("Torso")
+                or char:FindFirstChild("UpperTorso")
+            if not root then return end
+            root.Anchored = AnchorActive
+        end)
+    end,
+})
+
+local FreezeAnimsActive = false
+UtilsTab:CreateToggle({
+    Title = "Freeze Anims",
+    Default = false,
+    Callback = function(value)
+        FreezeAnimsActive = value
+        pcall(function()
+            local char = S.Player.Character
+            if not char then return end
+            local hum = char:FindFirstChildOfClass("Humanoid") or char:FindFirstChildOfClass("AnimationController")
+            if not hum then return end
+            for _, v in pairs(hum:GetPlayingAnimationTracks()) do
+                v:AdjustSpeed(FreezeAnimsActive and 0 or 1)
+            end
+        end)
+    end,
+})
+
+UtilsTab:CreateButton({
+    Title = "Notify Ping",
+    Callback = function()
+        pcall(function()
+            S.Window:Notify({
+                Title = "Ping",
+                Description = math.round(S.Player:GetNetworkPing() * 1000) .. "ms",
+                Duration = 3,
+                Type = "info",
+            })
+        end)
+    end,
+})
+
+local AutoProxActive = false
+local AutoProxConn = nil
+UtilsTab:CreateToggle({
+    Title = "Auto Proximity",
+    Default = false,
+    Callback = function(value)
+        AutoProxActive = value
+        if AutoProxConn then AutoProxConn:Disconnect(); AutoProxConn = nil end
+        if not value then return end
+        pcall(function()
+            AutoProxConn = S.RS.Heartbeat:Connect(function()
+                if not AutoProxActive then return end
+                local char = S.Player.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                if not root then return end
+                for _, obj in ipairs(S.WS:GetDescendants()) do
+                    if obj:IsA("ProximityPrompt") and obj.Enabled then
+                        local parent = obj.Parent
+                        if parent and parent:IsA("BasePart") then
+                            local dist = (parent.Position - root.Position).Magnitude
+                            if dist <= obj.MaxActivationDistance + 5 then
+                                pcall(function() fireproximityprompt(obj) end)
+                            end
+                        end
+                    end
+                end
+            end)
+        end)
+    end,
+})
+
+UtilsTab:CreateButton({
+    Title = "F3X",
+    Callback = function()
+        pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/infyll/backup/refs/heads/main/f3x.lua"))()
+        end)
+    end,
+})
+
+UtilsTab:CreateButton({
+    Title = "Server Info",
+    Callback = function()
+        pcall(function()
+            if getgenv().ServerInfoOpen then return end
+            getgenv().ServerInfoOpen = true
+            local Players = game:GetService("Players")
+            local MarketplaceService = game:GetService("MarketplaceService")
+            local lplayer = Players.LocalPlayer
+            local win = Instance.new("Frame")
+            win.Name = "ServerInfoWindow"
+            win.Size = UDim2.new(0, 340, 0, 380)
+            win.Position = UDim2.new(0.5, -170, 0.5, -190)
+            win.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+            win.BackgroundTransparency = 0.15
+            win.BorderSizePixel = 0
+            win.Active = true
+            win.Draggable = true
+            win.ZIndex = 60
+            win.Parent = S.UI and S.UI.ScreenGui or lplayer:WaitForChild("PlayerGui")
+            local corner = Instance.new("UICorner", win)
+            corner.CornerRadius = UDim.new(0, 16)
+            local stroke = Instance.new("UIStroke", win)
+            stroke.Color = Color3.fromRGB(225, 225, 235)
+            stroke.Thickness = 1.1
+            stroke.Transparency = 0.55
+            stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            local grad = Instance.new("UIGradient", win)
+            grad.Color = ColorSequence.new{
+                ColorSequenceKeypoint.new(0.0, Color3.fromRGB(70, 75, 90)),
+                ColorSequenceKeypoint.new(1.0, Color3.fromRGB(30, 32, 42)),
+            }
+            grad.Rotation = 90
+            grad.Transparency = NumberSequence.new{
+                NumberSequenceKeypoint.new(0.0, 0.45),
+                NumberSequenceKeypoint.new(1.0, 0.85),
+            }
+            local title = Instance.new("TextLabel", win)
+            title.Size = UDim2.new(1, -60, 0, 40)
+            title.Position = UDim2.new(0, 16, 0, 0)
+            title.BackgroundTransparency = 1
+            title.Text = "Server Info"
+            title.TextColor3 = Color3.fromRGB(250, 250, 255)
+            title.Font = Enum.Font.GothamBold
+            title.TextSize = 16
+            title.TextXAlignment = Enum.TextXAlignment.Left
+            local closeX = Instance.new("TextButton", win)
+            closeX.Size = UDim2.new(0, 28, 0, 28)
+            closeX.Position = UDim2.new(1, -36, 0, 6)
+            closeX.BackgroundColor3 = Color3.fromRGB(70, 75, 90)
+            closeX.BackgroundTransparency = 0.35
+            closeX.Text = "X"
+            closeX.TextColor3 = Color3.fromRGB(255, 255, 255)
+            closeX.Font = Enum.Font.GothamBold
+            closeX.TextSize = 14
+            closeX.BorderSizePixel = 0
+            closeX.AutoButtonColor = false
+            local xc = Instance.new("UICorner", closeX)
+            xc.CornerRadius = UDim.new(0, 10)
+            local xs = Instance.new("UIStroke", closeX)
+            xs.Color = Color3.fromRGB(225, 225, 235)
+            xs.Transparency = 0.55
+            xs.Thickness = 1.1
+            local content = Instance.new("Frame", win)
+            content.Size = UDim2.new(1, -28, 1, -56)
+            content.Position = UDim2.new(0, 14, 0, 46)
+            content.BackgroundTransparency = 1
+            local layout = Instance.new("UIListLayout", content)
+            layout.SortOrder = Enum.SortOrder.LayoutOrder
+            layout.Padding = UDim.new(0, 6)
+            local function makeRow(label, order)
+                local row = Instance.new("Frame", content)
+                row.Size = UDim2.new(1, 0, 0, 34)
+                row.BackgroundColor3 = Color3.fromRGB(70, 75, 90)
+                row.BackgroundTransparency = 0.55
+                row.BorderSizePixel = 0
+                row.LayoutOrder = order
+                local rc = Instance.new("UICorner", row)
+                rc.CornerRadius = UDim.new(0, 10)
+                local rs = Instance.new("UIStroke", row)
+                rs.Color = Color3.fromRGB(225, 225, 235)
+                rs.Thickness = 1
+                rs.Transparency = 0.7
+                local lbl = Instance.new("TextLabel", row)
+                lbl.Size = UDim2.new(1, -60, 1, 0)
+                lbl.Position = UDim2.new(0, 12, 0, 0)
+                lbl.BackgroundTransparency = 1
+                lbl.Text = label .. "LOADING"
+                lbl.TextColor3 = Color3.fromRGB(230, 225, 240)
+                lbl.Font = Enum.Font.Gotham
+                lbl.TextSize = 13
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+                local copy = Instance.new("TextButton", row)
+                copy.Size = UDim2.new(0, 44, 0, 22)
+                copy.Position = UDim2.new(1, -54, 0.5, -11)
+                copy.BackgroundColor3 = Color3.fromRGB(70, 75, 90)
+                copy.BackgroundTransparency = 0.35
+                copy.Text = "Copy"
+                copy.TextColor3 = Color3.fromRGB(250, 250, 255)
+                copy.Font = Enum.Font.GothamBold
+                copy.TextSize = 11
+                copy.BorderSizePixel = 0
+                copy.AutoButtonColor = false
+                local cc = Instance.new("UICorner", copy)
+                cc.CornerRadius = UDim.new(0, 8)
+                local cs = Instance.new("UIStroke", copy)
+                cs.Color = Color3.fromRGB(225, 225, 235)
+                cs.Transparency = 0.55
+                cs.Thickness = 1
+                return lbl, copy
+            end
+            local playerLbl, playerCopy = makeRow("Player ID: ", 1)
+            local appearanceLbl, appearanceCopy = makeRow("Appearance: ", 2)
+            local timeLbl = makeRow("Run Time: ", 3)
+            local playersLbl = makeRow("Players: ", 4)
+            local maxLbl = makeRow("Max Players: ", 5)
+            local placeIdLbl, placeIdCopy = makeRow("Place ID: ", 6)
+            local nameLbl, nameCopy = makeRow("Place Name: ", 7)
+            playerLbl.Text = "Player ID: " .. lplayer.UserId
+            appearanceLbl.Text = "Appearance: " .. tostring(lplayer.CharacterAppearanceId)
+            maxLbl.Text = "Max Players: " .. Players.MaxPlayers
+            placeIdLbl.Text = "Place ID: " .. game.PlaceId
+            playerCopy.MouseButton1Click:Connect(function()
+                if setclipboard then setclipboard(tostring(lplayer.UserId)) end
+            end)
+            appearanceCopy.MouseButton1Click:Connect(function()
+                if setclipboard then setclipboard(tostring(lplayer.CharacterAppearanceId)) end
+            end)
+            placeIdCopy.MouseButton1Click:Connect(function()
+                if setclipboard then setclipboard(tostring(game.PlaceId)) end
+            end)
+            nameCopy.MouseButton1Click:Connect(function()
+                if setclipboard then setclipboard(nameLbl.Text:gsub("Place Name: ", "")) end
+            end)
+            pcall(function()
+                local ok, asset = pcall(function()
+                    return MarketplaceService:GetProductInfo(game.PlaceId)
+                end)
+                if ok and asset then
+                    nameLbl.Text = "Place Name: " .. asset.Name
+                else
+                    nameLbl.Text = "Place Name: Unknown"
+                end
+            end)
+            closeX.MouseButton1Click:Connect(function()
+                win:Destroy()
+                getgenv().ServerInfoWindow = nil
+                getgenv().ServerInfoOpen = false
+            end)
+            task.spawn(function()
+                while win.Parent do
+                    playersLbl.Text = "Players: " .. #Players:GetPlayers()
+                    local t = math.floor(S.WS.DistributedGameTime)
+                    local h = math.floor(t / 3600)
+                    local m = math.floor((t % 3600) / 60)
+                    local s = t % 60
+                    if h > 0 then
+                        timeLbl.Text = "Run Time: " .. h .. "h " .. m .. "m " .. s .. "s"
+                    elseif m > 0 then
+                        timeLbl.Text = "Run Time: " .. m .. "m " .. s .. "s"
+                    else
+                        timeLbl.Text = "Run Time: " .. s .. "s"
+                    end
+                    task.wait(1)
+                end
+            end)
+        end)
+    end,
+})
+
+local LightActive   = false
+local LightRange    = 30
+local LightBright   = 5
+local LightInstance = nil
+
+local function StopLight()
+    LightActive = false
+    if LightInstance and LightInstance.Parent then
+        pcall(function() LightInstance:Destroy() end)
+    end
+    LightInstance = nil
+end
+
+local function StartLight()
+    pcall(function()
+        LightActive = true
+        local char = S.Player.Character
+        if not char then StopLight() return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+            or char:FindFirstChild("Torso")
+            or char:FindFirstChild("UpperTorso")
+        if not root then StopLight() return end
+        if LightInstance and LightInstance.Parent then
+            pcall(function() LightInstance:Destroy() end)
+        end
+        LightInstance = Instance.new("PointLight")
+        LightInstance.Range = LightRange
+        LightInstance.Brightness = LightBright
+        LightInstance.Parent = root
+    end)
+end
+
+UtilsTab:CreateToggle({
+    Title = "Light",
+    Default = false,
+    Callback = function(value)
+        LightActive = value
+        if value then StartLight() else StopLight() end
+    end,
+})
+
+UtilsTab:CreateSlider({
+    Title = "Light Range",
+    Min = 0, Max = 1000, Default = 30,
+    Callback = function(value)
+        LightRange = value
+        if LightInstance and LightInstance.Parent then
+            LightInstance.Range = value
+        end
+    end,
+})
+
+UtilsTab:CreateSlider({
+    Title = "Light Brightness",
+    Min = 0, Max = 1000, Default = 5,
+    Callback = function(value)
+        LightBright = value
+        if LightInstance and LightInstance.Parent then
+            LightInstance.Brightness = value
+        end
+    end,
+})

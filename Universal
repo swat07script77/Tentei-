@@ -6775,19 +6775,24 @@ do
         if spinActive then task.wait(0.5); originalAutoRotate = nil; startSpin() end
     end)
 end
--if not _G.Swat or not _G.Swat.Window then
-    _G.Swat = _G.Swat or {}
-    _G.Swat.Window  = Window or (SwatUI and SwatUI.Window)
-    _G.Swat.UI      = SwatUI
-    _G.Swat.Player  = game:GetService("Players").LocalPlayer
-    _G.Swat.Players = game:GetService("Players")
-    _G.Swat.RS      = game:GetService("RunService")
-    _G.Swat.UIS     = game:GetService("UserInputService")
-    _G.Swat.WS      = workspace
+-local SwordTab
+if SwatUI and Window then
+    SwordTab = Window:CreateTab("Sword", "swords")
+elseif _G.Swat and _G.Swat.Window then
+    SwordTab = _G.Swat.Window:CreateTab("Sword", "swords")
 end
 
-local S = _G.Swat
-local SwordTab = S.Window:CreateTab("Sword", "swords")
+if not SwordTab then
+    warn("[Sword] ERRO: Window/SwatUI não encontrada neste arquivo. Cole isso no arquivo que tem 'SwatUI:CreateWindow'.")
+    return
+end
+
+local S = {
+    Player  = game:GetService("Players").LocalPlayer,
+    Players = game:GetService("Players"),
+    RS      = game:GetService("RunService"),
+    WS      = workspace,
+}
 
 local function GetPlayerByName(name)
     if not name or name == "" then return nil end

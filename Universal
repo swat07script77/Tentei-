@@ -14707,38 +14707,6 @@ UtilsTab:CreateButton({
         end)
     end,
 })
-
-local AutoProxActive = false
-local AutoProxConn = nil
-UtilsTab:CreateToggle({
-    Title = "Auto Proximity",
-    Default = false,
-    Callback = function(value)
-        AutoProxActive = value
-        if AutoProxConn then AutoProxConn:Disconnect(); AutoProxConn = nil end
-        if not value then return end
-        pcall(function()
-            AutoProxConn = S.RS.Heartbeat:Connect(function()
-                if not AutoProxActive then return end
-                local char = S.Player.Character
-                local root = char and char:FindFirstChild("HumanoidRootPart")
-                if not root then return end
-                for _, obj in ipairs(S.WS:GetDescendants()) do
-                    if obj:IsA("ProximityPrompt") and obj.Enabled then
-                        local parent = obj.Parent
-                        if parent and parent:IsA("BasePart") then
-                            local dist = (parent.Position - root.Position).Magnitude
-                            if dist <= obj.MaxActivationDistance + 5 then
-                                pcall(function() fireproximityprompt(obj) end)
-                            end
-                        end
-                    end
-                end
-            end)
-        end)
-    end,
-})
-
 UtilsTab:CreateButton({
     Title = "F3X",
     Callback = function()

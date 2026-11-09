@@ -1,39 +1,7 @@
 
 local SwordTab = S.Window:CreateTab("Sword", "swords")
 
-local function GetPlayerByName(name)
-    if not name or name == "" then return nil end
-    for _, plr in ipairs(S.Players:GetPlayers()) do
-        if plr.Name == name then return plr end
-    end
-    return nil
-end
 
-local SwordTarget = nil
-local SwordTargetConn = nil
-
-local function RefreshSwordTargetList()
-    local list = {}
-    for _, plr in ipairs(S.Players:GetPlayers()) do
-        if plr ~= S.Player then table.insert(list, plr.Name) end
-    end
-    table.sort(list)
-    if SwordTargetConn and SwordTargetConn.Update then
-        pcall(function() SwordTargetConn:Update({ Options = list }) end)
-    end
-end
-
-SwordTargetConn = SwordTab:CreateDropdown({
-    Title = "Select Target",
-    Options = {},
-    Callback = function(Value) SwordTarget = Value end,
-})
-RefreshSwordTargetList()
-
-SwordTab:CreateButton({
-    Title = "Refresh Target List",
-    Callback = function() RefreshSwordTargetList() end,
-})
 
 local reachActive = false
 local reachValue = 60
@@ -295,6 +263,65 @@ SwordTab:CreateButton({
             local myBp = S.Player:FindFirstChildOfClass("Backpack")
             if not myBp then return end
             for _, v in ipairs(found.Character:GetChildren()) do
+                if v:IsA("Tool") then
+                    pcall(function() v.Parent = myBp end)
+                end
+            end
+        end)
+    end,
+})
+
+local rstList = {}
+local rstName = ""
+
+SwordTab:CreateInput({
+    Title = "Tool Name",
+    Placeholder = "Sword",
+    Callback = function(v) rstName = v end,
+})
+
+SwordTab:CreateButton({
+    Title = "Remove Specific Tool",
+    Callback = function()
+        pcall(function()
+            if rstName == "" then return end
+            local key = rstName:lower()
+            if rstList[key] then return end
+            rstList[key] = S.RS.RenderStepped:Connect(function()
+                local bp = S.Player:FindFirstChildOfClass("Backpack")
+                if bp then
+                    for _, v in ipairs(bp:GetChildren()) do
+                        if v:IsA("Tool") and v.Name:lower() == key then v:Destroy() end
+                    end
+                end
+            end)
+        end)
+    end,
+})
+
+SwordTab:CreateButton({
+    Title = "UnRemove Specific Tool",
+    Callback = function()
+        pcall(function()
+            if rstName == "" then return end
+            local key = rstName:lower()
+            if rstList[key] then
+                rstList[key]:Disconnect()
+                rstList[key] = nil
+            end
+        end)
+    end,
+})
+
+SwordTab:CreateButton({
+    Title = "Clear All Removals",
+    Callback = function()
+        pcall(function()
+            for _, v in pairs(rstList) do v:Disconnect() end
+            rstList = {}
+        end)
+    end,
+}), v in ipairs(found.Character:GetChildren()) do
                 if v:IsA("Tool") then
                     pcall(function() v.Parent = myBp end)
                 end

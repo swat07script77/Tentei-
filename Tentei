@@ -8,6 +8,25 @@ local function GetPlayerByName(name)
     return nil
 end
 
+local function GetEquippedTool()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChildOfClass("Tool")
+end
+
+local function AttackPlayer(targetPlayer, tool)
+    if not firetouchinterest then return end
+    local handle = tool and tool:FindFirstChild("Handle")
+    if not handle then return end
+    if not targetPlayer.Character then return end
+    local hum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+    local root = hum and targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root or not hum or hum.Health <= 0 or hum:GetState() == Enum.HumanoidStateType.Dead then return end
+    pcall(function()
+        firetouchinterest(handle, root, 1)
+        firetouchinterest(handle, root, 0)
+    end)
+end
+
 local SwordTarget = nil
 local SwordTargetConn = nil
 
@@ -32,6 +51,126 @@ RefreshSwordTargetList()
 SwordTab:CreateButton({
     Title = "Refresh Target List",
     Callback = function() RefreshSwordTargetList() end,
+})
+
+local killAuraActive = false
+local killAuraConn = nil
+
+SwordTab:CreateToggle({
+    Title = "Kill Aura",
+    Default = false,
+    Callback = function(Value)
+        pcall(function()
+            killAuraActive = Value
+            if killAuraConn then killAuraConn:Disconnect(); killAuraConn = nil end
+            if not Value then return end
+            if not firetouchinterest then
+                Window:Notify({ Title = "Kill Aura", Description = "Needs firetouchinterest", Duration = 3, Type = "error" })
+                killAuraActive = false
+                return
+            end
+            killAuraConn = RunService.Heartbeat:Connect(function()
+                if not killAuraActive then return end
+                local curChar = LocalPlayer.Character
+                if not curChar then return end
+                local curTool = curChar:FindFirstChildOfClass("Tool")
+                if not curTool or not curTool:FindFirstChild("Handle") then
+                    killAuraActive = false
+                    if killAuraConn then killAuraConn:Disconnect(); killAuraConn = nil end
+                    return
+                end
+                for _, target in ipairs(Players:GetPlayers()) do
+                    if target ~= LocalPlayer and target.Character then
+                        AttackPlayer(target, curTool)
+                    end
+                end
+            end)
+        end)
+    end,
+})
+
+local killTargetActive = false
+local killTargetConn = nil
+
+SwordTab:CreateToggle({
+    Title = "Kill Target",
+    Default = false,
+    Callback = function(Value)
+        pcall(function()
+            killTargetActive = Value
+            if killTargetConn then killTargetConn:Disconnect(); killTargetConn = nil end
+            if not Value then return end
+            if not firetouchinterest then
+                Window:Notify({ Title = "Kill Target", Description = "Needs firetouchinterest", Duration = 3, Type = "error" })
+                killTargetActive = false
+                return
+            end
+            local target = GetPlayerByName(SwordTarget)
+            if not target then
+                Window:Notify({ Title = "Kill Target", Description = "Select a target first", Duration = 3, Type = "warning" })
+                killTargetActive = false
+                return
+            end
+            killTargetConn = RunService.Heartbeat:Connect(function()
+                if not killTargetActive then return end
+                local curChar = LocalPlayer.Character
+                if not curChar then return end
+                local curTool = curChar:FindFirstChildOfClass("Tool")
+                if not curTool or not curTool:FindFirstChild("Handle") then return end
+                local t = GetPlayerByName(SwordTarget)
+                if not t or not t.Character then return end
+                local tHum = t.Character:FindFirstChildOfClass("Humanoid")
+                if not tHum or tHum.Health <= 0 then
+                    killTargetActive = false
+                    if killTargetConn then killTargetConn:Disconnect(); killTargetConn = nil end
+                    return
+                end
+                AttackPlayer(t, curTool)
+            end)
+        end)
+    end,
+})
+
+local autoToolActive = false
+local autoToolConn = nil
+
+SwordTab:CreateToggle({
+    Title = "Auto Tool",
+    Default = false,
+    Callback = function(Value)
+        pcall(function()
+            autoToolActive = Value
+            if autoToolConn then autoToolConn:Disconnect(); autoToolConn = nil end
+            if not Value then return end
+            autoToolConn = RunService.Heartbeat:Connect(function()
+                if not autoToolActive then return end
+                local char = LocalPlayer.Character
+                if not char then return end
+                local backpack = LocalPlayer:FindFirstChild("Backpack")
+                if not backpack then return end
+                local tools = {}
+                for _, t in ipairs(backpack:GetChildren()) do
+                    if t:IsA("Tool") then table.insert(tools, t) end
+                end
+                if #tools == 0 then return end
+                local currentTool = char:FindFirstChildOfClass("Tool")
+                local nextIndex = 1
+                if currentTool then
+                    for i, t in ipairs(tools) do
+                        if t == currentTool then
+                            nextIndex = i + 1
+                            if nextIndex > #tools then nextIndex = 1 end
+                            break
+                        end
+                    end
+                end
+                local nextTool = tools[nextIndex]
+                if nextTool and nextTool ~= currentTool then
+                    pcall(function() char.Humanoid:EquipTool(nextTool) end)
+                end
+            end)
+        end)
+    end,
 })
 
 local reachActive = false
@@ -293,6 +432,66 @@ SwordTab:CreateButton({
             if not found or not found.Character then return end
             local myBp = LocalPlayer:FindFirstChildOfClass("Backpack")
             if not myBp then return end
+            for _, v in ipairs(found.Character:GetChildren()) do
+                if v:IsA("Tool") then
+                    pcall(function() v.Parent = myBp end)
+                end
+            end
+        end)
+    end,
+})
+
+local rstList = {}
+local rstName = ""
+
+SwordTab:CreateInput({
+    Title = "Tool Name",
+    Placeholder = "Sword",
+    Callback = function(v) rstName = v end,
+})
+
+SwordTab:CreateButton({
+    Title = "Remove Specific Tool",
+    Callback = function()
+        pcall(function()
+            if rstName == "" then return end
+            local key = rstName:lower()
+            if rstList[key] then return end
+            rstList[key] = RunService.RenderStepped:Connect(function()
+                local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+                if bp then
+                    for _, v in ipairs(bp:GetChildren()) do
+                        if v:IsA("Tool") and v.Name:lower() == key then v:Destroy() end
+                    end
+                end
+            end)
+        end)
+    end,
+})
+
+SwordTab:CreateButton({
+    Title = "UnRemove Specific Tool",
+    Callback = function()
+        pcall(function()
+            if rstName == "" then return end
+            local key = rstName:lower()
+            if rstList[key] then
+                rstList[key]:Disconnect()
+                rstList[key] = nil
+            end
+        end)
+    end,
+})
+
+SwordTab:CreateButton({
+    Title = "Clear All Removals",
+    Callback = function()
+        pcall(function()
+            for _, v in pairs(rstList) do v:Disconnect() end
+            rstList = {}
+        end)
+    end,
+}) return end
             for _, v in ipairs(found.Character:GetChildren()) do
                 if v:IsA("Tool") then
                     pcall(function() v.Parent = myBp end)

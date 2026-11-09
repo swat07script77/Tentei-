@@ -1,7 +1,38 @@
+local SwordTab = Window:CreateTab("Sword", "swords")
 
-local SwordTab = S.Window:CreateTab("Sword", "swords")
+local function GetPlayerByName(name)
+    if not name or name == "" then return nil end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name == name then return plr end
+    end
+    return nil
+end
 
+local SwordTarget = nil
+local SwordTargetConn = nil
 
+local function RefreshSwordTargetList()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
+    end
+    table.sort(list)
+    if SwordTargetConn and SwordTargetConn.Update then
+        pcall(function() SwordTargetConn:Update({ Options = list }) end)
+    end
+end
+
+SwordTargetConn = SwordTab:CreateDropdown({
+    Title = "Select Target",
+    Options = {},
+    Callback = function(Value) SwordTarget = Value end,
+})
+RefreshSwordTargetList()
+
+SwordTab:CreateButton({
+    Title = "Refresh Target List",
+    Callback = function() RefreshSwordTargetList() end,
+})
 
 local reachActive = false
 local reachValue = 60
@@ -21,7 +52,7 @@ SwordTab:CreateToggle({
         pcall(function()
             reachActive = Value
             if reachConn then reachConn:Disconnect(); reachConn = nil end
-            local char = S.Player.Character
+            local char = LocalPlayer.Character
             if not char then return end
             if Value then
                 for _, v in ipairs(char:GetDescendants()) do
@@ -68,7 +99,7 @@ SwordTab:CreateSlider({
     Callback = function(v)
         gripX = v
         if gripActive then
-            local char = S.Player.Character
+            local char = LocalPlayer.Character
             if char then
                 for _, t in ipairs(char:GetDescendants()) do
                     if t:IsA("Tool") then t.GripPos = Vector3.new(gripX, gripY, gripZ) end
@@ -84,7 +115,7 @@ SwordTab:CreateSlider({
     Callback = function(v)
         gripY = v
         if gripActive then
-            local char = S.Player.Character
+            local char = LocalPlayer.Character
             if char then
                 for _, t in ipairs(char:GetDescendants()) do
                     if t:IsA("Tool") then t.GripPos = Vector3.new(gripX, gripY, gripZ) end
@@ -100,7 +131,7 @@ SwordTab:CreateSlider({
     Callback = function(v)
         gripZ = v
         if gripActive then
-            local char = S.Player.Character
+            local char = LocalPlayer.Character
             if char then
                 for _, t in ipairs(char:GetDescendants()) do
                     if t:IsA("Tool") then t.GripPos = Vector3.new(gripX, gripY, gripZ) end
@@ -117,7 +148,7 @@ SwordTab:CreateToggle({
         pcall(function()
             gripActive = Value
             if gripConn then gripConn:Disconnect(); gripConn = nil end
-            local char = S.Player.Character
+            local char = LocalPlayer.Character
             if not char then return end
             if Value then
                 for _, t in ipairs(char:GetDescendants()) do
@@ -171,8 +202,8 @@ SwordTab:CreateToggle({
             if not Value then return end
             useToolsThread = task.spawn(function()
                 while useToolsActive do
-                    local bp = S.Player:FindFirstChildOfClass("Backpack")
-                    local char = S.Player.Character
+                    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+                    local char = LocalPlayer.Character
                     if bp and char then
                         for _, v in ipairs(bp:GetChildren()) do
                             if v:IsA("Tool") and useToolsActive then
@@ -200,7 +231,7 @@ SwordTab:CreateButton({
             local found = GetPlayerByName(SwordTarget)
             if not found then return end
             local bp = found:FindFirstChildOfClass("Backpack")
-            local myBp = S.Player:FindFirstChildOfClass("Backpack")
+            local myBp = LocalPlayer:FindFirstChildOfClass("Backpack")
             if bp and myBp then
                 for _, v in ipairs(bp:GetChildren()) do
                     if v:IsA("Tool") then pcall(function() v:Clone().Parent = myBp end) end
@@ -233,7 +264,7 @@ SwordTab:CreateToggle({
                 viewToolSaved = {}
                 return
             end
-            viewToolConn = S.RS.Heartbeat:Connect(function()
+            viewToolConn = RunService.Heartbeat:Connect(function()
                 if not viewToolActive then return end
                 local target = GetPlayerByName(SwordTarget)
                 if not target or not target.Character then return end
@@ -260,7 +291,7 @@ SwordTab:CreateButton({
         pcall(function()
             local found = GetPlayerByName(SwordTarget)
             if not found or not found.Character then return end
-            local myBp = S.Player:FindFirstChildOfClass("Backpack")
+            local myBp = LocalPlayer:FindFirstChildOfClass("Backpack")
             if not myBp then return end
             for _, v in ipairs(found.Character:GetChildren()) do
                 if v:IsA("Tool") then
@@ -287,67 +318,8 @@ SwordTab:CreateButton({
             if rstName == "" then return end
             local key = rstName:lower()
             if rstList[key] then return end
-            rstList[key] = S.RS.RenderStepped:Connect(function()
-                local bp = S.Player:FindFirstChildOfClass("Backpack")
-                if bp then
-                    for _, v in ipairs(bp:GetChildren()) do
-                        if v:IsA("Tool") and v.Name:lower() == key then v:Destroy() end
-                    end
-                end
-            end)
-        end)
-    end,
-})
-
-SwordTab:CreateButton({
-    Title = "UnRemove Specific Tool",
-    Callback = function()
-        pcall(function()
-            if rstName == "" then return end
-            local key = rstName:lower()
-            if rstList[key] then
-                rstList[key]:Disconnect()
-                rstList[key] = nil
-            end
-        end)
-    end,
-})
-
-SwordTab:CreateButton({
-    Title = "Clear All Removals",
-    Callback = function()
-        pcall(function()
-            for _, v in pairs(rstList) do v:Disconnect() end
-            rstList = {}
-        end)
-    end,
-}), v in ipairs(found.Character:GetChildren()) do
-                if v:IsA("Tool") then
-                    pcall(function() v.Parent = myBp end)
-                end
-            end
-        end)
-    end,
-})
-
-local rstList = {}
-local rstName = ""
-
-SwordTab:CreateInput({
-    Title = "Tool Name",
-    Placeholder = "Sword",
-    Callback = function(v) rstName = v end,
-})
-
-SwordTab:CreateButton({
-    Title = "Remove Specific Tool",
-    Callback = function()
-        pcall(function()
-            if rstName == "" then return end
-            local key = rstName:lower()
-            if rstList[key] then return end
-            rstList[key] = S.RS.RenderStepped:Connect(function()
-                local bp = S.Player:FindFirstChildOfClass("Backpack")
+            rstList[key] = RunService.RenderStepped:Connect(function()
+                local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
                 if bp then
                     for _, v in ipairs(bp:GetChildren()) do
                         if v:IsA("Tool") and v.Name:lower() == key then v:Destroy() end

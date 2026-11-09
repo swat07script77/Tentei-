@@ -483,23 +483,6 @@ SwordTab:CreateButton({
     end,
 })
 
-SwordTab:CreateButton({
-    Title = "Clear All Removals",
-    Callback = function()
-        pcall(function()
-            for _, v in pairs(rstList) do v:Disconnect() end
-            rstList = {}
-        end)
-    end,
-}) return end
-            for _, v in ipairs(found.Character:GetChildren()) do
-                if v:IsA("Tool") then
-                    pcall(function() v.Parent = myBp end)
-                end
-            end
-        end)
-    end,
-})
 
 local rstList = {}
 local rstName = ""

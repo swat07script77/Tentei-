@@ -344,12 +344,3 @@ SwordTab:CreateButton({
     end,
 })
 
-SwordTab:CreateButton({
-    Title = "Clear All Removals",
-    Callback = function()
-        pcall(function()
-            for _, v in pairs(rstList) do v:Disconnect() end
-            rstList = {}
-        end)
-    end,
-})

@@ -1,4 +1,4 @@
-local S = _G.Swat
+
 local SwordTab = S.Window:CreateTab("Sword", "swords")
 
 local function GetPlayerByName(name)

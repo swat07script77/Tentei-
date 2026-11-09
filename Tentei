@@ -485,24 +485,7 @@ SwordTab:CreateButton({
 
 
 
-SwordTab:CreateButton({
-    Title = "Remove Specific Tool",
-    Callback = function()
-        pcall(function()
-            if rstName == "" then return end
-            local key = rstName:lower()
-            if rstList[key] then return end
-            rstList[key] = RunService.RenderStepped:Connect(function()
-                local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-                if bp then
-                    for _, v in ipairs(bp:GetChildren()) do
-                        if v:IsA("Tool") and v.Name:lower() == key then v:Destroy() end
-                    end
-                end
-            end)
-        end)
-    end,
-})
+
 
 SwordTab:CreateButton({
     Title = "UnRemove Specific Tool",

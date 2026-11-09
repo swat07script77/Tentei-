@@ -484,14 +484,6 @@ SwordTab:CreateButton({
 })
 
 
-local rstList = {}
-local rstName = ""
-
-SwordTab:CreateInput({
-    Title = "Tool Name",
-    Placeholder = "Sword",
-    Callback = function(v) rstName = v end,
-})
 
 SwordTab:CreateButton({
     Title = "Remove Specific Tool",

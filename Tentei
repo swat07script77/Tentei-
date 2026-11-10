@@ -15583,9 +15583,8 @@ pcall(function()
         TargetPlayer = nil,
         TargetDropdown = nil,
         ShowInfoActive = false,
-        InfoWindow = nil,
+        InfoFrame = nil,
         UpdateThread = nil,
-        IsTabActive = true,
         refreshInfoRef = nil,
     }
 
@@ -15636,9 +15635,9 @@ pcall(function()
                                 InfoState.TargetDropdown:Set(LocalPlayer.Name)
                             end
                         end
-                        InfoState.CreateInfoWindow()
+                        InfoState.CreateInfoFrame()
                     else
-                        InfoState.DestroyInfoWindow()
+                        InfoState.DestroyInfoFrame()
                     end
                 end)
             end,
@@ -15661,6 +15660,18 @@ pcall(function()
                 if plr.Name == name then return plr end
             end
             return nil
+        end
+
+        local function GetAvatarImage(userId)
+            local img = nil
+            pcall(function()
+                img = Players:GetUserThumbnailAsync(
+                    userId,
+                    Enum.ThumbnailType.HeadShot,
+                    Enum.ThumbnailSize.Size150x150
+                )
+            end)
+            return img
         end
 
         local function GetServerInfo()
@@ -15833,11 +15844,11 @@ pcall(function()
             return info
         end
 
-        function InfoState.DestroyInfoWindow()
+        function InfoState.DestroyInfoFrame()
             pcall(function()
-                if InfoState.InfoWindow then
-                    InfoState.InfoWindow:Destroy()
-                    InfoState.InfoWindow = nil
+                if InfoState.InfoFrame then
+                    InfoState.InfoFrame:Destroy()
+                    InfoState.InfoFrame = nil
                 end
             end)
             pcall(function()
@@ -15848,23 +15859,29 @@ pcall(function()
             end)
         end
 
-        function InfoState.CreateInfoWindow()
-            pcall(function() InfoState.DestroyInfoWindow() end)
+        function InfoState.CreateInfoFrame()
+            pcall(function() InfoState.DestroyInfoFrame() end)
 
             pcall(function()
-                local parentGui = (S.UI and S.UI.ScreenGui) or LocalPlayer:WaitForChild("PlayerGui")
+                local parent = InfoTab.Content
+                if not parent then
+                    parent = InfoTab.Frame
+                end
+                if not parent then
+                    parent = (S.UI and S.UI.ScreenGui) or LocalPlayer:WaitForChild("PlayerGui")
+                end
+
                 local win = Instance.new("Frame")
-                win.Name = "InfoWindow"
-                win.Size = UDim2.new(0, 620, 0, 480)
-                win.Position = UDim2.new(0.5, -310, 0.5, -240)
+                win.Name = "InfoFrame"
+                win.Size = UDim2.new(1, -20, 0, 500)
+                win.Position = UDim2.new(0, 10, 0, 10)
                 win.BackgroundColor3 = Color3.fromRGB(18, 20, 26)
                 win.BackgroundTransparency = 0.08
                 win.BorderSizePixel = 0
                 win.Active = true
-                win.Draggable = true
                 win.ZIndex = 60
-                win.Parent = parentGui
-                InfoState.InfoWindow = win
+                win.Parent = parent
+                InfoState.InfoFrame = win
 
                 local corner = Instance.new("UICorner", win)
                 corner.CornerRadius = UDim.new(0, 16)
@@ -15912,7 +15929,7 @@ pcall(function()
                 cc.CornerRadius = UDim.new(0, 8)
                 closeBtn.MouseButton1Click:Connect(function()
                     pcall(function()
-                        InfoState.DestroyInfoWindow()
+                        InfoState.DestroyInfoFrame()
                     end)
                 end)
 
@@ -16124,18 +16141,10 @@ pcall(function()
                         avatarSub.Text = "@" .. target.Name
                         avatarId.Text = "ID: " .. tostring(target.UserId)
 
-                        task.spawn(function()
-                            pcall(function()
-                                local thumb = Players:GetUserThumbnailAsync(
-                                    target.UserId,
-                                    Enum.ThumbnailType.HeadShot,
-                                    Enum.ThumbnailSize.Size150x150
-                                )
-                                if thumb and avatarImg then
-                                    avatarImg.Image = thumb
-                                end
-                            end)
-                        end)
+                        local thumb = GetAvatarImage(target.UserId)
+                        if thumb and avatarImg then
+                            avatarImg.Image = thumb
+                        end
 
                         local p = GetPlayerInfo(target)
                         for key, val in pairs(p) do
@@ -16174,7 +16183,7 @@ pcall(function()
                 refreshInfo()
 
                 InfoState.UpdateThread = task.spawn(function()
-                    while InfoState.InfoWindow and InfoState.InfoWindow.Parent do
+                    while InfoState.InfoFrame and InfoState.InfoFrame.Parent do
                         if InfoState.ShowInfoActive then
                             pcall(refreshInfo)
                         end
@@ -16183,11 +16192,6 @@ pcall(function()
                 end)
             end)
         end
-
-        InfoState.CreateInfoWindow = InfoState.CreateInfoWindow
-        InfoState.DestroyInfoWindow = InfoState.DestroyInfoWindow
-        InfoState.GetAllPlayersList = GetAllPlayersList
-        InfoState.GetPlayerByName = GetPlayerByName
 
         pcall(function()
             if InfoState.TargetDropdown and InfoState.TargetDropdown.Update then

@@ -16676,4 +16676,419 @@ pcall(function()
         })
     end)
 end)
+pcall(function()
+    local VehicleTab = Window:CreateTab("Vehicle", "car")
 
+    local VehicleState = {
+        SpeedValue = 100,
+        MaxSpeedValue = 100,
+        AccelPercent = 50,
+        FlySpeed = 50,
+        FlyActive = false,
+        FlyConn = nil,
+        FlyBG = nil,
+        FlyBV = nil,
+        CameraConn = nil,
+        SpeedOriginal = {},
+        AccelOriginal = {},
+        SpeedApplied = false,
+        AccelApplied = false,
+    }
+
+    local function GetVehicle()
+        local char = LocalPlayer.Character
+        if not char then return nil end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum or not hum.SeatPart then return nil end
+        local seat = hum.SeatPart
+        local vehicle = seat:FindFirstAncestorWhichIsA("Model")
+        if not vehicle then return nil end
+        return vehicle, seat
+    end
+
+    local function GetVehicleSeats(vehicle)
+        local seats = {}
+        pcall(function()
+            for _, v in ipairs(vehicle:GetDescendants()) do
+                if v:IsA("VehicleSeat") then
+                    table.insert(seats, v)
+                end
+            end
+        end)
+        return seats
+    end
+
+    local function GetVehicleBodyMovers(vehicle)
+        local movers = { BodyVelocity = {}, BodyAngularVelocity = {} }
+        pcall(function()
+            for _, v in ipairs(vehicle:GetDescendants()) do
+                if v:IsA("BodyVelocity") then
+                    table.insert(movers.BodyVelocity, v)
+                elseif v:IsA("BodyAngularVelocity") then
+                    table.insert(movers.BodyAngularVelocity, v)
+                end
+            end
+        end)
+        return movers
+    end
+
+    local function GetVehiclePrimaryPart(vehicle, seat)
+        local primary = vehicle.PrimaryPart
+        if primary then return primary end
+        if seat then return seat end
+        local root = vehicle:FindFirstChild("HumanoidRootPart")
+        if root then return root end
+        for _, v in ipairs(vehicle:GetDescendants()) do
+            if v:IsA("BasePart") then return v end
+        end
+        return nil
+    end
+
+    local function ApplySpeed(vehicle, speed)
+        pcall(function()
+            local seats = GetVehicleSeats(vehicle)
+            for _, seat in ipairs(seats) do
+                if VehicleState.SpeedOriginal[seat] == nil then
+                    VehicleState.SpeedOriginal[seat] = { MaxSpeed = seat.MaxSpeed, Torque = seat.Torque }
+                end
+                seat.MaxSpeed = speed
+                seat.Torque = math.max(seat.Torque, speed * 100)
+            end
+            local movers = GetVehicleBodyMovers(vehicle)
+            for _, bv in ipairs(movers.BodyVelocity) do
+                bv.MaxForce = Vector3.new(speed * 1000, speed * 1000, speed * 1000)
+            end
+            for _, ba in ipairs(movers.BodyAngularVelocity) do
+                ba.MaxTorque = Vector3.new(speed * 1000, speed * 1000, speed * 1000)
+            end
+        end)
+    end
+
+    local function RestoreSpeed()
+        pcall(function()
+            for seat, data in pairs(VehicleState.SpeedOriginal) do
+                if seat and seat.Parent then
+                    seat.MaxSpeed = data.MaxSpeed
+                    seat.Torque = data.Torque
+                end
+            end
+            VehicleState.SpeedOriginal = {}
+            VehicleState.SpeedApplied = false
+        end)
+    end
+
+    local function ApplyAcceleration(vehicle, percent)
+        pcall(function()
+            local multiplier = percent / 100
+            local seats = GetVehicleSeats(vehicle)
+            for _, seat in ipairs(seats) do
+                if VehicleState.AccelOriginal[seat] == nil then
+                    VehicleState.AccelOriginal[seat] = { Torque = seat.Torque }
+                end
+                local baseTorque = VehicleState.AccelOriginal[seat].Torque
+                if baseTorque and baseTorque > 0 then
+                    seat.Torque = baseTorque * (1 + multiplier * 4)
+                else
+                    seat.Torque = seat.MaxSpeed * 100 * (1 + multiplier * 4)
+                end
+            end
+        end)
+    end
+
+    local function RestoreAcceleration()
+        pcall(function()
+            for seat, data in pairs(VehicleState.AccelOriginal) do
+                if seat and seat.Parent then
+                    seat.Torque = data.Torque
+                end
+            end
+            VehicleState.AccelOriginal = {}
+            VehicleState.AccelApplied = false
+        end)
+    end
+
+    local function StopVehicleFly()
+        pcall(function()
+            VehicleState.FlyActive = false
+            if VehicleState.FlyConn then
+                VehicleState.FlyConn:Disconnect()
+                VehicleState.FlyConn = nil
+            end
+            if VehicleState.CameraConn then
+                VehicleState.CameraConn:Disconnect()
+                VehicleState.CameraConn = nil
+            end
+            if VehicleState.FlyBG then
+                VehicleState.FlyBG:Destroy()
+                VehicleState.FlyBG = nil
+            end
+            if VehicleState.FlyBV then
+                VehicleState.FlyBV:Destroy()
+                VehicleState.FlyBV = nil
+            end
+        end)
+    end
+
+    local function StartVehicleFly()
+        pcall(function()
+            local vehicle, seat = GetVehicle()
+            if not vehicle or not seat then
+                Window:Notify({
+                    Title = "Vehicle Fly",
+                    Description = "You need to be sitting in a vehicle",
+                    Duration = 3,
+                    Type = "warning",
+                })
+                return
+            end
+
+            StopVehicleFly()
+            VehicleState.FlyActive = true
+
+            local primary = GetVehiclePrimaryPart(vehicle, seat)
+            if not primary then
+                VehicleState.FlyActive = false
+                return
+            end
+
+            local bg = Instance.new("BodyGyro")
+            bg.Name = "SwatVehicleFlyGyro"
+            bg.P = 9e4
+            bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+            bg.D = 500
+            bg.CFrame = primary.CFrame
+            bg.Parent = primary
+            VehicleState.FlyBG = bg
+
+            local bv = Instance.new("BodyVelocity")
+            bv.Name = "SwatVehicleFlyVelocity"
+            bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            bv.Velocity = Vector3.zero
+            bv.Parent = primary
+            VehicleState.FlyBV = bv
+
+            VehicleState.FlyConn = RunService.Heartbeat:Connect(function()
+                pcall(function()
+                    if not VehicleState.FlyActive then return end
+                    local v, s = GetVehicle()
+                    if not v or not s then
+                        StopVehicleFly()
+                        return
+                    end
+                    local p = GetVehiclePrimaryPart(v, s)
+                    if not p or not p.Parent then
+                        StopVehicleFly()
+                        return
+                    end
+                    if VehicleState.FlyBV and VehicleState.FlyBV.Parent ~= p then
+                        VehicleState.FlyBV.Parent = p
+                    end
+                    if VehicleState.FlyBG and VehicleState.FlyBG.Parent ~= p then
+                        VehicleState.FlyBG.Parent = p
+                    end
+
+                    local cam = workspace.CurrentCamera
+                    if not cam then return end
+                    local lookDir = cam.CFrame.LookVector
+                    local speed = VehicleState.FlySpeed
+
+                    if VehicleState.FlyBV then
+                        VehicleState.FlyBV.Velocity = lookDir * speed
+                    end
+                    if VehicleState.FlyBG then
+                        VehicleState.FlyBG.CFrame = CFrame.lookAt(p.Position, p.Position + lookDir)
+                    end
+                end)
+            end)
+        end)
+    end
+
+    pcall(function()
+        VehicleTab:CreateSlider({
+            Title = "Vehicle Speed",
+            Min = 1, Max = 20000, Default = 100,
+            Callback = function(Value)
+                pcall(function()
+                    VehicleState.SpeedValue = Value
+                    if not VehicleState.SpeedApplied then return end
+                    local vehicle = GetVehicle()
+                    if vehicle then
+                        ApplySpeed(vehicle, Value)
+                    end
+                end)
+            end,
+        })
+    end)
+
+    pcall(function()
+        VehicleTab:CreateToggle({
+            Title = "Apply Vehicle Speed",
+            Default = false,
+            Callback = function(Value)
+                pcall(function()
+                    VehicleState.SpeedApplied = Value
+                    if Value then
+                        local vehicle = GetVehicle()
+                        if not vehicle then
+                            Window:Notify({
+                                Title = "Vehicle Speed",
+                                Description = "You need to be sitting in a vehicle",
+                                Duration = 3,
+                                Type = "warning",
+                            })
+                            VehicleState.SpeedApplied = false
+                            return
+                        end
+                        ApplySpeed(vehicle, VehicleState.SpeedValue)
+                    else
+                        RestoreSpeed()
+                    end
+                end)
+            end,
+        })
+    end)
+
+    pcall(function()
+        VehicleTab:CreateSlider({
+            Title = "Acceleration %",
+            Min = 0, Max = 100, Default = 50,
+            Callback = function(Value)
+                pcall(function()
+                    VehicleState.AccelPercent = Value
+                    if not VehicleState.AccelApplied then return end
+                    local vehicle = GetVehicle()
+                    if vehicle then
+                        ApplyAcceleration(vehicle, Value)
+                    end
+                end)
+            end,
+        })
+    end)
+
+    pcall(function()
+        VehicleTab:CreateToggle({
+            Title = "Apply Acceleration",
+            Default = false,
+            Callback = function(Value)
+                pcall(function()
+                    VehicleState.AccelApplied = Value
+                    if Value then
+                        local vehicle = GetVehicle()
+                        if not vehicle then
+                            Window:Notify({
+                                Title = "Acceleration",
+                                Description = "You need to be sitting in a vehicle",
+                                Duration = 3,
+                                Type = "warning",
+                            })
+                            VehicleState.AccelApplied = false
+                            return
+                        end
+                        ApplyAcceleration(vehicle, VehicleState.AccelPercent)
+                    else
+                        RestoreAcceleration()
+                    end
+                end)
+            end,
+        })
+    end)
+
+    pcall(function()
+        VehicleTab:CreateSlider({
+            Title = "Vehicle Fly Speed",
+            Min = 1, Max = 1000, Default = 50,
+            Callback = function(Value)
+                pcall(function()
+                    VehicleState.FlySpeed = Value
+                end)
+            end,
+        })
+    end)
+
+    pcall(function()
+        VehicleTab:CreateToggle({
+            Title = "Vehicle Fly",
+            Default = false,
+            Callback = function(Value)
+                pcall(function()
+                    if Value then
+                        StartVehicleFly()
+                    else
+                        StopVehicleFly()
+                    end
+                end)
+            end,
+        })
+    end)
+
+    pcall(function()
+        VehicleTab:CreateButton({
+            Title = "TP To Vehicle",
+            Callback = function()
+                pcall(function()
+                    local char = LocalPlayer.Character
+                    if not char then return end
+                    local myRoot = char:FindFirstChild("HumanoidRootPart")
+                    if not myRoot then return end
+
+                    local candidates = {}
+                    pcall(function()
+                        for _, obj in ipairs(workspace:GetDescendants()) do
+                            if obj:IsA("VehicleSeat") then
+                                local model = obj:FindFirstAncestorWhichIsA("Model")
+                                if model then
+                                    local primary = GetVehiclePrimaryPart(model, obj)
+                                    if primary and primary.Parent then
+                                        table.insert(candidates, { seat = obj, model = model, part = primary })
+                                    end
+                                end
+                            end
+                        end
+                    end)
+
+                    if #candidates == 0 then
+                        Window:Notify({
+                            Title = "TP To Vehicle",
+                            Description = "No vehicles found in this game",
+                            Duration = 3,
+                            Type = "warning",
+                        })
+                        return
+                    end
+
+                    local chosen = candidates[math.random(1, #candidates)]
+                    if chosen and chosen.part then
+                        myRoot.CFrame = chosen.part.CFrame + Vector3.new(0, 5, 0)
+                        Window:Notify({
+                            Title = "TP To Vehicle",
+                            Description = "Teleported to a random vehicle",
+                            Duration = 3,
+                            Type = "success",
+                        })
+                    end
+                end)
+            end,
+        })
+    end)
+
+    pcall(function()
+        VehicleTab:CreateButton({
+            Title = "Clear Vehicle Effects",
+            Callback = function()
+                pcall(function()
+                    StopVehicleFly()
+                    RestoreSpeed()
+                    RestoreAcceleration()
+                    VehicleState.SpeedApplied = false
+                    VehicleState.AccelApplied = false
+                    Window:Notify({
+                        Title = "Clear",
+                        Description = "All vehicle effects removed",
+                        Duration = 2,
+                        Type = "success",
+                    })
+                end)
+            end,
+        })
+    end)
+end)

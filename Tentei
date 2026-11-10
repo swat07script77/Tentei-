@@ -374,9 +374,8 @@ SwordTab:CreateButton({
     end,
 })
 
-local toolViewEnabled = false
 local toolViewBillboards = {}
-local globalConns = {}
+local toolViewGlobalConns = {}
 
 local function RemoveToolViewForPlayer(plr)
     local data = toolViewBillboards[plr]
@@ -394,7 +393,6 @@ end
 
 local function CreateToolViewForPlayer(plr)
     if plr == LocalPlayer then return end
-    if not toolViewEnabled then return end
     local char = plr.Character
     if not char then return end
     local head = char:FindFirstChild("Head")
@@ -501,7 +499,7 @@ local function CreateToolViewForPlayer(plr)
         if c.Name == "Backpack" then
             task.defer(function()
                 local newBp = plr:FindFirstChild("Backpack")
-                if newBp and toolViewEnabled then
+                if newBp then
                     table.insert(connections, newBp.ChildAdded:Connect(function(t) if t:IsA("Tool") then task.defer(buildGui) end end))
                     table.insert(connections, newBp.ChildRemoved:Connect(function(t) if t:IsA("Tool") then task.defer(buildGui) end end))
                     buildGui()
@@ -514,58 +512,44 @@ local function CreateToolViewForPlayer(plr)
     buildGui()
 end
 
-local function EnableToolView()
-    if toolViewEnabled then return end
-    toolViewEnabled = true
+local function StartToolView()
+    RemoveAllToolViews()
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Character and plr.Character:FindFirstChild("Head") then
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
             CreateToolViewForPlayer(plr)
         end
     end
+    for _, conn in ipairs(toolViewGlobalConns) do pcall(function() conn:Disconnect() end) end
+    toolViewGlobalConns = {}
+    table.insert(toolViewGlobalConns, Players.PlayerAdded:Connect(function(plr)
+        if plr == LocalPlayer then return end
+        if plr.Character then
+            task.wait(0.3)
+            CreateToolViewForPlayer(plr)
+        else
+            plr.CharacterAdded:Wait()
+            task.wait(0.3)
+            CreateToolViewForPlayer(plr)
+        end
+    end))
+    table.insert(toolViewGlobalConns, Players.PlayerRemoving:Connect(function(plr)
+        RemoveToolViewForPlayer(plr)
+    end))
 end
 
-local function DisableToolView()
-    toolViewEnabled = false
-end
-
-local function ClearToolView()
-    toolViewEnabled = false
+local function StopToolView()
     RemoveAllToolViews()
+    for _, conn in ipairs(toolViewGlobalConns) do pcall(function() conn:Disconnect() end) end
+    toolViewGlobalConns = {}
 end
-
-for _, conn in ipairs(globalConns) do pcall(function() conn:Disconnect() end) end
-globalConns = {}
-
-table.insert(globalConns, Players.PlayerAdded:Connect(function(plr)
-    if not toolViewEnabled then return end
-    if plr.Character then
-        task.wait(0.5)
-        CreateToolViewForPlayer(plr)
-    else
-        plr.CharacterAdded:Wait()
-        task.wait(0.5)
-        CreateToolViewForPlayer(plr)
-    end
-end))
-
-table.insert(globalConns, Players.PlayerRemoving:Connect(function(plr)
-    RemoveToolViewForPlayer(plr)
-end))
 
 SwordTab:CreateToggle({
     Title = "Tool View",
     Default = false,
     Callback = function(Value)
         pcall(function()
-            if Value then EnableToolView() else DisableToolView() end
+            if Value then StartToolView() else StopToolView() end
         end)
-    end,
-})
-
-SwordTab:CreateButton({
-    Title = "Clear Tool View",
-    Callback = function()
-        pcall(function() ClearToolView() end)
     end,
 })
 
@@ -586,57 +570,8 @@ SwordTab:CreateButton({
     end,
 })
 
-local rstList = {}
-local rstName = ""
 
-SwordTab:CreateInput({
-    Title = "Tool Name",
-    Placeholder = "Sword",
-    Callback = function(v) rstName = v end,
-})
 
-SwordTab:CreateButton({
-    Title = "Remove Specific Tool",
-    Callback = function()
-        pcall(function()
-            if rstName == "" then return end
-            local key = rstName:lower()
-            if rstList[key] then return end
-            rstList[key] = RunService.RenderStepped:Connect(function()
-                local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-                if bp then
-                    for _, v in ipairs(bp:GetChildren()) do
-                        if v:IsA("Tool") and v.Name:lower() == key then v:Destroy() end
-                    end
-                end
-            end)
-        end)
-    end,
-})
-
-SwordTab:CreateButton({
-    Title = "UnRemove Specific Tool",
-    Callback = function()
-        pcall(function()
-            if rstName == "" then return end
-            local key = rstName:lower()
-            if rstList[key] then
-                rstList[key]:Disconnect()
-                rstList[key] = nil
-            end
-        end)
-    end,
-})
-
-SwordTab:CreateButton({
-    Title = "Clear All Removals",
-    Callback = function()
-        pcall(function()
-            for _, v in pairs(rstList) do v:Disconnect() end
-            rstList = {}
-        end)
-    end,
-})
 
 if SwordTab.Content then
     pcall(function()

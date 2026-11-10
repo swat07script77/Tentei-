@@ -16200,3 +16200,360 @@ pcall(function()
         end)
     end)
 end)
+pcall(function()
+    local TextTab = Window:CreateTab("Text", "file-text")
+
+    local TextState = {
+        TextBox = nil,
+        CurrentText = "",
+    }
+
+    pcall(function()
+        TextState.TextBox = TextTab:CreateTextBox({
+            Title = "Text",
+            Placeholder = "Type or paste text here...",
+            Default = "",
+            Callback = function(Value)
+                pcall(function()
+                    TextState.CurrentText = Value
+                end)
+            end,
+        })
+    end)
+
+    pcall(function()
+        TextTab:CreateButton({
+            Title = "Copy",
+            Callback = function()
+                pcall(function()
+                    if setclipboard then
+                        local text = ""
+                        if TextState.TextBox and TextState.TextBox.TextBox then
+                            text = TextState.TextBox.TextBox.Text
+                        else
+                            text = TextState.CurrentText
+                        end
+                        setclipboard(tostring(text))
+                        Window:Notify({
+                            Title = "Copy",
+                            Description = "Text copied to clipboard",
+                            Duration = 2,
+                            Type = "success",
+                        })
+                    else
+                        Window:Notify({
+                            Title = "Copy",
+                            Description = "setclipboard not available",
+                            Duration = 2,
+                            Type = "error",
+                        })
+                    end
+                end)
+            end,
+        })
+    end)
+
+    pcall(function()
+        TextTab:CreateButton({
+            Title = "Delete",
+            Callback = function()
+                pcall(function()
+                    if TextState.TextBox and TextState.TextBox.TextBox then
+                        TextState.TextBox.TextBox.Text = ""
+                    end
+                    TextState.CurrentText = ""
+                    Window:Notify({
+                        Title = "Delete",
+                        Description = "Text cleared",
+                        Duration = 2,
+                        Type = "info",
+                    })
+                end)
+            end,
+        })
+    end)
+end)
+
+pcall(function()
+    local LinkTab = Window:CreateTab("Link", "link")
+
+    local LinkState = {
+        LinkInput = nil,
+        CurrentLink = "",
+        Advanced = false,
+        ContentBox = nil,
+        ContentContainer = nil,
+        AdvanceBtn = nil,
+        ExitBtn = nil,
+    }
+
+    pcall(function()
+        LinkState.LinkInput = LinkTab:CreateTextBox({
+            Title = "Link",
+            Placeholder = "Paste any link here...",
+            Default = "",
+            Callback = function(Value)
+                pcall(function()
+                    LinkState.CurrentLink = Value
+                end)
+            end,
+        })
+    end)
+
+    pcall(function()
+        LinkState.AdvanceBtn = LinkTab:CreateButton({
+            Title = "Advance",
+            Callback = function()
+                pcall(function()
+                    if LinkState.Advanced then
+                        return
+                    end
+
+                    local rawLink = ""
+                    if LinkState.LinkInput and LinkState.LinkInput.TextBox then
+                        rawLink = LinkState.LinkInput.TextBox.Text
+                    else
+                        rawLink = LinkState.CurrentLink
+                    end
+
+                    rawLink = tostring(rawLink or "")
+
+                    if rawLink == "" then
+                        Window:Notify({
+                            Title = "Advance",
+                            Description = "No link provided",
+                            Duration = 3,
+                            Type = "warning",
+                        })
+                        return
+                    end
+
+                    LinkState.Advanced = true
+
+                    pcall(function()
+                        if LinkState.AdvanceBtn then
+                            LinkState.AdvanceBtn:SetVisible(false)
+                        end
+                    end)
+
+                    pcall(function()
+                        local parent = LinkTab.Content or LinkTab.Frame
+                        if not parent then
+                            parent = (S.UI and S.UI.ScreenGui) or LocalPlayer:WaitForChild("PlayerGui")
+                        end
+
+                        local container = Instance.new("Frame")
+                        container.Name = "LinkContentContainer"
+                        container.Size = UDim2.new(1, 0, 0, 0)
+                        container.BackgroundTransparency = 1
+                        container.BorderSizePixel = 0
+                        container.AutomaticSize = Enum.AutomaticSize.Y
+                        container.ZIndex = 50
+                        container.Parent = parent
+                        LinkState.ContentContainer = container
+
+                        local vlist = Instance.new("UIListLayout", container)
+                        vlist.SortOrder = Enum.SortOrder.LayoutOrder
+                        vlist.Padding = UDim.new(0, 6)
+
+                        local resultFrame = Instance.new("Frame")
+                        resultFrame.Size = UDim2.new(1, 0, 0, 200)
+                        resultFrame.BackgroundColor3 = Color3.fromRGB(12, 14, 18)
+                        resultFrame.BorderSizePixel = 0
+                        resultFrame.LayoutOrder = 1
+                        resultFrame.ZIndex = 51
+                        resultFrame.Parent = container
+
+                        local rfc = Instance.new("UICorner", resultFrame)
+                        rfc.CornerRadius = UDim.new(0, 10)
+
+                        local rfs = Instance.new("UIStroke", resultFrame)
+                        rfs.Color = Color3.fromRGB(96, 176, 255)
+                        rfs.Thickness = 1.2
+                        rfs.Transparency = 0.2
+
+                        local contentBox = Instance.new("TextBox")
+                        contentBox.Name = "ContentBox"
+                        contentBox.Size = UDim2.new(1, -20, 1, -20)
+                        contentBox.Position = UDim2.new(0, 10, 0, 10)
+                        contentBox.BackgroundTransparency = 1
+                        contentBox.Text = ""
+                        contentBox.TextColor3 = Color3.fromRGB(220, 230, 245)
+                        contentBox.PlaceholderText = "Loading link content..."
+                        contentBox.PlaceholderColor3 = Color3.fromRGB(120, 130, 150)
+                        contentBox.Font = Enum.Font.Code
+                        contentBox.TextSize = 12
+                        contentBox.TextXAlignment = Enum.TextXAlignment.Left
+                        contentBox.TextYAlignment = Enum.TextYAlignment.Top
+                        contentBox.TextWrapped = true
+                        contentBox.ClearTextOnFocus = false
+                        contentBox.MultiLine = true
+                        contentBox.ZIndex = 52
+                        contentBox.Parent = resultFrame
+                        LinkState.ContentBox = contentBox
+
+                        pcall(function()
+                            task.spawn(function()
+                                local ok, result = pcall(function()
+                                    return game:HttpGet(rawLink)
+                                end)
+
+                                if not ok or not result or result == "" then
+                                    pcall(function()
+                                        contentBox.Text = "❌ Failed to analyze code from link.\n\nThe link returned empty or an error occurred.\n\nLink: " .. tostring(rawLink)
+                                    end)
+                                    pcall(function()
+                                        Window:Notify({
+                                            Title = "Error",
+                                            Description = "Could not analyze code from this link",
+                                            Duration = 4,
+                                            Type = "error",
+                                        })
+                                    end)
+                                    return
+                                end
+
+                                pcall(function()
+                                    local text = tostring(result)
+                                    if #text > 100000 then
+                                        text = text:sub(1, 100000) .. "\n\n... [truncated]"
+                                    end
+                                    contentBox.Text = text
+                                end)
+
+                                pcall(function()
+                                    Window:Notify({
+                                        Title = "Success",
+                                        Description = "Code loaded from link",
+                                        Duration = 3,
+                                        Type = "success",
+                                    })
+                                end)
+                            end)
+                        end)
+
+                        local btnRow = Instance.new("Frame")
+                        btnRow.Size = UDim2.new(1, 0, 0, 36)
+                        btnRow.BackgroundTransparency = 1
+                        btnRow.LayoutOrder = 2
+                        btnRow.ZIndex = 51
+                        btnRow.Parent = container
+
+                        local btnLayout = Instance.new("UIListLayout", btnRow)
+                        btnLayout.FillDirection = Enum.FillDirection.Horizontal
+                        btnLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                        btnLayout.Padding = UDim.new(0, 8)
+
+                        local function createSmallBtn(label, color, callback, order)
+                            local btn = Instance.new("TextButton")
+                            btn.Size = UDim2.new(0.5, -4, 1, 0)
+                            btn.BackgroundColor3 = color
+                            btn.BorderSizePixel = 0
+                            btn.Text = label
+                            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                            btn.Font = Enum.Font.GothamBold
+                            btn.TextSize = 13
+                            btn.AutoButtonColor = false
+                            btn.LayoutOrder = order
+                            btn.ZIndex = 52
+                            btn.Parent = btnRow
+                            local bc = Instance.new("UICorner", btn)
+                            bc.CornerRadius = UDim.new(0, 8)
+                            local bs = Instance.new("UIStroke", btn)
+                            bs.Color = color:Lerp(Color3.new(1, 1, 1), 0.3)
+                            bs.Thickness = 1
+                            btn.MouseEnter:Connect(function()
+                                pcall(function()
+                                    btn.BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.2)
+                                end)
+                            end)
+                            btn.MouseLeave:Connect(function()
+                                pcall(function()
+                                    btn.BackgroundColor3 = color
+                                end)
+                            end)
+                            btn.MouseButton1Click:Connect(function()
+                                pcall(callback)
+                            end)
+                            return btn
+                        end
+
+                        createSmallBtn("Copy", Color3.fromRGB(0, 150, 80), function()
+                            if setclipboard and LinkState.ContentBox then
+                                setclipboard(tostring(LinkState.ContentBox.Text))
+                                Window:Notify({
+                                    Title = "Copy",
+                                    Description = "Link content copied",
+                                    Duration = 2,
+                                    Type = "success",
+                                })
+                            end
+                        end, 1)
+
+                        createSmallBtn("Delete", Color3.fromRGB(180, 50, 50), function()
+                            if LinkState.ContentBox then
+                                LinkState.ContentBox.Text = ""
+                            end
+                            pcall(function()
+                                if LinkState.ContentContainer then
+                                    LinkState.ContentContainer:Destroy()
+                                    LinkState.ContentContainer = nil
+                                end
+                                LinkState.ContentBox = nil
+                                LinkState.Advanced = false
+                                if LinkState.AdvanceBtn then
+                                    LinkState.AdvanceBtn:SetVisible(true)
+                                end
+                                if LinkState.ExitBtn then
+                                    LinkState.ExitBtn:SetVisible(false)
+                                end
+                            end)
+                            Window:Notify({
+                                Title = "Delete",
+                                Description = "Content cleared",
+                                Duration = 2,
+                                Type = "info",
+                            })
+                        end, 2)
+                    end)
+
+                    pcall(function()
+                        LinkState.ExitBtn = LinkTab:CreateButton({
+                            Title = "Exit",
+                            Callback = function()
+                                pcall(function()
+                                    if LinkState.ContentContainer then
+                                        LinkState.ContentContainer:Destroy()
+                                        LinkState.ContentContainer = nil
+                                    end
+                                    LinkState.ContentBox = nil
+                                    LinkState.Advanced = false
+                                    if LinkState.AdvanceBtn then
+                                        LinkState.AdvanceBtn:SetVisible(true)
+                                    end
+                                    if LinkState.ExitBtn then
+                                        LinkState.ExitBtn:SetVisible(false)
+                                    end
+                                    Window:Notify({
+                                        Title = "Exit",
+                                        Description = "Closed link analysis",
+                                        Duration = 2,
+                                        Type = "info",
+                                    })
+                                end)
+                            end,
+                        })
+                    end)
+                end)
+            end,
+        })
+    end)
+end)
+
+pcall(function()
+    local ExtraTab = Window:CreateTab("Extra", "package")
+
+    pcall(function()
+        ExtraTab:CreateLabel("Third tab - to be added later")
+    end)
+end)

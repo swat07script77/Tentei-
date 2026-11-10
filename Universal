@@ -15576,3 +15576,620 @@ UtilsTab:CreateSlider({
         end
     end,
 })
+do
+    local InfoTab = Window:CreateTab("Info", "info")
+
+    local InfoState = {
+        TargetPlayer = nil,
+        TargetDropdown = nil,
+        ShowInfoActive = false,
+        InfoWindow = nil,
+        UpdateThread = nil,
+        IsTabActive = false,
+    }
+
+    local function GetAllPlayersList()
+        local list = {}
+        for _, plr in ipairs(Players:GetPlayers()) do
+            table.insert(list, plr.Name)
+        end
+        table.sort(list)
+        return list
+    end
+
+    local function GetPlayerByName(name)
+        if not name or name == "" then return nil end
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr.Name == name then return plr end
+        end
+        return nil
+    end
+
+    local function GetServerInfo()
+        local info = {}
+        pcall(function()
+            info.JobId = game.JobId
+            info.PlaceId = tostring(game.PlaceId)
+            info.PlaceVersion = tostring(game.PlaceVersion)
+            info.CreatorId = tostring(game.CreatorId)
+            info.CreatorType = tostring(game.CreatorType)
+            info.GameId = tostring(game.GameId)
+            info.PlaceName = "Unknown"
+            info.MaxPlayers = tostring(Players.MaxPlayers)
+            info.CurrentPlayers = tostring(#Players:GetPlayers())
+            info.DistributedGameTime = tostring(math.floor(workspace.DistributedGameTime))
+            info.FallenPartsDestroyHeight = tostring(workspace.FallenPartsDestroyHeight)
+            info.Gravity = tostring(workspace.Gravity)
+            info.FilteringEnabled = "true"
+            info.IsStudio = tostring(game:GetService("RunService"):IsStudio())
+            info.ServerTime = os.date("%Y-%m-%d %H:%M:%S")
+            info.ServerUptime = "N/A"
+            info.ServerRegion = "N/A"
+            info.ServerLocation = "N/A"
+            info.AssetName = "Unknown"
+            info.AssetDescription = "N/A"
+            info.CreatorName = "Unknown"
+            info.CreatorMembers = "N/A"
+            info.AllowedGearTypes = "N/A"
+            info.ChatVersion = tostring(game:GetService("TextChatService").ChatVersion)
+            info.IsLoaded = tostring(game:IsLoaded())
+            info.PlaceIdString = tostring(game.PlaceId)
+            info.GamePlaceVersion = tostring(game.PlaceVersion)
+        end)
+        return info
+    end
+
+    local function GetRobloxInfo()
+        local info = {}
+        pcall(function()
+            info.UserId = tostring(LocalPlayer.UserId)
+            info.Username = LocalPlayer.Name
+            info.DisplayName = LocalPlayer.DisplayName
+            info.AccountAge = tostring(LocalPlayer.AccountAge)
+            info.MembershipType = tostring(LocalPlayer.MembershipType)
+            info.RobloxLocaleId = tostring(LocalPlayer.LocaleId)
+            info.RobloxVersion = tostring(version())
+            info.RobloxPlatform = "N/A"
+            info.RobloxOS = "N/A"
+            info.ClientVersion = "N/A"
+            info.ExecutorName = "N/A"
+            info.ExecutorVersion = "N/A"
+            info.Executor = identifyexecutor and identifyexecutor() or "Unknown"
+            info.LuaVersion = _VERSION or "Unknown"
+            info.LuauVersion = tostring(bit32 and bit32.band) ~= "nil" and "Luau" or "Lua"
+            info.ServerIP = "N/A"
+            info.ServerPort = "N/A"
+            info.Platform = "N/A"
+            info.DeviceName = "N/A"
+            info.DeviceModel = "N/A"
+            info.DeviceOS = "N/A"
+            info.DeviceOSVersion = "N/A"
+            info.DeviceType = "N/A"
+            info.FPS = "N/A"
+            info.MouseSensitivity = tostring(UserInputService.MouseDeltaSensitivity)
+            info.TouchEnabled = tostring(UserInputService.TouchEnabled)
+            info.KeyboardEnabled = tostring(UserInputService.KeyboardEnabled)
+            info.MouseEnabled = tostring(UserInputService.MouseEnabled)
+            info.GamepadEnabled = tostring(UserInputService.GamepadEnabled)
+            info.VREnabled = tostring(UserInputService.VREnabled)
+            info.CameraMode = tostring(LocalPlayer.CameraMode)
+            info.CameraMaxZoomDistance = tostring(LocalPlayer.CameraMaxZoomDistance)
+            info.CameraMinZoomDistance = tostring(LocalPlayer.CameraMinZoomDistance)
+            info.CameraType = tostring(workspace.CurrentCamera.CameraType)
+            info.FieldOfView = tostring(workspace.CurrentCamera.FieldOfView)
+            info.ViewportSize = tostring(workspace.CurrentCamera.ViewportSize)
+            info.CurrentCameraSubject = "N/A"
+            info.ThreadCount = "N/A"
+            info.MemoryUsage = "N/A"
+            info.HttpGetEnabled = "N/A"
+            info.Loaded = tostring(game:IsLoaded())
+            info.PlaceId = tostring(game.PlaceId)
+            info.JobId = game.JobId
+            info.Ping = tostring(math.floor((LocalPlayer:GetNetworkPing() * 1000) + 0.5))
+            info.Character = LocalPlayer.Character and "Loaded" or "Not Loaded"
+            info.CharacterHealth = "N/A"
+            info.CharacterWalkSpeed = "N/A"
+            info.CharacterJumpPower = "N/A"
+            info.CharacterRigType = "N/A"
+        end)
+        return info
+    end
+
+    local function GetPlayerInfo(plr)
+        local info = {}
+        pcall(function()
+            info.Name = plr.Name
+            info.DisplayName = plr.DisplayName
+            info.UserId = tostring(plr.UserId)
+            info.AccountAge = tostring(plr.AccountAge)
+            info.MembershipType = tostring(plr.MembershipType)
+            info.Team = plr.Team and plr.Team.Name or "None"
+            info.TeamColor = plr.Team and tostring(plr.Team.TeamColor) or "None"
+            info.Neutral = tostring(plr.Neutral)
+            info.CharacterAppearanceId = tostring(plr.CharacterAppearanceId)
+            info.FollowUserId = tostring(plr.FollowUserId)
+            info.CameraMode = tostring(plr.CameraMode)
+            info.CameraMaxZoomDistance = tostring(plr.CameraMaxZoomDistance)
+            info.CameraMinZoomDistance = tostring(plr.CameraMinZoomDistance)
+            info.DevCameraOcclusionMode = tostring(plr.DevCameraOcclusionMode)
+            info.DevComputerCameraMovementMode = tostring(plr.DevComputerCameraMovementMode)
+            info.DevComputerMovementMode = tostring(plr.DevComputerMovementMode)
+            info.DevTouchCameraMovementMode = tostring(plr.DevTouchCameraMovementMode)
+            info.DevTouchMovementMode = tostring(plr.DevTouchMovementMode)
+            info.CanLoadCharacterAppearance = tostring(plr.CanLoadCharacterAppearance)
+            info.HasVerifiedBadge = tostring(plr.HasVerifiedBadge)
+            info.LocaleId = tostring(plr.LocaleId)
+            info.AutoJumpEnabled = tostring(plr.AutoJumpEnabled)
+            info.CharacterLoaded = plr.Character and "true" or "false"
+            if plr.Character then
+                local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                local root = plr.Character:FindFirstChild("HumanoidRootPart")
+                if hum then
+                    info.Health = tostring(math.floor(hum.Health))
+                    info.MaxHealth = tostring(math.floor(hum.MaxHealth))
+                    info.WalkSpeed = tostring(math.floor(hum.WalkSpeed))
+                    info.JumpPower = tostring(math.floor(hum.JumpPower))
+                    info.JumpHeight = tostring(math.floor(hum.JumpHeight))
+                    info.UseJumpPower = tostring(hum.UseJumpPower)
+                    info.RigType = tostring(hum.RigType)
+                    info.HipHeight = tostring(hum.HipHeight)
+                    info.HumanoidState = tostring(hum:GetState())
+                    info.HumanoidPlatformStand = tostring(hum.PlatformStand)
+                    info.HumanoidAutoRotate = tostring(hum.AutoRotate)
+                    info.HumanoidSit = tostring(hum.Sit)
+                    info.HumanoidFloorMaterial = tostring(hum.FloorMaterial)
+                else
+                    info.Health = "N/A"; info.MaxHealth = "N/A"; info.WalkSpeed = "N/A"
+                    info.JumpPower = "N/A"; info.JumpHeight = "N/A"; info.UseJumpPower = "N/A"
+                    info.RigType = "N/A"; info.HipHeight = "N/A"; info.HumanoidState = "N/A"
+                    info.HumanoidPlatformStand = "N/A"; info.HumanoidAutoRotate = "N/A"
+                    info.HumanoidSit = "N/A"; info.HumanoidFloorMaterial = "N/A"
+                end
+                if root then
+                    info.PositionX = string.format("%.1f", root.Position.X)
+                    info.PositionY = string.format("%.1f", root.Position.Y)
+                    info.PositionZ = string.format("%.1f", root.Position.Z)
+                else
+                    info.PositionX = "N/A"; info.PositionY = "N/A"; info.PositionZ = "N/A"
+                end
+                local tool = plr.Character:FindFirstChildOfClass("Tool")
+                info.EquippedTool = tool and tool.Name or "None"
+            else
+                info.Health = "N/A"; info.MaxHealth = "N/A"; info.WalkSpeed = "N/A"
+                info.JumpPower = "N/A"; info.JumpHeight = "N/A"; info.UseJumpPower = "N/A"
+                info.RigType = "N/A"; info.HipHeight = "N/A"; info.HumanoidState = "N/A"
+                info.HumanoidPlatformStand = "N/A"; info.HumanoidAutoRotate = "N/A"
+                info.HumanoidSit = "N/A"; info.HumanoidFloorMaterial = "N/A"
+                info.PositionX = "N/A"; info.PositionY = "N/A"; info.PositionZ = "N/A"
+                info.EquippedTool = "None"
+            end
+            local bp = plr:FindFirstChild("Backpack")
+            info.BackpackTools = bp and tostring(#bp:GetChildren()) or "0"
+            info.Distance = "N/A"
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local myRoot = LocalPlayer.Character.HumanoidRootPart
+                local tRoot = plr.Character.HumanoidRootPart
+                info.Distance = tostring(math.floor((tRoot.Position - myRoot.Position).Magnitude)) .. "m"
+            end
+        end)
+        return info
+    end
+
+    local function DestroyInfoWindow()
+        if InfoState.InfoWindow then
+            pcall(function() InfoState.InfoWindow:Destroy() end)
+            InfoState.InfoWindow = nil
+        end
+        if InfoState.UpdateThread then
+            pcall(task.cancel, InfoState.UpdateThread)
+            InfoState.UpdateThread = nil
+        end
+    end
+
+    local function CreateInfoWindow()
+        DestroyInfoWindow()
+
+        local parentGui = (S.UI and S.UI.ScreenGui) or LocalPlayer:WaitForChild("PlayerGui")
+        local win = Instance.new("Frame")
+        win.Name = "InfoWindow"
+        win.Size = UDim2.new(0, 620, 0, 480)
+        win.Position = UDim2.new(0.5, -310, 0.5, -240)
+        win.BackgroundColor3 = Color3.fromRGB(18, 20, 26)
+        win.BackgroundTransparency = 0.08
+        win.BorderSizePixel = 0
+        win.Active = true
+        win.Draggable = true
+        win.ZIndex = 60
+        win.Parent = parentGui
+        InfoState.InfoWindow = win
+
+        local corner = Instance.new("UICorner", win)
+        corner.CornerRadius = UDim.new(0, 16)
+
+        local stroke = Instance.new("UIStroke", win)
+        stroke.Color = Color3.fromRGB(96, 176, 255)
+        stroke.Thickness = 1.5
+        stroke.Transparency = 0.2
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+        local grad = Instance.new("UIGradient", win)
+        grad.Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(32, 36, 48)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(18, 20, 26)),
+        }
+        grad.Rotation = 90
+        grad.Transparency = NumberSequence.new{
+            NumberSequenceKeypoint.new(0.0, 0.35),
+            NumberSequenceKeypoint.new(1.0, 0.85),
+        }
+
+        local title = Instance.new("TextLabel", win)
+        title.Size = UDim2.new(1, -100, 0, 40)
+        title.Position = UDim2.new(0, 16, 0, 0)
+        title.BackgroundTransparency = 1
+        title.Text = "Info Center"
+        title.TextColor3 = Color3.fromRGB(255, 255, 255)
+        title.Font = Enum.Font.GothamBold
+        title.TextSize = 16
+        title.TextXAlignment = Enum.TextXAlignment.Left
+        title.ZIndex = 61
+
+        local closeBtn = Instance.new("TextButton", win)
+        closeBtn.Size = UDim2.new(0, 28, 0, 28)
+        closeBtn.Position = UDim2.new(1, -36, 0, 6)
+        closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        closeBtn.BorderSizePixel = 0
+        closeBtn.Text = "X"
+        closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closeBtn.Font = Enum.Font.GothamBold
+        closeBtn.TextSize = 14
+        closeBtn.AutoButtonColor = false
+        closeBtn.ZIndex = 62
+        local cc = Instance.new("UICorner", closeBtn)
+        cc.CornerRadius = UDim.new(0, 8)
+        closeBtn.MouseButton1Click:Connect(function()
+            pcall(function()
+                DestroyInfoWindow()
+                if InfoState.TargetDropdown and InfoState.TargetDropdown.Set then
+                    InfoState.TargetDropdown:Set(LocalPlayer.Name)
+                end
+            end)
+        end)
+
+        local scroll = Instance.new("ScrollingFrame", win)
+        scroll.Size = UDim2.new(1, -24, 1, -56)
+        scroll.Position = UDim2.new(0, 12, 0, 46)
+        scroll.BackgroundColor3 = Color3.fromRGB(12, 14, 18)
+        scroll.BorderSizePixel = 0
+        scroll.ScrollBarThickness = 6
+        scroll.ScrollBarImageColor3 = Color3.fromRGB(96, 176, 255)
+        scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+        scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        scroll.ScrollingDirection = Enum.ScrollingDirection.Y
+        scroll.ZIndex = 61
+        local sc = Instance.new("UICorner", scroll)
+        sc.CornerRadius = UDim.new(0, 10)
+
+        local list = Instance.new("UIListLayout", scroll)
+        list.SortOrder = Enum.SortOrder.LayoutOrder
+        list.Padding = UDim.new(0, 3)
+        local pad = Instance.new("UIPadding", scroll)
+        pad.PaddingTop = UDim.new(0, 8)
+        pad.PaddingBottom = UDim.new(0, 8)
+        pad.PaddingLeft = UDim.new(0, 8)
+        pad.PaddingRight = UDim.new(0, 8)
+
+        local currentOrder = 0
+
+        local function CreateSection(label)
+            currentOrder = currentOrder + 1
+            local sf = Instance.new("Frame", scroll)
+            sf.Size = UDim2.new(1, -4, 0, 28)
+            sf.BackgroundColor3 = Color3.fromRGB(40, 48, 64)
+            sf.BorderSizePixel = 0
+            sf.LayoutOrder = currentOrder
+            sf.ZIndex = 62
+            local sfc = Instance.new("UICorner", sf)
+            sfc.CornerRadius = UDim.new(0, 8)
+            local sfs = Instance.new("UIStroke", sf)
+            sfs.Color = Color3.fromRGB(96, 176, 255)
+            sfs.Thickness = 1.2
+            local sl = Instance.new("TextLabel", sf)
+            sl.Size = UDim2.new(1, -16, 1, 0)
+            sl.Position = UDim2.new(0, 12, 0, 0)
+            sl.BackgroundTransparency = 1
+            sl.Text = label
+            sl.TextColor3 = Color3.fromRGB(96, 176, 255)
+            sl.Font = Enum.Font.GothamBold
+            sl.TextSize = 13
+            sl.TextXAlignment = Enum.TextXAlignment.Left
+            sl.ZIndex = 63
+        end
+
+        local rowRefs = {}
+
+        local function CreateRow(key, value)
+            currentOrder = currentOrder + 1
+            local row = Instance.new("Frame", scroll)
+            row.Size = UDim2.new(1, -4, 0, 26)
+            row.BackgroundColor3 = Color3.fromRGB(24, 28, 36)
+            row.BorderSizePixel = 0
+            row.LayoutOrder = currentOrder
+            row.ZIndex = 62
+            local rc = Instance.new("UICorner", row)
+            rc.CornerRadius = UDim.new(0, 6)
+
+            local kLbl = Instance.new("TextLabel", row)
+            kLbl.Size = UDim2.new(0.42, -8, 1, 0)
+            kLbl.Position = UDim2.new(0, 8, 0, 0)
+            kLbl.BackgroundTransparency = 1
+            kLbl.Text = key
+            kLbl.TextColor3 = Color3.fromRGB(160, 180, 210)
+            kLbl.Font = Enum.Font.Gotham
+            kLbl.TextSize = 11
+            kLbl.TextXAlignment = Enum.TextXAlignment.Left
+            kLbl.ZIndex = 63
+
+            local vLbl = Instance.new("TextLabel", row)
+            vLbl.Size = UDim2.new(0.58, -8, 1, 0)
+            vLbl.Position = UDim2.new(0.42, 0, 0, 0)
+            vLbl.BackgroundTransparency = 1
+            vLbl.Text = tostring(value or "")
+            vLbl.TextColor3 = Color3.fromRGB(240, 245, 255)
+            vLbl.Font = Enum.Font.GothamBold
+            vLbl.TextSize = 11
+            vLbl.TextXAlignment = Enum.TextXAlignment.Left
+            vLbl.TextTruncate = Enum.TextTruncate.AtEnd
+            vLbl.ZIndex = 63
+
+            rowRefs[key] = vLbl
+            return vLbl
+        end
+
+        local avatarFrame = Instance.new("Frame", scroll)
+        avatarFrame.Size = UDim2.new(1, -4, 0, 80)
+        avatarFrame.BackgroundColor3 = Color3.fromRGB(24, 28, 36)
+        avatarFrame.BorderSizePixel = 0
+        avatarFrame.LayoutOrder = -1
+        avatarFrame.ZIndex = 62
+        local afc = Instance.new("UICorner", avatarFrame)
+        afc.CornerRadius = UDim.new(0, 8)
+        local afs = Instance.new("UIStroke", avatarFrame)
+        afs.Color = Color3.fromRGB(96, 176, 255)
+        afs.Thickness = 1
+
+        local avatarImg = Instance.new("ImageLabel", avatarFrame)
+        avatarImg.Size = UDim2.new(0, 64, 0, 64)
+        avatarImg.Position = UDim2.new(0, 8, 0, 8)
+        avatarImg.BackgroundColor3 = Color3.fromRGB(10, 12, 18)
+        avatarImg.BorderSizePixel = 0
+        avatarImg.ScaleType = Enum.ScaleType.Fit
+        avatarImg.ZIndex = 63
+        local aic = Instance.new("UICorner", avatarImg)
+        aic.CornerRadius = UDim.new(0, 8)
+
+        local avatarName = Instance.new("TextLabel", avatarFrame)
+        avatarName.Size = UDim2.new(1, -88, 0, 24)
+        avatarName.Position = UDim2.new(0, 80, 0, 8)
+        avatarName.BackgroundTransparency = 1
+        avatarName.Text = "Player"
+        avatarName.TextColor3 = Color3.fromRGB(255, 255, 255)
+        avatarName.Font = Enum.Font.GothamBold
+        avatarName.TextSize = 15
+        avatarName.TextXAlignment = Enum.TextXAlignment.Left
+        avatarName.ZIndex = 63
+
+        local avatarSub = Instance.new("TextLabel", avatarFrame)
+        avatarSub.Size = UDim2.new(1, -88, 0, 18)
+        avatarSub.Position = UDim2.new(0, 80, 0, 30)
+        avatarSub.BackgroundTransparency = 1
+        avatarSub.Text = "@user"
+        avatarSub.TextColor3 = Color3.fromRGB(160, 180, 210)
+        avatarSub.Font = Enum.Font.Gotham
+        avatarSub.TextSize = 12
+        avatarSub.TextXAlignment = Enum.TextXAlignment.Left
+        avatarSub.ZIndex = 63
+
+        local avatarId = Instance.new("TextLabel", avatarFrame)
+        avatarId.Size = UDim2.new(1, -88, 0, 16)
+        avatarId.Position = UDim2.new(0, 80, 0, 50)
+        avatarId.BackgroundTransparency = 1
+        avatarId.Text = "ID: 0"
+        avatarId.TextColor3 = Color3.fromRGB(120, 200, 255)
+        avatarId.Font = Enum.Font.GothamBold
+        avatarId.TextSize = 11
+        avatarId.TextXAlignment = Enum.TextXAlignment.Left
+        avatarId.ZIndex = 63
+
+        CreateSection("👤 Player Information")
+        local playerKeys = {
+            "Name", "DisplayName", "UserId", "AccountAge", "MembershipType",
+            "Team", "TeamColor", "Neutral", "CharacterAppearanceId", "FollowUserId",
+            "CameraMode", "CameraMaxZoomDistance", "CameraMinZoomDistance",
+            "DevCameraOcclusionMode", "DevComputerCameraMovementMode",
+            "DevComputerMovementMode", "DevTouchCameraMovementMode",
+            "DevTouchMovementMode", "CanLoadCharacterAppearance",
+            "HasVerifiedBadge", "LocaleId", "AutoJumpEnabled", "CharacterLoaded",
+            "Health", "MaxHealth", "WalkSpeed", "JumpPower", "JumpHeight",
+            "UseJumpPower", "RigType", "HipHeight", "HumanoidState",
+            "HumanoidPlatformStand", "HumanoidAutoRotate", "HumanoidSit",
+            "HumanoidFloorMaterial", "PositionX", "PositionY", "PositionZ",
+            "EquippedTool", "BackpackTools", "Distance"
+        }
+        for _, key in ipairs(playerKeys) do
+            CreateRow(key, "N/A")
+        end
+
+        CreateSection("🌐 Server Information")
+        local serverKeys = {
+            "JobId", "PlaceId", "PlaceVersion", "CreatorId", "CreatorType",
+            "GameId", "PlaceName", "MaxPlayers", "CurrentPlayers",
+            "DistributedGameTime", "FallenPartsDestroyHeight", "Gravity",
+            "FilteringEnabled", "IsStudio", "ServerTime", "ServerUptime",
+            "ServerRegion", "ServerLocation", "AssetName", "AssetDescription",
+            "CreatorName", "CreatorMembers", "AllowedGearTypes",
+            "ChatVersion", "IsLoaded", "PlaceIdString", "GamePlaceVersion"
+        }
+        for _, key in ipairs(serverKeys) do
+            CreateRow(key, "N/A")
+        end
+
+        CreateSection("⚙️ Roblox Information")
+        local robloxKeys = {
+            "UserId", "Username", "DisplayName", "AccountAge", "MembershipType",
+            "RobloxLocaleId", "RobloxVersion", "RobloxPlatform", "RobloxOS",
+            "ClientVersion", "ExecutorName", "ExecutorVersion", "Executor",
+            "LuaVersion", "LuauVersion", "ServerIP", "ServerPort", "Platform",
+            "DeviceName", "DeviceModel", "DeviceOS", "DeviceOSVersion",
+            "DeviceType", "FPS", "MouseSensitivity", "TouchEnabled",
+            "KeyboardEnabled", "MouseEnabled", "GamepadEnabled", "VREnabled",
+            "CameraMode", "CameraMaxZoomDistance", "CameraMinZoomDistance",
+            "CameraType", "FieldOfView", "ViewportSize", "CurrentCameraSubject",
+            "ThreadCount", "MemoryUsage", "HttpGetEnabled", "Loaded",
+            "PlaceId", "JobId", "Ping", "Character", "CharacterHealth",
+            "CharacterWalkSpeed", "CharacterJumpPower", "CharacterRigType"
+        }
+        for _, key in ipairs(robloxKeys) do
+            if not rowRefs[key] then
+                CreateRow(key, "N/A")
+            end
+        end
+
+        local refreshInfo
+        refreshInfo = function()
+            pcall(function()
+                local target = GetPlayerByName(InfoState.TargetPlayer)
+                if not target then return end
+
+                avatarName.Text = target.DisplayName
+                avatarSub.Text = "@" .. target.Name
+                avatarId.Text = "ID: " .. tostring(target.UserId)
+
+                task.spawn(function()
+                    pcall(function()
+                        local thumb = Players:GetUserThumbnailAsync(
+                            target.UserId,
+                            Enum.ThumbnailType.HeadShot,
+                            Enum.ThumbnailSize.Size150x150
+                        )
+                        if thumb and avatarImg then
+                            avatarImg.Image = thumb
+                        end
+                    end)
+                end)
+
+                local p = GetPlayerInfo(target)
+                for key, val in pairs(p) do
+                    if rowRefs[key] then
+                        rowRefs[key].Text = tostring(val)
+                    end
+                end
+
+                local sInfo = GetServerInfo()
+                for key, val in pairs(sInfo) do
+                    if rowRefs[key] and (rowRefs[key].Text == "N/A" or rowRefs[key].Text == "") then
+                        rowRefs[key].Text = tostring(val)
+                    end
+                end
+
+                local rInfo = GetRobloxInfo()
+                for key, val in pairs(rInfo) do
+                    if rowRefs[key] and (rowRefs[key].Text == "N/A" or rowRefs[key].Text == "") then
+                        rowRefs[key].Text = tostring(val)
+                    end
+                end
+
+                pcall(function()
+                    local product = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
+                    if product and product.Name and rowRefs.PlaceName then
+                        rowRefs.PlaceName.Text = tostring(product.Name)
+                    end
+                    if product and product.Creator and product.Creator.Name and rowRefs.CreatorName then
+                        rowRefs.CreatorName.Text = tostring(product.Creator.Name)
+                    end
+                end)
+            end)
+        end
+
+        refreshInfo()
+
+        InfoState.UpdateThread = task.spawn(function()
+            while InfoState.InfoWindow and InfoState.InfoWindow.Parent do
+                if InfoState.IsTabActive and InfoState.ShowInfoActive then
+                    pcall(refreshInfo)
+                end
+                task.wait(1.5)
+            end
+        end)
+    end
+
+    InfoState.TargetDropdown = InfoTab:CreateDropdown({
+        Title = "Select Player",
+        Options = GetAllPlayersList(),
+        Callback = function(Value)
+            pcall(function()
+                InfoState.TargetPlayer = Value
+                if InfoState.ShowInfoActive and InfoState.IsTabActive then
+                    pcall(refreshInfo)
+                end
+            end)
+        end,
+    })
+
+    InfoTab:CreateButton({
+        Title = "Refresh Player List",
+        Callback = function()
+            pcall(function()
+                local list = GetAllPlayersList()
+                if InfoState.TargetDropdown and InfoState.TargetDropdown.Update then
+                    InfoState.TargetDropdown:Update({ Options = list })
+                end
+            end)
+        end,
+    })
+
+    InfoState.ToggleBtn = InfoTab:CreateToggle({
+        Title = "Show Info",
+        Default = false,
+        Callback = function(Value)
+            pcall(function()
+                InfoState.ShowInfoActive = Value
+                if Value then
+                    if not InfoState.TargetPlayer then
+                        InfoState.TargetPlayer = LocalPlayer.Name
+                        if InfoState.TargetDropdown and InfoState.TargetDropdown.Set then
+                            InfoState.TargetDropdown:Set(LocalPlayer.Name)
+                        end
+                    end
+                    CreateInfoWindow()
+                else
+                    DestroyInfoWindow()
+                end
+            end)
+        end,
+    })
+
+    local function IsTabInfoActive()
+        return Window.CurrentTab == InfoTab
+    end
+
+    if Window.RegisterThemeListener then
+        pcall(function()
+            Window:RegisterThemeListener(function()
+            end)
+        end)
+    end
+
+    local function HookTabSelection()
+        pcall(function()
+            if InfoTab.Content then
+                InfoTab.Content:GetPropertyChangedSignal("Visible"):Connect(function()
+                    pcall(function()
+                        InfoState.IsTabActive = IsTabInfoActive()
+                    end)
+                end)
+            end
+        end)
+    end
+    HookTabSelection()
+end

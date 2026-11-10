@@ -25,28 +25,30 @@ end
 local function GetToolTexture(tool)
     if not tool then return nil end
     local handle = tool:FindFirstChild("Handle")
-    local candidates = {}
-    if handle then table.insert(candidates, handle) end
-    for _, c in ipairs(tool:GetDescendants()) do
-        if c:IsA("Texture") or c:IsA("Decal") then table.insert(candidates, c) end
-    end
-    for _, c in ipairs(candidates) do
-        if c:IsA("Texture") or c:IsA("Decal") then
-            local tex = c.Texture
-            if tex and tex ~= "" and tex ~= "rbxassetid://0" then return tex end
+    if handle then
+        local mesh = handle:FindFirstChildOfClass("SpecialMesh")
+        if mesh and mesh.TextureId and mesh.TextureId ~= "" then return mesh.TextureId end
+        for _, c in ipairs(handle:GetChildren()) do
+            if c:IsA("Texture") or c:IsA("Decal") then
+                if c.Texture and c.Texture ~= "" and c.Texture ~= "rbxassetid://0" then return c.Texture end
+            end
         end
     end
-    local mesh = handle and handle:FindFirstChildOfClass("SpecialMesh")
-    if mesh and mesh.TextureId and mesh.TextureId ~= "" then return mesh.TextureId end
+    for _, c in ipairs(tool:GetDescendants()) do
+        if c:IsA("Texture") or c:IsA("Decal") then
+            if c.Texture and c.Texture ~= "" and c.Texture ~= "rbxassetid://0" then return c.Texture end
+        end
+    end
     return nil
 end
 
 local function GetPlayerTools(plr)
     local tools = {}
     local char = plr.Character
-    if not char then return tools end
-    for _, c in ipairs(char:GetChildren()) do
-        if c:IsA("Tool") then table.insert(tools, c) end
+    if char then
+        for _, c in ipairs(char:GetChildren()) do
+            if c:IsA("Tool") then table.insert(tools, c) end
+        end
     end
     local bp = plr:FindFirstChild("Backpack")
     if bp then
@@ -384,21 +386,112 @@ SwordTab:CreateButton({
 })
 
 local viewToolActive = false
-local viewToolConn = nil
-local viewToolBillboards = {}
+local viewToolData = {}
 
 local function DestroyToolView(plr)
-    local data = viewToolBillboards[plr]
-    if data then
-        if data.billboard then pcall(function() data.billboard:Destroy() end) end
-        for _, c in ipairs(data.conns or {}) do pcall(function() c:Disconnect() end) end
-        viewToolBillboards[plr] = nil
-    end
+    local d = viewToolData[plr]
+    if not d then return end
+    for _, c in ipairs(d.conns) do pcall(function() c:Disconnect() end) end
+    if d.billboard then pcall(function() d.billboard:Destroy() end) end
+    viewToolData[plr] = nil
 end
 
 local function DestroyAllToolViews()
-    for plr in pairs(viewToolBillboards) do DestroyToolView(plr) end
-    viewToolBillboards = {}
+    local list = {}
+    for plr in pairs(viewToolData) do table.insert(list, plr) end
+    for _, plr in ipairs(list) do DestroyToolView(plr) end
+end
+
+local function RebuildToolRow(plr)
+    local d = viewToolData[plr]
+    if not d or not d.row or not d.row.Parent then return end
+    local row = d.row
+    for _, child in ipairs(row:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    local tools = GetPlayerTools(plr)
+    if #tools == 0 then
+        row.Visible = false
+        return
+    end
+    row.Visible = true
+    for i, tool in ipairs(tools) do
+        local item = Instance.new("Frame")
+        item.Name = "Tool_" .. i
+        item.BackgroundColor3 = Color3.fromRGB(20, 22, 28)
+        item.BackgroundTransparency = 0.15
+        item.BorderSizePixel = 0
+        item.LayoutOrder = i
+        item.AutomaticSize = Enum.AutomaticSize.XY
+        item.Parent = row
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 6)
+        corner.Parent = item
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(96, 176, 255)
+        stroke.Thickness = 1
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        stroke.Parent = item
+
+        local pad = Instance.new("UIPadding")
+        pad.PaddingTop = UDim.new(0, 4)
+        pad.PaddingBottom = UDim.new(0, 4)
+        pad.PaddingLeft = UDim.new(0, 5)
+        pad.PaddingRight = UDim.new(0, 5)
+        pad.Parent = item
+
+        local vlist = Instance.new("UIListLayout")
+        vlist.FillDirection = Enum.FillDirection.Vertical
+        vlist.SortOrder = Enum.SortOrder.LayoutOrder
+        vlist.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        vlist.Padding = UDim.new(0, 2)
+        vlist.Parent = item
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.LayoutOrder = 1
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = tool.Name
+        nameLabel.TextColor3 = Color3.fromRGB(240, 245, 255)
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextSize = 11
+        nameLabel.AutomaticSize = Enum.AutomaticSize.X
+        nameLabel.Size = UDim2.new(0, 0, 0, 13)
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+        nameLabel.Parent = item
+
+        local iconFrame = Instance.new("Frame")
+        iconFrame.LayoutOrder = 2
+        iconFrame.BackgroundColor3 = Color3.fromRGB(10, 12, 16)
+        iconFrame.BorderSizePixel = 0
+        iconFrame.Size = UDim2.new(0, 22, 0, 22)
+        iconFrame.Parent = item
+
+        local iconCorner = Instance.new("UICorner")
+        iconCorner.CornerRadius = UDim.new(0, 4)
+        iconCorner.Parent = iconFrame
+
+        local tex = GetToolTexture(tool)
+        if tex then
+            local img = Instance.new("ImageLabel")
+            img.BackgroundTransparency = 1
+            img.Size = UDim2.new(1, -4, 1, -4)
+            img.Position = UDim2.new(0, 2, 0, 2)
+            img.Image = tex
+            img.ScaleType = Enum.ScaleType.Fit
+            img.Parent = iconFrame
+        else
+            local fb = Instance.new("TextLabel")
+            fb.BackgroundTransparency = 1
+            fb.Size = UDim2.new(1, 0, 1, 0)
+            fb.Text = string.sub(tool.Name, 1, 1):upper()
+            fb.TextColor3 = Color3.fromRGB(96, 176, 255)
+            fb.Font = Enum.Font.GothamBold
+            fb.TextSize = 12
+            fb.Parent = iconFrame
+        end
+    end
 end
 
 local function BuildToolView(plr)
@@ -407,9 +500,10 @@ local function BuildToolView(plr)
     if not char then return end
     local head = char:FindFirstChild("Head")
     if not head then return end
-
-    local data = viewToolBillboards[plr]
-    if data and data.billboard and data.billboard.Parent == head and data.head == head then return end
+    local existing = viewToolData[plr]
+    if existing and existing.head == head and existing.billboard and existing.billboard.Parent then
+        return
+    end
     DestroyToolView(plr)
 
     local billboard = Instance.new("BillboardGui")
@@ -419,10 +513,10 @@ local function BuildToolView(plr)
     billboard.StudsOffset = Vector3.new(0, 3.2, 0)
     billboard.MaxDistance = 500
     billboard.Size = UDim2.new(0, 0, 0, 0)
+    billboard.AutomaticSize = Enum.AutomaticSize.XY
     billboard.Parent = head
 
     local row = Instance.new("Frame")
-    row.Name = "Row"
     row.BackgroundTransparency = 1
     row.BorderSizePixel = 0
     row.Size = UDim2.new(0, 0, 0, 0)
@@ -438,161 +532,49 @@ local function BuildToolView(plr)
     layout.Parent = row
 
     local conns = {}
-    local function rebuild()
-        for _, child in ipairs(row:GetChildren()) do
-            if child:IsA("Frame") then child:Destroy() end
-        end
-        local tools = GetPlayerTools(plr)
-        if #tools == 0 then
-            row.Visible = false
-            return
-        end
-        row.Visible = true
-
-        for i, tool in ipairs(tools) do
-            local item = Instance.new("Frame")
-            item.Name = "Tool_" .. i
-            item.BackgroundColor3 = Color3.fromRGB(20, 22, 28)
-            item.BackgroundTransparency = 0.15
-            item.BorderSizePixel = 0
-            item.LayoutOrder = i
-            item.AutomaticSize = Enum.AutomaticSize.XY
-            item.Parent = row
-
-            local corner = Instance.new("UICorner")
-            corner.CornerRadius = UDim.new(0, 6)
-            corner.Parent = item
-
-            local stroke = Instance.new("UIStroke")
-            stroke.Color = Color3.fromRGB(96, 176, 255)
-            stroke.Thickness = 1
-            stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-            stroke.Parent = item
-
-            local pad = Instance.new("UIPadding")
-            pad.PaddingTop = UDim.new(0, 4)
-            pad.PaddingBottom = UDim.new(0, 4)
-            pad.PaddingLeft = UDim.new(0, 5)
-            pad.PaddingRight = UDim.new(0, 5)
-            pad.Parent = item
-
-            local vlist = Instance.new("UIListLayout")
-            vlist.FillDirection = Enum.FillDirection.Vertical
-            vlist.SortOrder = Enum.SortOrder.LayoutOrder
-            vlist.HorizontalAlignment = Enum.HorizontalAlignment.Center
-            vlist.Padding = UDim.new(0, 2)
-            vlist.Parent = item
-
-            local nameLabel = Instance.new("TextLabel")
-            nameLabel.Name = "ToolName"
-            nameLabel.LayoutOrder = 1
-            nameLabel.BackgroundTransparency = 1
-            nameLabel.Text = tool.Name
-            nameLabel.TextColor3 = Color3.fromRGB(240, 245, 255)
-            nameLabel.Font = Enum.Font.GothamBold
-            nameLabel.TextSize = 11
-            nameLabel.TextScaled = false
-            nameLabel.AutomaticSize = Enum.AutomaticSize.X
-            nameLabel.Size = UDim2.new(0, 0, 0, 13)
-            nameLabel.TextXAlignment = Enum.TextXAlignment.Center
-            nameLabel.Parent = item
-
-            local iconFrame = Instance.new("Frame")
-            iconFrame.Name = "Icon"
-            iconFrame.LayoutOrder = 2
-            iconFrame.BackgroundColor3 = Color3.fromRGB(10, 12, 16)
-            iconFrame.BorderSizePixel = 0
-            iconFrame.Size = UDim2.new(0, 22, 0, 22)
-            iconFrame.Parent = item
-
-            local iconCorner = Instance.new("UICorner")
-            iconCorner.CornerRadius = UDim.new(0, 4)
-            iconCorner.Parent = iconFrame
-
-            local tex = GetToolTexture(tool)
-            if tex then
-                local img = Instance.new("ImageLabel")
-                img.BackgroundTransparency = 1
-                img.Size = UDim2.new(1, -4, 1, -4)
-                img.Position = UDim2.new(0, 2, 0, 2)
-                img.Image = tex
-                img.ScaleType = Enum.ScaleType.Fit
-                img.Parent = iconFrame
-            else
-                local fallback = Instance.new("TextLabel")
-                fallback.BackgroundTransparency = 1
-                fallback.Size = UDim2.new(1, 0, 1, 0)
-                fallback.Text = string.sub(tool.Name, 1, 1):upper()
-                fallback.TextColor3 = Color3.fromRGB(96, 176, 255)
-                fallback.Font = Enum.Font.GothamBold
-                fallback.TextSize = 12
-                fallback.Parent = iconFrame
-            end
-        end
-    end
 
     table.insert(conns, char.ChildAdded:Connect(function(c)
-        if viewToolActive and (c:IsA("Tool") or c:IsA("Accessory")) then
-            task.defer(rebuild)
-        end
+        if c:IsA("Tool") then task.defer(function() RebuildToolRow(plr) end) end
     end))
     table.insert(conns, char.ChildRemoved:Connect(function(c)
-        if viewToolActive and c:IsA("Tool") then
-            task.defer(rebuild)
-        end
+        if c:IsA("Tool") then task.defer(function() RebuildToolRow(plr) end) end
     end))
+
     local bp = plr:FindFirstChild("Backpack")
     if bp then
         table.insert(conns, bp.ChildAdded:Connect(function(c)
-            if viewToolActive and c:IsA("Tool") then task.defer(rebuild) end
+            if c:IsA("Tool") then task.defer(function() RebuildToolRow(plr) end) end
         end))
         table.insert(conns, bp.ChildRemoved:Connect(function(c)
-            if viewToolActive and c:IsA("Tool") then task.defer(rebuild) end
+            if c:IsA("Tool") then task.defer(function() RebuildToolRow(plr) end) end
         end))
     end
-    table.insert(conns, plr.CharacterAdded:Connect(function(newChar)
-        task.defer(function()
-            if viewToolActive then
-                DestroyToolView(plr)
-                task.wait(0.3)
-                BuildToolView(plr)
-            end
-        end)
+
+    table.insert(conns, plr.ChildAdded:Connect(function(c)
+        if c.Name == "Backpack" then
+            task.defer(function()
+                local newBP = plr:FindFirstChild("Backpack")
+                if newBP then
+                    table.insert(conns, newBP.ChildAdded:Connect(function(t)
+                        if t:IsA("Tool") then task.defer(function() RebuildToolRow(plr) end) end
+                    end))
+                    table.insert(conns, newBP.ChildRemoved:Connect(function(t)
+                        if t:IsA("Tool") then task.defer(function() RebuildToolRow(plr) end) end
+                    end))
+                    RebuildToolRow(plr)
+                end
+            end)
+        end
     end))
 
-    viewToolBillboards[plr] = {
+    viewToolData[plr] = {
         billboard = billboard,
+        row = row,
         head = head,
         conns = conns,
-        rebuild = rebuild,
     }
 
-    rebuild()
-end
-
-local function StopViewTool()
-    DestroyAllToolViews()
-    if viewToolConn then viewToolConn:Disconnect(); viewToolConn = nil end
-end
-
-local function StartViewTool()
-    StopViewTool()
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then BuildToolView(plr) end
-    end
-    viewToolConn = RunService.Heartbeat:Connect(function()
-        if not viewToolActive then return end
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LocalPlayer and plr.Character then
-                local data = viewToolBillboards[plr]
-                if data and data.rebuild then
-                    pcall(data.rebuild)
-                else
-                    pcall(BuildToolView, plr)
-                end
-            end
-        end
-    end)
+    RebuildToolRow(plr)
 end
 
 SwordTab:CreateToggle({
@@ -601,21 +583,40 @@ SwordTab:CreateToggle({
     Callback = function(Value)
         pcall(function()
             viewToolActive = Value
-            if Value then StartViewTool() else StopViewTool() end
+            if Value then
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= LocalPlayer then BuildToolView(plr) end
+                end
+            end
         end)
     end,
 })
 
+SwordTab:CreateButton({
+    Title = "Clear Tool View",
+    Callback = function()
+        pcall(function() DestroyAllToolViews() end)
+    end,
+})
+
 Players.PlayerAdded:Connect(function(plr)
-    if viewToolActive and plr ~= LocalPlayer then
-        plr.CharacterAdded:Wait()
-        task.wait(0.5)
-        if viewToolActive then BuildToolView(plr) end
+    if plr == LocalPlayer then return end
+    plr.CharacterAdded:Connect(function()
+        if viewToolActive then
+            task.wait(0.5)
+            if viewToolActive then BuildToolView(plr) end
+        end
+    end)
+    if viewToolActive and plr.Character then
+        task.wait(0.3)
+        BuildToolView(plr)
     end
 end)
+
 Players.PlayerRemoving:Connect(function(plr)
     DestroyToolView(plr)
 end)
+
 LocalPlayer.CharacterAdded:Connect(function()
     if viewToolActive then
         task.wait(0.5)

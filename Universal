@@ -3696,7 +3696,7 @@ ChatTab:CreateToggle({
         spamConn = RunService.Heartbeat:Connect(function()
             if not spamActive then return end
             local now = tick()
-            if now - spamLast >= 1 then
+            if now - spamLast >= 5 then
                 spamLast = now
                 sendChatMessage(spamMessages[spamIndex])
                 spamIndex = spamIndex % #spamMessages + 1
@@ -3730,7 +3730,7 @@ ChatTab:CreateToggle({
         fakeConn = RunService.Heartbeat:Connect(function()
             if not fakeActive then return end
             local now = tick()
-            if now - fakeLast >= 1 then
+            if now - fakeLast >= 5 then
                 fakeLast = now
                 sendChatMessage(fakeMessages[fakeIndex])
                 fakeIndex = fakeIndex % #fakeMessages + 1
@@ -6775,19 +6775,596 @@ do
         if spinActive then task.wait(0.5); originalAutoRotate = nil; startSpin() end
     end)
 end
--- ============================================================
--- ABA: SWORD
--- ============================================================
 local SwordTab = Window:CreateTab("Sword", "swords")
 
+local function GetPlayerByName(name)
+    if not name or name == "" then return nil end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name == name then return plr end
+    end
+    return nil
+end
+
+local function GetToolTexture(tool)
+    if not tool then return nil end
+    for _, child in ipairs(tool:GetChildren()) do
+        if child:IsA("Texture") or child:IsA("Decal") then
+            local tex = child.Texture
+            if tex and tex ~= "" and tex ~= "rbxassetid://0" then return tex end
+        end
+    end
+    local handle = tool:FindFirstChild("Handle")
+    if handle then
+        for _, child in ipairs(handle:GetDescendants()) do
+            if child:IsA("Texture") or child:IsA("Decal") then
+                local tex = child.Texture
+                if tex and tex ~= "" and tex ~= "rbxassetid://0" then return tex end
+            end
+        end
+    end
+    for _, child in ipairs(tool:GetDescendants()) do
+        if child:IsA("Texture") or child:IsA("Decal") then
+            local tex = child.Texture
+            if tex and tex ~= "" and tex ~= "rbxassetid://0" then return tex end
+        end
+    end
+    return nil
+end
+
+local function AttackPlayer(targetPlayer, tool)
+    if not firetouchinterest then return end
+    local handle = tool and tool:FindFirstChild("Handle")
+    if not handle then return end
+    if not targetPlayer.Character then return end
+    local hum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+    local root = hum and targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root or not hum or hum.Health <= 0 or hum:GetState() == Enum.HumanoidStateType.Dead then return end
+    pcall(function()
+        firetouchinterest(handle, root, 1)
+        firetouchinterest(handle, root, 0)
+    end)
+end
+
+local SwordTarget = nil
+local SwordTargetConn = nil
+
+local function RefreshSwordTargetList()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then table.insert(list, plr.Name) end
+    end
+    table.sort(list)
+    if SwordTargetConn and SwordTargetConn.Update then
+        pcall(function() SwordTargetConn:Update({ Options = list }) end)
+    end
+end
+
+SwordTargetConn = SwordTab:CreateDropdown({
+    Title = "Select Target",
+    Options = {},
+    Callback = function(Value) SwordTarget = Value end,
+})
+RefreshSwordTargetList()
+
 SwordTab:CreateButton({
-    Title = "Tool",
-    Callback = function()
+    Title = "Refresh Target List",
+    Callback = function() pcall(RefreshSwordTargetList) end,
+})
+
+Players.PlayerAdded:Connect(function() task.defer(RefreshSwordTargetList) end)
+Players.PlayerRemoving:Connect(function() task.defer(RefreshSwordTargetList) end)
+
+local killAuraActive = false
+local killAuraConn = nil
+
+SwordTab:CreateToggle({
+    Title = "Kill Aura",
+    Default = false,
+    Callback = function(Value)
         pcall(function()
-            loadstring(game:HttpGet("https://pastebin.com/raw/Ux3yQqv2"))()
+            killAuraActive = Value
+            if killAuraConn then killAuraConn:Disconnect(); killAuraConn = nil end
+            if not Value then return end
+            if not firetouchinterest then
+                Window:Notify({ Title = "Kill Aura", Description = "Needs firetouchinterest", Duration = 3, Type = "error" })
+                killAuraActive = false
+                return
+            end
+            killAuraConn = RunService.Heartbeat:Connect(function()
+                if not killAuraActive then return end
+                local curChar = LocalPlayer.Character
+                if not curChar then return end
+                local curTool = curChar:FindFirstChildOfClass("Tool")
+                if not curTool or not curTool:FindFirstChild("Handle") then
+                    killAuraActive = false
+                    if killAuraConn then killAuraConn:Disconnect(); killAuraConn = nil end
+                    return
+                end
+                for _, target in ipairs(Players:GetPlayers()) do
+                    if target ~= LocalPlayer and target.Character then
+                        AttackPlayer(target, curTool)
+                    end
+                end
+            end)
         end)
     end,
 })
+
+local killTargetActive = false
+local killTargetConn = nil
+
+SwordTab:CreateToggle({
+    Title = "Kill Target",
+    Default = false,
+    Callback = function(Value)
+        pcall(function()
+            killTargetActive = Value
+            if killTargetConn then killTargetConn:Disconnect(); killTargetConn = nil end
+            if not Value then return end
+            if not firetouchinterest then
+                Window:Notify({ Title = "Kill Target", Description = "Needs firetouchinterest", Duration = 3, Type = "error" })
+                killTargetActive = false
+                return
+            end
+            local target = GetPlayerByName(SwordTarget)
+            if not target then
+                Window:Notify({ Title = "Kill Target", Description = "Select a target first", Duration = 3, Type = "warning" })
+                killTargetActive = false
+                return
+            end
+            killTargetConn = RunService.Heartbeat:Connect(function()
+                if not killTargetActive then return end
+                local curChar = LocalPlayer.Character
+                if not curChar then return end
+                local curTool = curChar:FindFirstChildOfClass("Tool")
+                if not curTool or not curTool:FindFirstChild("Handle") then return end
+                local t = GetPlayerByName(SwordTarget)
+                if not t or not t.Character then return end
+                local tHum = t.Character:FindFirstChildOfClass("Humanoid")
+                if not tHum or tHum.Health <= 0 then
+                    killTargetActive = false
+                    if killTargetConn then killTargetConn:Disconnect(); killTargetConn = nil end
+                    return
+                end
+                AttackPlayer(t, curTool)
+            end)
+        end)
+    end,
+})
+
+local autoToolActive = false
+local autoToolConn = nil
+
+SwordTab:CreateToggle({
+    Title = "Auto Tool",
+    Default = false,
+    Callback = function(Value)
+        pcall(function()
+            autoToolActive = Value
+            if autoToolConn then autoToolConn:Disconnect(); autoToolConn = nil end
+            if not Value then return end
+            autoToolConn = RunService.Heartbeat:Connect(function()
+                if not autoToolActive then return end
+                local char = LocalPlayer.Character
+                if not char then return end
+                local backpack = LocalPlayer:FindFirstChild("Backpack")
+                if not backpack then return end
+                local tools = {}
+                for _, t in ipairs(backpack:GetChildren()) do
+                    if t:IsA("Tool") then table.insert(tools, t) end
+                end
+                if #tools == 0 then return end
+                local currentTool = char:FindFirstChildOfClass("Tool")
+                local nextIndex = 1
+                if currentTool then
+                    for i, t in ipairs(tools) do
+                        if t == currentTool then
+                            nextIndex = i + 1
+                            if nextIndex > #tools then nextIndex = 1 end
+                            break
+                        end
+                    end
+                end
+                local nextTool = tools[nextIndex]
+                if nextTool and nextTool ~= currentTool then
+                    pcall(function() char.Humanoid:EquipTool(nextTool) end)
+                end
+            end)
+        end)
+    end,
+})
+
+local reachActive = false
+local reachValue = 60
+local reachSaved = {}
+local reachConn = nil
+
+SwordTab:CreateSlider({
+    Title = "Reach Value",
+    Min = 1, Max = 1000, Default = 60,
+    Callback = function(v) reachValue = v end,
+})
+
+SwordTab:CreateToggle({
+    Title = "Reach",
+    Default = false,
+    Callback = function(Value)
+        pcall(function()
+            reachActive = Value
+            if reachConn then reachConn:Disconnect(); reachConn = nil end
+            local char = LocalPlayer.Character
+            if not char then return end
+            if Value then
+                for _, v in ipairs(char:GetDescendants()) do
+                    if v:IsA("Tool") and v:FindFirstChild("Handle") then
+                        if not reachSaved[v] then
+                            reachSaved[v] = { Size = v.Handle.Size, GripPos = v.GripPos }
+                        end
+                        v.Handle.Size = Vector3.new(0.5, 0.5, reachValue)
+                        v.GripPos = Vector3.new(0, 0, 0)
+                    end
+                end
+                reachConn = char.ChildAdded:Connect(function(child)
+                    if reachActive and child:IsA("Tool") and child:FindFirstChild("Handle") then
+                        if not reachSaved[child] then
+                            reachSaved[child] = { Size = child.Handle.Size, GripPos = child.GripPos }
+                        end
+                        child.Handle.Size = Vector3.new(0.5, 0.5, reachValue)
+                        child.GripPos = Vector3.new(0, 0, 0)
+                    end
+                end)
+            else
+                for tool, data in pairs(reachSaved) do
+                    if tool and tool.Parent then
+                        pcall(function()
+                            if tool:FindFirstChild("Handle") then tool.Handle.Size = data.Size end
+                            tool.GripPos = data.GripPos
+                        end)
+                    end
+                end
+                reachSaved = {}
+            end
+        end)
+    end,
+})
+
+local gripActive = false
+local gripX, gripY, gripZ = 0, 0, 0
+local gripSaved = {}
+local gripConn = nil
+
+local function ApplyGripAll()
+    local char = LocalPlayer.Character
+    if not char then return end
+    for _, t in ipairs(char:GetDescendants()) do
+        if t:IsA("Tool") then t.GripPos = Vector3.new(gripX, gripY, gripZ) end
+    end
+end
+
+SwordTab:CreateSlider({
+    Title = "Grip X", Min = -10, Max = 10, Default = 0,
+    Callback = function(v) gripX = v; if gripActive then ApplyGripAll() end end,
+})
+SwordTab:CreateSlider({
+    Title = "Grip Y", Min = -10, Max = 10, Default = 0,
+    Callback = function(v) gripY = v; if gripActive then ApplyGripAll() end end,
+})
+SwordTab:CreateSlider({
+    Title = "Grip Z", Min = -10, Max = 10, Default = 0,
+    Callback = function(v) gripZ = v; if gripActive then ApplyGripAll() end end,
+})
+
+SwordTab:CreateToggle({
+    Title = "GripPos",
+    Default = false,
+    Callback = function(Value)
+        pcall(function()
+            gripActive = Value
+            if gripConn then gripConn:Disconnect(); gripConn = nil end
+            local char = LocalPlayer.Character
+            if not char then return end
+            if Value then
+                for _, t in ipairs(char:GetDescendants()) do
+                    if t:IsA("Tool") then
+                        if not gripSaved[t] then gripSaved[t] = t.GripPos end
+                        t.GripPos = Vector3.new(gripX, gripY, gripZ)
+                    end
+                end
+                gripConn = char.ChildAdded:Connect(function(child)
+                    if gripActive and child:IsA("Tool") then
+                        if not gripSaved[child] then gripSaved[child] = child.GripPos end
+                        child.GripPos = Vector3.new(gripX, gripY, gripZ)
+                    end
+                end)
+            else
+                for tool, orig in pairs(gripSaved) do
+                    if tool and tool.Parent then
+                        pcall(function() tool.GripPos = orig end)
+                    end
+                end
+                gripSaved = {}
+            end
+        end)
+    end,
+})
+
+local useToolsActive = false
+local useToolsAmount = 1
+local useToolsDelay = 0
+local useToolsThread = nil
+
+SwordTab:CreateSlider({
+    Title = "UseTools Amount", Min = 1, Max = 50, Default = 1,
+    Callback = function(v) useToolsAmount = v end,
+})
+SwordTab:CreateSlider({
+    Title = "UseTools Delay", Min = 0, Max = 10, Default = 0,
+    Callback = function(v) useToolsDelay = v end,
+})
+
+SwordTab:CreateToggle({
+    Title = "UseTools",
+    Default = false,
+    Callback = function(Value)
+        pcall(function()
+            useToolsActive = Value
+            if useToolsThread then task.cancel(useToolsThread); useToolsThread = nil end
+            if not Value then return end
+            useToolsThread = task.spawn(function()
+                while useToolsActive do
+                    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+                    local char = LocalPlayer.Character
+                    if bp and char then
+                        for _, v in ipairs(bp:GetChildren()) do
+                            if v:IsA("Tool") and useToolsActive then
+                                v.Parent = char
+                                for _ = 1, useToolsAmount do
+                                    if not useToolsActive then break end
+                                    pcall(function() v:Activate() end)
+                                    if useToolsDelay > 0 then task.wait(useToolsDelay) end
+                                end
+                                if v and v.Parent == char then v.Parent = bp end
+                            end
+                        end
+                    end
+                    task.wait(0.1)
+                end
+            end)
+        end)
+    end,
+})
+
+SwordTab:CreateButton({
+    Title = "CopyTools",
+    Callback = function()
+        pcall(function()
+            local found = GetPlayerByName(SwordTarget)
+            if not found then return end
+            local bp = found:FindFirstChildOfClass("Backpack")
+            local myBp = LocalPlayer:FindFirstChildOfClass("Backpack")
+            if bp and myBp then
+                for _, v in ipairs(bp:GetChildren()) do
+                    if v:IsA("Tool") then pcall(function() v:Clone().Parent = myBp end) end
+                end
+            end
+        end)
+    end,
+})
+
+local toolViewBillboards = {}
+local toolViewGlobalConns = {}
+
+local function RemoveToolViewForPlayer(plr)
+    local data = toolViewBillboards[plr]
+    if not data then return end
+    if data.billboard then pcall(function() data.billboard:Destroy() end) end
+    for _, conn in ipairs(data.connections) do pcall(function() conn:Disconnect() end) end
+    toolViewBillboards[plr] = nil
+end
+
+local function RemoveAllToolViews()
+    local list = {}
+    for plr in pairs(toolViewBillboards) do table.insert(list, plr) end
+    for _, plr in ipairs(list) do RemoveToolViewForPlayer(plr) end
+end
+
+local function CreateToolViewForPlayer(plr)
+    if plr == LocalPlayer then return end
+    local char = plr.Character
+    if not char then return end
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+    local existing = toolViewBillboards[plr]
+    if existing and existing.head == head and existing.billboard and existing.billboard.Parent then
+        return
+    end
+    RemoveToolViewForPlayer(plr)
+
+    local function getTools()
+        local tools = {}
+        local equipped = char:FindFirstChildOfClass("Tool")
+        if equipped then table.insert(tools, equipped) end
+        local backpack = plr:FindFirstChild("Backpack")
+        if backpack then
+            for _, tool in ipairs(backpack:GetChildren()) do
+                if tool:IsA("Tool") and tool ~= equipped then table.insert(tools, tool) end
+            end
+        end
+        return tools
+    end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ToolViewESP_" .. plr.Name
+    billboard.Adornee = head
+    billboard.AlwaysOnTop = true
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.MaxDistance = 500
+    billboard.Parent = head
+
+    local function buildGui()
+        for _, child in ipairs(billboard:GetChildren()) do
+            if child:IsA("Frame") then child:Destroy() end
+        end
+        local tools = getTools()
+        if #tools == 0 then billboard.Enabled = false return end
+        billboard.Enabled = true
+
+        local maxWidth = 200
+        local padding = 4
+        local n = #tools
+        local itemSize = 44
+        if n * (itemSize + padding) - padding > maxWidth then
+            itemSize = math.floor((maxWidth + padding) / n) - padding
+            itemSize = math.max(30, itemSize)
+        end
+        local totalWidth = n * itemSize + (n - 1) * padding
+        billboard.Size = UDim2.new(0, totalWidth, 0, itemSize + 20)
+
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, 0, 1, 0)
+        frame.BackgroundTransparency = 1
+        frame.Parent = billboard
+
+        local listLayout = Instance.new("UIListLayout")
+        listLayout.FillDirection = Enum.FillDirection.Horizontal
+        listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        listLayout.Padding = UDim.new(0, padding)
+        listLayout.Parent = frame
+
+        for _, tool in ipairs(tools) do
+            local itemFrame = Instance.new("Frame")
+            itemFrame.Size = UDim2.new(0, itemSize, 0, itemSize + 20)
+            itemFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+            itemFrame.BackgroundTransparency = 0.5
+            itemFrame.BorderSizePixel = 0
+            itemFrame.Parent = frame
+
+            local iconId = GetToolTexture(tool)
+            if iconId then
+                local img = Instance.new("ImageLabel")
+                img.Size = UDim2.new(1, -6, 0, itemSize - 6)
+                img.Position = UDim2.new(0, 3, 0, 3)
+                img.BackgroundTransparency = 1
+                img.Image = iconId
+                img.Parent = itemFrame
+            end
+
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Size = UDim2.new(1, -4, 0, 20)
+            nameLabel.Position = UDim2.new(0, 2, 0, itemSize - 2)
+            nameLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+            nameLabel.BackgroundTransparency = 0.4
+            nameLabel.Text = tool.Name
+            nameLabel.TextColor3 = Color3.new(1, 1, 1)
+            nameLabel.Font = Enum.Font.GothamBold
+            nameLabel.TextSize = 12
+            nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+            nameLabel.Parent = itemFrame
+        end
+    end
+
+    local connections = {}
+    table.insert(connections, char.ChildAdded:Connect(function(c) if c:IsA("Tool") then task.defer(buildGui) end end))
+    table.insert(connections, char.ChildRemoved:Connect(function(c) if c:IsA("Tool") then task.defer(buildGui) end end))
+    local bp = plr:FindFirstChild("Backpack")
+    if bp then
+        table.insert(connections, bp.ChildAdded:Connect(function(c) if c:IsA("Tool") then task.defer(buildGui) end end))
+        table.insert(connections, bp.ChildRemoved:Connect(function(c) if c:IsA("Tool") then task.defer(buildGui) end end))
+    end
+    table.insert(connections, plr.ChildAdded:Connect(function(c)
+        if c.Name == "Backpack" then
+            task.defer(function()
+                local newBp = plr:FindFirstChild("Backpack")
+                if newBp then
+                    table.insert(connections, newBp.ChildAdded:Connect(function(t) if t:IsA("Tool") then task.defer(buildGui) end end))
+                    table.insert(connections, newBp.ChildRemoved:Connect(function(t) if t:IsA("Tool") then task.defer(buildGui) end end))
+                    buildGui()
+                end
+            end)
+        end
+    end))
+
+    toolViewBillboards[plr] = { billboard = billboard, connections = connections, head = head }
+    buildGui()
+end
+
+local function StartToolView()
+    RemoveAllToolViews()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+            CreateToolViewForPlayer(plr)
+        end
+    end
+    for _, conn in ipairs(toolViewGlobalConns) do pcall(function() conn:Disconnect() end) end
+    toolViewGlobalConns = {}
+    table.insert(toolViewGlobalConns, Players.PlayerAdded:Connect(function(plr)
+        if plr == LocalPlayer then return end
+        if plr.Character then
+            task.wait(0.3)
+            CreateToolViewForPlayer(plr)
+        else
+            plr.CharacterAdded:Wait()
+            task.wait(0.3)
+            CreateToolViewForPlayer(plr)
+        end
+    end))
+    table.insert(toolViewGlobalConns, Players.PlayerRemoving:Connect(function(plr)
+        RemoveToolViewForPlayer(plr)
+    end))
+end
+
+local function StopToolView()
+    RemoveAllToolViews()
+    for _, conn in ipairs(toolViewGlobalConns) do pcall(function() conn:Disconnect() end) end
+    toolViewGlobalConns = {}
+end
+
+SwordTab:CreateToggle({
+    Title = "Tool View",
+    Default = false,
+    Callback = function(Value)
+        pcall(function()
+            if Value then StartToolView() else StopToolView() end
+        end)
+    end,
+})
+
+SwordTab:CreateButton({
+    Title = "Tool Grab",
+    Callback = function()
+        pcall(function()
+            local found = GetPlayerByName(SwordTarget)
+            if not found or not found.Character then return end
+            local myBp = LocalPlayer:FindFirstChildOfClass("Backpack")
+            if not myBp then return end
+            for _, v in ipairs(found.Character:GetChildren()) do
+                if v:IsA("Tool") then
+                    pcall(function() v.Parent = myBp end)
+                end
+            end
+        end)
+    end,
+})
+
+
+
+
+if SwordTab.Content then
+    pcall(function()
+        SwordTab.Content.AutomaticSize = Enum.AutomaticSize.Y
+        SwordTab.Content.ClipsDescendants = false
+        local lay = SwordTab.Content:FindFirstChildOfClass("UIListLayout")
+        if lay then
+            lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                SwordTab.Content.CanvasSize = UDim2.new(0, 0, 0, lay.AbsoluteContentSize.Y + 30)
+            end)
+        end
+    end)
+end
+if SwordTab.Select then
+    pcall(function() SwordTab:Select() end)
+end
 local ToolTab = Window:CreateTab("Tool", "wrench")
 
 local function attach(Part, TargetPart)

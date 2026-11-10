@@ -16204,7 +16204,8 @@ pcall(function()
     local TextTab = Window:CreateTab("Text", "file-text")
 
     local TextState = {
-        TextBox = nil,
+        InputBox = nil,
+        DisplayBox = nil,
         CurrentText = "",
         ParentFrame = nil,
     }
@@ -16216,102 +16217,137 @@ pcall(function()
         end
         TextState.ParentFrame = parent
 
-        local container = Instance.new("Frame")
-        container.Name = "BigTextBoxContainer"
-        container.Size = UDim2.new(1, -20, 0, 320)
-        container.Position = UDim2.new(0, 10, 0, 10)
-        container.BackgroundColor3 = Color3.fromRGB(14, 16, 22)
-        container.BorderSizePixel = 0
-        container.ZIndex = 50
-        container.Parent = parent
+        local inputContainer = Instance.new("Frame")
+        inputContainer.Name = "TextInputContainer"
+        inputContainer.Size = UDim2.new(1, -20, 0, 42)
+        inputContainer.Position = UDim2.new(0, 10, 0, 10)
+        inputContainer.BackgroundColor3 = Color3.fromRGB(24, 28, 36)
+        inputContainer.BorderSizePixel = 0
+        inputContainer.ZIndex = 50
+        inputContainer.Parent = parent
 
-        local ccorner = Instance.new("UICorner", container)
-        ccorner.CornerRadius = UDim.new(0, 10)
+        local ic = Instance.new("UICorner", inputContainer)
+        ic.CornerRadius = UDim.new(0, 8)
 
-        local cstroke = Instance.new("UIStroke", container)
-        cstroke.Color = Color3.fromRGB(96, 176, 255)
-        cstroke.Thickness = 1.2
-        cstroke.Transparency = 0.2
-        cstroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        local is = Instance.new("UIStroke", inputContainer)
+        is.Color = Color3.fromRGB(96, 176, 255)
+        is.Thickness = 1
+        is.Transparency = 0.3
+        is.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-        local scroll = Instance.new("ScrollingFrame")
-        scroll.Name = "InnerScroll"
-        scroll.Size = UDim2.new(1, -16, 1, -16)
-        scroll.Position = UDim2.new(0, 8, 0, 8)
-        scroll.BackgroundTransparency = 1
-        scroll.BorderSizePixel = 0
-        scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-        scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-        scroll.ScrollingDirection = Enum.ScrollingDirection.Y
-        scroll.ScrollBarThickness = 6
-        scroll.ScrollBarImageColor3 = Color3.fromRGB(96, 176, 255)
-        scroll.ZIndex = 51
-        scroll.Parent = container
+        local input = Instance.new("TextBox")
+        input.Name = "InputBox"
+        input.Size = UDim2.new(1, -16, 1, 0)
+        input.Position = UDim2.new(0, 8, 0, 0)
+        input.BackgroundTransparency = 1
+        input.BorderSizePixel = 0
+        input.Text = ""
+        input.PlaceholderText = "Type here..."
+        input.PlaceholderColor3 = Color3.fromRGB(120, 130, 150)
+        input.TextColor3 = Color3.fromRGB(230, 240, 255)
+        input.TextXAlignment = Enum.TextXAlignment.Left
+        input.TextYAlignment = Enum.TextYAlignment.Center
+        input.TextWrapped = false
+        input.TextSize = 14
+        input.Font = Enum.Font.Gotham
+        input.ClearTextOnFocus = false
+        input.MultiLine = false
+        input.ZIndex = 51
+        input.Parent = inputContainer
+        TextState.InputBox = input
 
-        local box = Instance.new("TextBox")
-        box.Name = "BigTextBox"
-        box.Size = UDim2.new(1, -8, 0, 0)
-        box.Position = UDim2.new(0, 0, 0, 0)
-        box.BackgroundTransparency = 1
-        box.BorderSizePixel = 0
-        box.Text = ""
-        box.PlaceholderText = "Type or paste text here..."
-        box.PlaceholderColor3 = Color3.fromRGB(120, 130, 150)
-        box.TextColor3 = Color3.fromRGB(230, 240, 255)
-        box.TextXAlignment = Enum.TextXAlignment.Left
-        box.TextYAlignment = Enum.TextYAlignment.Top
-        box.TextWrapped = true
-        box.TextSize = 14
-        box.Font = Enum.Font.Gotham
-        box.ClearTextOnFocus = false
-        box.MultiLine = true
-        box.ZIndex = 52
-        box.Parent = scroll
-        TextState.TextBox = box
+        local displayContainer = Instance.new("Frame")
+        displayContainer.Name = "TextDisplayContainer"
+        displayContainer.Size = UDim2.new(1, -20, 0, 200)
+        displayContainer.Position = UDim2.new(0, 10, 0, 62)
+        displayContainer.BackgroundColor3 = Color3.fromRGB(14, 16, 22)
+        displayContainer.BorderSizePixel = 0
+        displayContainer.ZIndex = 50
+        displayContainer.Parent = parent
 
-        local function ResizeBox()
+        local dc = Instance.new("UICorner", displayContainer)
+        dc.CornerRadius = UDim.new(0, 8)
+
+        local ds = Instance.new("UIStroke", displayContainer)
+        ds.Color = Color3.fromRGB(96, 176, 255)
+        ds.Thickness = 1
+        ds.Transparency = 0.3
+        ds.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+        local displayScroll = Instance.new("ScrollingFrame")
+        displayScroll.Name = "DisplayScroll"
+        displayScroll.Size = UDim2.new(1, -16, 1, -16)
+        displayScroll.Position = UDim2.new(0, 8, 0, 8)
+        displayScroll.BackgroundTransparency = 1
+        displayScroll.BorderSizePixel = 0
+        displayScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+        displayScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        displayScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+        displayScroll.ScrollBarThickness = 6
+        displayScroll.ScrollBarImageColor3 = Color3.fromRGB(96, 176, 255)
+        displayScroll.ZIndex = 51
+        displayScroll.Parent = displayContainer
+
+        local display = Instance.new("TextLabel")
+        display.Name = "DisplayLabel"
+        display.Size = UDim2.new(1, -8, 0, 0)
+        display.Position = UDim2.new(0, 0, 0, 0)
+        display.BackgroundTransparency = 1
+        display.BorderSizePixel = 0
+        display.Text = ""
+        display.TextColor3 = Color3.fromRGB(230, 240, 255)
+        display.TextXAlignment = Enum.TextXAlignment.Left
+        display.TextYAlignment = Enum.TextYAlignment.Top
+        display.TextWrapped = true
+        display.TextSize = 14
+        display.Font = Enum.Font.Gotham
+        display.AutomaticSize = Enum.AutomaticSize.Y
+        display.ZIndex = 52
+        display.Parent = displayScroll
+        TextState.DisplayBox = display
+
+        local function ResizeDisplay()
             pcall(function()
-                local text = tostring(box.Text or "")
+                local text = tostring(display.Text or "")
                 local lineCount = 1
                 for _ in text:gmatch("\n") do
                     lineCount = lineCount + 1
                 end
                 local estimatedLines = math.max(lineCount, math.ceil(#text / 60) + 1)
-                local height = math.max(280, estimatedLines * 20 + 40)
-                box.Size = UDim2.new(1, -8, 0, height)
-                scroll.CanvasSize = UDim2.new(0, 0, 0, height + 8)
+                local height = math.max(60, estimatedLines * 20 + 20)
+                displayScroll.CanvasSize = UDim2.new(0, 0, 0, height + 8)
             end)
         end
 
-        box:GetPropertyChangedSignal("Text"):Connect(function()
+        input:GetPropertyChangedSignal("Text"):Connect(function()
             pcall(function()
-                TextState.CurrentText = box.Text
-                ResizeBox()
+                TextState.CurrentText = input.Text
+                display.Text = input.Text
+                ResizeDisplay()
             end)
         end)
 
-        local originalPosition = container.Position
-        box.Focused:Connect(function()
+        local originalPosition = inputContainer.Position
+        local displayOriginalPosition = displayContainer.Position
+
+        input.Focused:Connect(function()
             pcall(function()
                 if UserInputService.TouchEnabled then
-                    container.Position = UDim2.new(0, 10, 0, -80)
-                    task.delay(0.15, function()
-                        pcall(function()
-                            scroll.CanvasPosition = Vector2.new(0, 0)
-                        end)
-                    end)
+                    inputContainer.Position = UDim2.new(0, 10, 0, -60)
+                    displayContainer.Position = UDim2.new(0, 10, 0, -8)
                 end
             end)
         end)
-        box.FocusLost:Connect(function()
+        input.FocusLost:Connect(function()
             pcall(function()
                 if UserInputService.TouchEnabled then
-                    container.Position = originalPosition
+                    inputContainer.Position = originalPosition
+                    displayContainer.Position = displayOriginalPosition
                 end
             end)
         end)
 
-        ResizeBox()
+        ResizeDisplay()
     end)
 
     pcall(function()
@@ -16328,13 +16364,8 @@ pcall(function()
                         })
                         return
                     end
-                    local text = ""
-                    if TextState.TextBox then
-                        text = tostring(TextState.TextBox.Text or "")
-                    else
-                        text = TextState.CurrentText
-                    end
-                    setclipboard(text)
+                    local text = TextState.CurrentText or ""
+                    setclipboard(tostring(text))
                     Window:Notify({
                         Title = "Copy",
                         Description = "Text copied to clipboard",
@@ -16351,8 +16382,11 @@ pcall(function()
             Title = "Delete",
             Callback = function()
                 pcall(function()
-                    if TextState.TextBox then
-                        TextState.TextBox.Text = ""
+                    if TextState.InputBox then
+                        TextState.InputBox.Text = ""
+                    end
+                    if TextState.DisplayBox then
+                        TextState.DisplayBox.Text = ""
                     end
                     TextState.CurrentText = ""
                     Window:Notify({

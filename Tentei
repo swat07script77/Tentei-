@@ -71,7 +71,7 @@ RefreshSwordTargetList()
 
 SwordTab:CreateButton({
     Title = "Refresh Target List",
-    Callback = function() RefreshSwordTargetList() end,
+    Callback = function() pcall(RefreshSwordTargetList) end,
 })
 
 Players.PlayerAdded:Connect(function() task.defer(RefreshSwordTargetList) end)
@@ -376,6 +376,7 @@ SwordTab:CreateButton({
 
 local toolViewEnabled = false
 local toolViewBillboards = {}
+local globalConns = {}
 
 local function RemoveToolViewForPlayer(plr)
     local data = toolViewBillboards[plr]
@@ -385,13 +386,24 @@ local function RemoveToolViewForPlayer(plr)
     toolViewBillboards[plr] = nil
 end
 
+local function RemoveAllToolViews()
+    local list = {}
+    for plr in pairs(toolViewBillboards) do table.insert(list, plr) end
+    for _, plr in ipairs(list) do RemoveToolViewForPlayer(plr) end
+end
+
 local function CreateToolViewForPlayer(plr)
     if plr == LocalPlayer then return end
-    RemoveToolViewForPlayer(plr)
+    if not toolViewEnabled then return end
     local char = plr.Character
     if not char then return end
     local head = char:FindFirstChild("Head")
     if not head then return end
+    local existing = toolViewBillboards[plr]
+    if existing and existing.head == head and existing.billboard and existing.billboard.Parent then
+        return
+    end
+    RemoveToolViewForPlayer(plr)
 
     local function getTools()
         local tools = {}
@@ -412,7 +424,7 @@ local function CreateToolViewForPlayer(plr)
     billboard.AlwaysOnTop = true
     billboard.StudsOffset = Vector3.new(0, 3, 0)
     billboard.MaxDistance = 500
-    billboard.Parent = char
+    billboard.Parent = head
 
     local function buildGui()
         for _, child in ipairs(billboard:GetChildren()) do
@@ -453,26 +465,15 @@ local function CreateToolViewForPlayer(plr)
             itemFrame.BorderSizePixel = 0
             itemFrame.Parent = frame
 
-            local function setIcon()
-                local iconId = GetToolTexture(tool)
-                if iconId then
-                    local img = Instance.new("ImageLabel")
-                    img.Size = UDim2.new(1, -6, 0, itemSize - 6)
-                    img.Position = UDim2.new(0, 3, 0, 3)
-                    img.BackgroundTransparency = 1
-                    img.Image = iconId
-                    img.Parent = itemFrame
-                end
+            local iconId = GetToolTexture(tool)
+            if iconId then
+                local img = Instance.new("ImageLabel")
+                img.Size = UDim2.new(1, -6, 0, itemSize - 6)
+                img.Position = UDim2.new(0, 3, 0, 3)
+                img.BackgroundTransparency = 1
+                img.Image = iconId
+                img.Parent = itemFrame
             end
-            setIcon()
-            task.delay(0.3, function()
-                if itemFrame and itemFrame.Parent then
-                    for _, v in ipairs(itemFrame:GetChildren()) do
-                        if v:IsA("ImageLabel") then v:Destroy() end
-                    end
-                    setIcon()
-                end
-            end)
 
             local nameLabel = Instance.new("TextLabel")
             nameLabel.Size = UDim2.new(1, -4, 0, 20)
@@ -489,27 +490,27 @@ local function CreateToolViewForPlayer(plr)
     end
 
     local connections = {}
-    local backpack = plr:FindFirstChild("Backpack")
-    if backpack then
-        table.insert(connections, backpack.ChildAdded:Connect(function(c) if c:IsA("Tool") then buildGui() end end))
-        table.insert(connections, backpack.ChildRemoved:Connect(function(c) if c:IsA("Tool") then buildGui() end end))
+    table.insert(connections, char.ChildAdded:Connect(function(c) if c:IsA("Tool") then task.defer(buildGui) end end))
+    table.insert(connections, char.ChildRemoved:Connect(function(c) if c:IsA("Tool") then task.defer(buildGui) end end))
+    local bp = plr:FindFirstChild("Backpack")
+    if bp then
+        table.insert(connections, bp.ChildAdded:Connect(function(c) if c:IsA("Tool") then task.defer(buildGui) end end))
+        table.insert(connections, bp.ChildRemoved:Connect(function(c) if c:IsA("Tool") then task.defer(buildGui) end end))
     end
-    table.insert(connections, char.ChildAdded:Connect(function(c) if c:IsA("Tool") then buildGui() end end))
-    table.insert(connections, char.ChildRemoved:Connect(function(c) if c:IsA("Tool") then buildGui() end end))
     table.insert(connections, plr.ChildAdded:Connect(function(c)
         if c.Name == "Backpack" then
             task.defer(function()
-                local bp = plr:FindFirstChild("Backpack")
-                if bp then
-                    table.insert(connections, bp.ChildAdded:Connect(function(t) if t:IsA("Tool") then buildGui() end end))
-                    table.insert(connections, bp.ChildRemoved:Connect(function(t) if t:IsA("Tool") then buildGui() end end))
+                local newBp = plr:FindFirstChild("Backpack")
+                if newBp and toolViewEnabled then
+                    table.insert(connections, newBp.ChildAdded:Connect(function(t) if t:IsA("Tool") then task.defer(buildGui) end end))
+                    table.insert(connections, newBp.ChildRemoved:Connect(function(t) if t:IsA("Tool") then task.defer(buildGui) end end))
                     buildGui()
                 end
             end)
         end
     end))
 
-    toolViewBillboards[plr] = { billboard = billboard, connections = connections }
+    toolViewBillboards[plr] = { billboard = billboard, connections = connections, head = head }
     buildGui()
 end
 
@@ -521,22 +522,6 @@ local function EnableToolView()
             CreateToolViewForPlayer(plr)
         end
     end
-    Players.PlayerAdded:Connect(function(plr)
-        if not toolViewEnabled then return end
-        local char = plr.Character or plr.CharacterAdded:Wait()
-        char:WaitForChild("Head")
-        if toolViewEnabled then CreateToolViewForPlayer(plr) end
-        plr.CharacterAdded:Connect(function(newChar)
-            if toolViewEnabled then
-                newChar:WaitForChild("Head")
-                task.wait(0.3)
-                if toolViewEnabled then CreateToolViewForPlayer(plr) end
-            end
-        end)
-    end)
-    Players.PlayerRemoving:Connect(function(plr)
-        RemoveToolViewForPlayer(plr)
-    end)
 end
 
 local function DisableToolView()
@@ -545,10 +530,27 @@ end
 
 local function ClearToolView()
     toolViewEnabled = false
-    local plrs = {}
-    for plr in pairs(toolViewBillboards) do table.insert(plrs, plr) end
-    for _, plr in ipairs(plrs) do RemoveToolViewForPlayer(plr) end
+    RemoveAllToolViews()
 end
+
+for _, conn in ipairs(globalConns) do pcall(function() conn:Disconnect() end) end
+globalConns = {}
+
+table.insert(globalConns, Players.PlayerAdded:Connect(function(plr)
+    if not toolViewEnabled then return end
+    if plr.Character then
+        task.wait(0.5)
+        CreateToolViewForPlayer(plr)
+    else
+        plr.CharacterAdded:Wait()
+        task.wait(0.5)
+        CreateToolViewForPlayer(plr)
+    end
+end))
+
+table.insert(globalConns, Players.PlayerRemoving:Connect(function(plr)
+    RemoveToolViewForPlayer(plr)
+end))
 
 SwordTab:CreateToggle({
     Title = "Tool View",

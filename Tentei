@@ -1,11 +1,14 @@
+-- Garante os serviços de forma estrita e segura
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
--- Garante que a aba existe de forma segura
-local SwordTab = Window and Window:CreateTab and Window:CreateTab("Sword", "swords") or nil
+-- Garante que a UI e a Aba foram inicializadas antes de prosseguir
+local Window = Window or getgenv().Window
+local SwordTab = Window and Window.CreateTab and Window:CreateTab("Sword", "swords") or nil
+
 if not SwordTab then
-    warn("Window ou CreateTab não encontrado! Certifique-se de que a biblioteca UI foi carregada antes.")
+    warn("[SwatUI] Erro: A variável Window ou CreateTab não foi encontrada. Certifique-se de carregar a UI principal primeiro.")
     return
 end
 
@@ -45,6 +48,7 @@ local function RefreshSwordTargetList()
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer then table.insert(list, plr.Name) end
     end
+    if #list == 0 then table.insert(list, "Nenhum") end
     table.sort(list)
     pcall(function()
         if SwordTargetConn then
@@ -61,10 +65,10 @@ end
 
 SwordTargetConn = SwordTab:CreateDropdown({
     Title = "Select Target",
-    Options = {"Nenhum"},
+    Options = {"Carregando..."},
     Callback = function(Value) SwordTarget = Value end,
 })
-RefreshSwordTargetList()
+task.spawn(RefreshSwordTargetList)
 
 SwordTab:CreateButton({
     Title = "Refresh Target List",
@@ -266,6 +270,162 @@ SwordTab:CreateToggle({
                         if not gripSaved[t] then gripSaved[t] = t.GripPos end
                         t.GripPos = Vector3.new(gripX, gripY, gripZ)
                     end
+                end
+                gripConn = char.ChildAdded:Connect(function(child)
+                    if gripActive and child:IsA("Tool") then
+                        if not gripSaved[child] then gripSaved[child] = child.GripPos end
+                        child.GripPos = Vector3.new(gripX, gripY, gripZ)
+                    end
+                end)
+            else
+                for tool, orig in pairs(gripSaved) do
+                    if tool and tool.Parent then
+                        pcall(function() tool.GripPos = orig end)
+                    end
+                end
+                gripSaved = {}
+            end
+        end)
+    end,
+})
+
+-- AUTO VIEW TOOLS (3D Menu na cabeça de cada jogador)
+local autoViewActive = false
+local autoViewConns = {}
+
+local function CreateToolBillboard(player)
+    if player == LocalPlayer then return end
+    if autoViewConns[player] then return end
+
+    local billboardGui = Instance.new("BillboardGui")
+    billboardGui.Name = "SwatToolView"
+    billboardGui.Size = UDim2.new(0, 120, 0, 45)
+    billboardGui.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboardGui.AlwaysOnTop = true
+
+    local frame = Instance.new("Frame", billboardGui)
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+    frame.BackgroundTransparency = 0.2
+    
+    local uiCorner = Instance.new("UICorner", frame)
+    uiCorner.CornerRadius = UDim.new(0, 6)
+
+    local uiStroke = Instance.new("UIStroke", frame)
+    uiStroke.Color = Color3.fromRGB(40, 40, 40)
+    uiStroke.Thickness = 1
+
+    local imgLabel = Instance.new("ImageLabel", frame)
+    imgLabel.Name = "ToolImage"
+    imgLabel.Size = UDim2.new(0, 32, 0, 32)
+    imgLabel.Position = UDim2.new(0, 6, 0.5, -16)
+    imgLabel.BackgroundTransparency = 1
+    imgLabel.Image = ""
+
+    local nameLabel = Instance.new("TextLabel", frame)
+    nameLabel.Name = "ToolName"
+    nameLabel.Size = UDim2.new(1, -44, 1, 0)
+    nameLabel.Position = UDim2.new(0, 42, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextSize = 11
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.TextWrapped = true
+    nameLabel.Text = "None"
+
+    local conn = RunService.Heartbeat:Connect(function()
+        if not autoViewActive or not player.Character then
+            billboardGui.Enabled = false
+            return
+        end
+        local head = player.Character:FindFirstChild("Head")
+        if not head then
+            billboardGui.Enabled = false
+            return
+        end
+        billboardGui.Parent = head
+        billboardGui.Enabled = true
+
+        local tool = player.Character:FindFirstChildOfClass("Tool")
+        if tool then
+            nameLabel.Text = tool.Name
+            if tool.TextureId and tool.TextureId ~= "" then
+                imgLabel.Image = tool.TextureId
+            else
+                imgLabel.Image = "rbxassetid://6023426915"
+            end
+        else
+            nameLabel.Text = "Nenhuma"
+            imgLabel.Image = ""
+        end
+    end)
+
+    autoViewConns[player] = { Gui = billboardGui, Conn = conn }
+end
+
+local function RemoveToolBillboard(player)
+    if autoViewConns[player] then
+        if autoViewConns[player].Conn then autoViewConns[player].Conn:Disconnect() end
+        if autoViewConns[player].Gui then autoViewConns[player].Gui:Destroy() end
+        autoViewConns[player] = nil
+    end
+end
+
+SwordTab:CreateToggle({
+    Title = "Auto View Tools (3D)",
+    Default = false,
+    Callback = function(Value)
+        autoViewActive = Value
+        if Value then
+            for _, plr in ipairs(Players:GetPlayers()) do
+                CreateToolBillboard(plr)
+            }
+            Players.PlayerAdded:Connect(CreateToolBillboard)
+            Players.PlayerRemoving:Connect(RemoveToolBillboard)
+        else
+            for _, plr in ipairs(Players:GetPlayers()) do
+                RemoveToolBillboard(plr)
+            end
+        end
+    end,
+})
+
+-- FERRAMENTAS EXTRAS
+SwordTab:CreateButton({
+    Title = "Tool Grab",
+    Callback = function()
+        pcall(function()
+            local found = GetPlayerByName(SwordTarget)
+            if not found or not found.Character then return end
+            local myBp = LocalPlayer:FindFirstChildOfClass("Backpack")
+            if not myBp then return end
+            for _, v in ipairs(found.Character:GetChildren()) do
+                if v:IsA("Tool") then
+                    pcall(function() v.Parent = myBp end)
+                end
+            end
+        end)
+    end,
+})
+
+SwordTab:CreateButton({
+    Title = "CopyTools",
+    Callback = function()
+        pcall(function()
+            local found = GetPlayerByName(SwordTarget)
+            if not found then return end
+            local bp = found:FindFirstChildOfClass("Backpack")
+            local myBp = LocalPlayer:FindFirstChildOfClass("Backpack")
+            if bp and myBp then
+                for _, v in ipairs(bp:GetChildren()) do
+                    if v:IsA("Tool") then pcall(function() v:Clone().Parent = myBp end) end
+                end
+            end
+        end)
+    end,
+})
+d
                 end
                 gripConn = char.ChildAdded:Connect(function(child)
                     if gripActive and child:IsA("Tool") then

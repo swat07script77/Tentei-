@@ -16681,18 +16681,20 @@ pcall(function()
 
     local VehicleState = {
         SpeedValue = 100,
-        MaxSpeedValue = 100,
         AccelPercent = 50,
         FlySpeed = 50,
         FlyActive = false,
         FlyConn = nil,
         FlyBG = nil,
         FlyBV = nil,
-        CameraConn = nil,
+        FlyInput = nil,
+        FlyInputEnd = nil,
         SpeedOriginal = {},
         AccelOriginal = {},
         SpeedApplied = false,
         AccelApplied = false,
+        SpeedLoop = nil,
+        AccelLoop = nil,
     }
 
     local function GetVehicle()
@@ -16718,20 +16720,6 @@ pcall(function()
         return seats
     end
 
-    local function GetVehicleBodyMovers(vehicle)
-        local movers = { BodyVelocity = {}, BodyAngularVelocity = {} }
-        pcall(function()
-            for _, v in ipairs(vehicle:GetDescendants()) do
-                if v:IsA("BodyVelocity") then
-                    table.insert(movers.BodyVelocity, v)
-                elseif v:IsA("BodyAngularVelocity") then
-                    table.insert(movers.BodyAngularVelocity, v)
-                end
-            end
-        end)
-        return movers
-    end
-
     local function GetVehiclePrimaryPart(vehicle, seat)
         local primary = vehicle.PrimaryPart
         if primary then return primary end
@@ -16744,22 +16732,18 @@ pcall(function()
         return nil
     end
 
-    local function ApplySpeed(vehicle, speed)
+    local function ApplySpeedToVehicle(vehicle, speed)
         pcall(function()
             local seats = GetVehicleSeats(vehicle)
             for _, seat in ipairs(seats) do
                 if VehicleState.SpeedOriginal[seat] == nil then
-                    VehicleState.SpeedOriginal[seat] = { MaxSpeed = seat.MaxSpeed, Torque = seat.Torque }
+                    VehicleState.SpeedOriginal[seat] = {
+                        MaxSpeed = seat.MaxSpeed,
+                        Torque = seat.Torque,
+                    }
                 end
                 seat.MaxSpeed = speed
-                seat.Torque = math.max(seat.Torque, speed * 100)
-            end
-            local movers = GetVehicleBodyMovers(vehicle)
-            for _, bv in ipairs(movers.BodyVelocity) do
-                bv.MaxForce = Vector3.new(speed * 1000, speed * 1000, speed * 1000)
-            end
-            for _, ba in ipairs(movers.BodyAngularVelocity) do
-                ba.MaxTorque = Vector3.new(speed * 1000, speed * 1000, speed * 1000)
+                seat.Torque = speed * 100
             end
         end)
     end
@@ -16773,29 +16757,27 @@ pcall(function()
                 end
             end
             VehicleState.SpeedOriginal = {}
-            VehicleState.SpeedApplied = false
         end)
     end
 
-    local function ApplyAcceleration(vehicle, percent)
+    local function ApplyAccelToVehicle(vehicle, percent)
         pcall(function()
-            local multiplier = percent / 100
+            local multiplier = 1 + (percent / 100) * 4
             local seats = GetVehicleSeats(vehicle)
             for _, seat in ipairs(seats) do
                 if VehicleState.AccelOriginal[seat] == nil then
                     VehicleState.AccelOriginal[seat] = { Torque = seat.Torque }
                 end
                 local baseTorque = VehicleState.AccelOriginal[seat].Torque
-                if baseTorque and baseTorque > 0 then
-                    seat.Torque = baseTorque * (1 + multiplier * 4)
-                else
-                    seat.Torque = seat.MaxSpeed * 100 * (1 + multiplier * 4)
+                if not baseTorque or baseTorque <= 0 then
+                    baseTorque = seat.MaxSpeed * 100
                 end
+                seat.Torque = baseTorque * multiplier
             end
         end)
     end
 
-    local function RestoreAcceleration()
+    local function RestoreAccel()
         pcall(function()
             for seat, data in pairs(VehicleState.AccelOriginal) do
                 if seat and seat.Parent then
@@ -16803,7 +16785,60 @@ pcall(function()
                 end
             end
             VehicleState.AccelOriginal = {}
-            VehicleState.AccelApplied = false
+        end)
+    end
+
+    local function StopSpeedLoop()
+        pcall(function()
+            if VehicleState.SpeedLoop then
+                VehicleState.SpeedLoop:Disconnect()
+                VehicleState.SpeedLoop = nil
+            end
+        end)
+    end
+
+    local function StopAccelLoop()
+        pcall(function()
+            if VehicleState.AccelLoop then
+                VehicleState.AccelLoop:Disconnect()
+                VehicleState.AccelLoop = nil
+            end
+        end)
+    end
+
+    local function StartSpeedLoop()
+        pcall(function()
+            StopSpeedLoop()
+            VehicleState.SpeedLoop = RunService.Heartbeat:Connect(function()
+                pcall(function()
+                    if not VehicleState.SpeedApplied then return end
+                    local vehicle = GetVehicle()
+                    if not vehicle then return end
+                    local seats = GetVehicleSeats(vehicle)
+                    for _, seat in ipairs(seats) do
+                        if seat.MaxSpeed ~= VehicleState.SpeedValue then
+                            seat.MaxSpeed = VehicleState.SpeedValue
+                        end
+                        if seat.Torque < VehicleState.SpeedValue * 100 then
+                            seat.Torque = VehicleState.SpeedValue * 100
+                        end
+                    end
+                end)
+            end)
+        end)
+    end
+
+    local function StartAccelLoop()
+        pcall(function()
+            StopAccelLoop()
+            VehicleState.AccelLoop = RunService.Heartbeat:Connect(function()
+                pcall(function()
+                    if not VehicleState.AccelApplied then return end
+                    local vehicle = GetVehicle()
+                    if not vehicle then return end
+                    ApplyAccelToVehicle(vehicle, VehicleState.AccelPercent)
+                end)
+            end)
         end)
     end
 
@@ -16814,9 +16849,13 @@ pcall(function()
                 VehicleState.FlyConn:Disconnect()
                 VehicleState.FlyConn = nil
             end
-            if VehicleState.CameraConn then
-                VehicleState.CameraConn:Disconnect()
-                VehicleState.CameraConn = nil
+            if VehicleState.FlyInput then
+                VehicleState.FlyInput:Disconnect()
+                VehicleState.FlyInput = nil
+            end
+            if VehicleState.FlyInputEnd then
+                VehicleState.FlyInputEnd:Disconnect()
+                VehicleState.FlyInputEnd = nil
             end
             if VehicleState.FlyBG then
                 VehicleState.FlyBG:Destroy()
@@ -16845,29 +16884,31 @@ pcall(function()
             StopVehicleFly()
             VehicleState.FlyActive = true
 
-            local primary = GetVehiclePrimaryPart(vehicle, seat)
-            if not primary then
+            local root = GetVehiclePrimaryPart(vehicle, seat)
+            if not root then
                 VehicleState.FlyActive = false
                 return
             end
 
             local bg = Instance.new("BodyGyro")
-            bg.Name = "SwatVehicleFlyGyro"
+            bg.Name = "SwatVFlyBG"
             bg.P = 9e4
             bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-            bg.D = 500
-            bg.CFrame = primary.CFrame
-            bg.Parent = primary
+            bg.CFrame = root.CFrame
+            bg.Parent = root
             VehicleState.FlyBG = bg
 
             local bv = Instance.new("BodyVelocity")
-            bv.Name = "SwatVehicleFlyVelocity"
-            bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            bv.Name = "SwatVFlyBV"
             bv.Velocity = Vector3.zero
-            bv.Parent = primary
+            bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            bv.Parent = root
             VehicleState.FlyBV = bv
 
-            VehicleState.FlyConn = RunService.Heartbeat:Connect(function()
+            local camera = workspace.CurrentCamera
+            local CONTROL = { F = 0, B = 0, L = 0, R = 0 }
+
+            VehicleState.FlyConn = RunService.RenderStepped:Connect(function()
                 pcall(function()
                     if not VehicleState.FlyActive then return end
                     local v, s = GetVehicle()
@@ -16875,29 +16916,46 @@ pcall(function()
                         StopVehicleFly()
                         return
                     end
-                    local p = GetVehiclePrimaryPart(v, s)
-                    if not p or not p.Parent then
+                    local r = GetVehiclePrimaryPart(v, s)
+                    if not r or not r.Parent then
                         StopVehicleFly()
                         return
                     end
-                    if VehicleState.FlyBV and VehicleState.FlyBV.Parent ~= p then
-                        VehicleState.FlyBV.Parent = p
+                    if VehicleState.FlyBV and VehicleState.FlyBV.Parent ~= r then
+                        VehicleState.FlyBV.Parent = r
                     end
-                    if VehicleState.FlyBG and VehicleState.FlyBG.Parent ~= p then
-                        VehicleState.FlyBG.Parent = p
+                    if VehicleState.FlyBG and VehicleState.FlyBG.Parent ~= r then
+                        VehicleState.FlyBG.Parent = r
                     end
-
                     local cam = workspace.CurrentCamera
                     if not cam then return end
-                    local lookDir = cam.CFrame.LookVector
+                    local look = cam.CFrame.LookVector
                     local speed = VehicleState.FlySpeed
-
                     if VehicleState.FlyBV then
-                        VehicleState.FlyBV.Velocity = lookDir * speed
+                        VehicleState.FlyBV.Velocity = look * speed
                     end
                     if VehicleState.FlyBG then
-                        VehicleState.FlyBG.CFrame = CFrame.lookAt(p.Position, p.Position + lookDir)
+                        VehicleState.FlyBG.CFrame = CFrame.lookAt(r.Position, r.Position + look)
                     end
+                end)
+            end)
+
+            VehicleState.FlyInput = UserInputService.InputBegan:Connect(function(input, gp)
+                pcall(function()
+                    if gp then return end
+                    if input.KeyCode == Enum.KeyCode.W then CONTROL.F = 1
+                    elseif input.KeyCode == Enum.KeyCode.S then CONTROL.B = -1
+                    elseif input.KeyCode == Enum.KeyCode.A then CONTROL.L = -1
+                    elseif input.KeyCode == Enum.KeyCode.D then CONTROL.R = 1 end
+                end)
+            end)
+
+            VehicleState.FlyInputEnd = UserInputService.InputEnded:Connect(function(input)
+                pcall(function()
+                    if input.KeyCode == Enum.KeyCode.W then CONTROL.F = 0
+                    elseif input.KeyCode == Enum.KeyCode.S then CONTROL.B = 0
+                    elseif input.KeyCode == Enum.KeyCode.A then CONTROL.L = 0
+                    elseif input.KeyCode == Enum.KeyCode.D then CONTROL.R = 0 end
                 end)
             end)
         end)
@@ -16910,11 +16968,6 @@ pcall(function()
             Callback = function(Value)
                 pcall(function()
                     VehicleState.SpeedValue = Value
-                    if not VehicleState.SpeedApplied then return end
-                    local vehicle = GetVehicle()
-                    if vehicle then
-                        ApplySpeed(vehicle, Value)
-                    end
                 end)
             end,
         })
@@ -16939,8 +16992,10 @@ pcall(function()
                             VehicleState.SpeedApplied = false
                             return
                         end
-                        ApplySpeed(vehicle, VehicleState.SpeedValue)
+                        ApplySpeedToVehicle(vehicle, VehicleState.SpeedValue)
+                        StartSpeedLoop()
                     else
+                        StopSpeedLoop()
                         RestoreSpeed()
                     end
                 end)
@@ -16955,11 +17010,6 @@ pcall(function()
             Callback = function(Value)
                 pcall(function()
                     VehicleState.AccelPercent = Value
-                    if not VehicleState.AccelApplied then return end
-                    local vehicle = GetVehicle()
-                    if vehicle then
-                        ApplyAcceleration(vehicle, Value)
-                    end
                 end)
             end,
         })
@@ -16984,9 +17034,11 @@ pcall(function()
                             VehicleState.AccelApplied = false
                             return
                         end
-                        ApplyAcceleration(vehicle, VehicleState.AccelPercent)
+                        ApplyAccelToVehicle(vehicle, VehicleState.AccelPercent)
+                        StartAccelLoop()
                     else
-                        RestoreAcceleration()
+                        StopAccelLoop()
+                        RestoreAccel()
                     end
                 end)
             end,
@@ -17039,7 +17091,7 @@ pcall(function()
                                 if model then
                                     local primary = GetVehiclePrimaryPart(model, obj)
                                     if primary and primary.Parent then
-                                        table.insert(candidates, { seat = obj, model = model, part = primary })
+                                        table.insert(candidates, { part = primary })
                                     end
                                 end
                             end
@@ -17066,27 +17118,6 @@ pcall(function()
                             Type = "success",
                         })
                     end
-                end)
-            end,
-        })
-    end)
-
-    pcall(function()
-        VehicleTab:CreateButton({
-            Title = "Clear Vehicle Effects",
-            Callback = function()
-                pcall(function()
-                    StopVehicleFly()
-                    RestoreSpeed()
-                    RestoreAcceleration()
-                    VehicleState.SpeedApplied = false
-                    VehicleState.AccelApplied = false
-                    Window:Notify({
-                        Title = "Clear",
-                        Description = "All vehicle effects removed",
-                        Duration = 2,
-                        Type = "success",
-                    })
                 end)
             end,
         })

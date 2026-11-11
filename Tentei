@@ -13459,6 +13459,194 @@ pcall(function()
         end,
     })
 end)
+local BypassFlingActive = false
+local BypassFlingConn = nil
+local BypassFlingCharConn = nil
+local BypassFlingOriginalCFrame = nil
+local BypassFlingCurrentTarget = nil
+local BypassFlingStartTime = nil
+local BypassFlingResetPending = false
+local BypassFlingBvTable = {}
+local BypassFlingForce = 1e6
+local BypassFlingResetDelay = 1.5
+
+local function ResetCharacter()
+    pcall(function()
+        local char = LocalPlayer.Character
+        local hum = getHum(char)
+        if not hum then return end
+        if hum.Health <= 0 then return end
+        if replicatesignal then
+            pcall(function() replicatesignal(LocalPlayer.Kill) end)
+        else
+            hum.Health = 0
+        end
+    end)
+end
+
+local function StopBypassFling()
+    pcall(function()
+        BypassFlingActive = false
+        BypassFlingResetPending = false
+        BypassFlingStartTime = nil
+        BypassFlingCurrentTarget = nil
+        if BypassFlingConn then
+            BypassFlingConn:Disconnect()
+            BypassFlingConn = nil
+        end
+        if BypassFlingCharConn then
+            BypassFlingCharConn:Disconnect()
+            BypassFlingCharConn = nil
+        end
+        for _, bv in pairs(BypassFlingBvTable) do
+            pcall(function() bv:Destroy() end)
+        end
+        BypassFlingBvTable = {}
+        local char = LocalPlayer.Character
+        if char then
+            local root = getRoot(char)
+            if root and BypassFlingOriginalCFrame then
+                root.CFrame = BypassFlingOriginalCFrame
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+            end
+        end
+        BypassFlingOriginalCFrame = nil
+    end)
+end
+
+local function ApplyForceToTarget(targetChar)
+    pcall(function()
+        if not targetChar then return end
+        local targetRoot = getRoot(targetChar)
+        if not targetRoot then return end
+        if not BypassFlingBvTable[targetRoot] then
+            local bv = Instance.new("BodyVelocity")
+            bv.Name = "SwatBypassFling"
+            bv.Velocity = Vector3.new(BypassFlingForce, BypassFlingForce, BypassFlingForce)
+            bv.MaxForce = Vector3.new(9e18, 9e18, 9e18)
+            bv.Parent = targetRoot
+            BypassFlingBvTable[targetRoot] = bv
+        else
+            local bv = BypassFlingBvTable[targetRoot]
+            if bv and bv.Parent then
+                bv.Velocity = Vector3.new(BypassFlingForce, BypassFlingForce, BypassFlingForce)
+            end
+        end
+        targetRoot.Velocity = Vector3.new(BypassFlingForce, BypassFlingForce, BypassFlingForce)
+        targetRoot.RotVelocity = Vector3.new(BypassFlingForce, BypassFlingForce, BypassFlingForce)
+    end)
+end
+
+local function StartBypassFling()
+    pcall(function()
+        local target = GetAbuseTarget()
+        if not target then
+            Window:Notify({
+                Title = "Bypass Fling",
+                Description = "Select a target first",
+                Duration = 3,
+                Type = "warning",
+            })
+            BypassFlingActive = false
+            return
+        end
+        if not target.Character then
+            Window:Notify({
+                Title = "Bypass Fling",
+                Description = "Target has no character",
+                Duration = 3,
+                Type = "warning",
+            })
+            BypassFlingActive = false
+            return
+        end
+
+        local char = LocalPlayer.Character
+        if not char then BypassFlingActive = false return end
+        local root = getRoot(char)
+        local hum = getHum(char)
+        if not root or not hum then BypassFlingActive = false return end
+
+        BypassFlingCurrentTarget = target
+        BypassFlingActive = true
+        BypassFlingResetPending = false
+        BypassFlingStartTime = nil
+        BypassFlingOriginalCFrame = root.CFrame
+
+        if BypassFlingConn then BypassFlingConn:Disconnect(); BypassFlingConn = nil end
+
+        BypassFlingConn = RunService.Heartbeat:Connect(function()
+            pcall(function()
+                if not BypassFlingActive then return end
+
+                local curTarget = BypassFlingCurrentTarget
+                if not curTarget or not curTarget.Character then
+                    StopBypassFling()
+                    return
+                end
+
+                local targetRoot = getRoot(curTarget.Character)
+                if not targetRoot then StopBypassFling() return end
+
+                local curChar = LocalPlayer.Character
+                if not curChar then return end
+                local curRoot = getRoot(curChar)
+                local curHum = getHum(curChar)
+                if not curRoot or not curHum then return end
+
+                if curHum.Health <= 0 then return end
+
+                if BypassFlingStartTime == nil then
+                    BypassFlingStartTime = tick()
+                end
+
+                local elapsed = tick() - BypassFlingStartTime
+
+                curRoot.CFrame = CFrame.new(targetRoot.Position)
+                curRoot.Velocity = Vector3.zero
+                curRoot.RotVelocity = Vector3.zero
+
+                pcall(function() curRoot:SetNetworkOwner(LocalPlayer) end)
+
+                ApplyForceToTarget(curTarget.Character)
+
+                if not BypassFlingResetPending and elapsed >= BypassFlingResetDelay then
+                    BypassFlingResetPending = true
+                    ResetCharacter()
+                end
+            end)
+        end)
+
+        if BypassFlingCharConn then BypassFlingCharConn:Disconnect() end
+        BypassFlingCharConn = LocalPlayer.CharacterAdded:Connect(function(newChar)
+            pcall(function()
+                if not BypassFlingActive then return end
+                task.wait(0.3)
+                newChar:WaitForChild("HumanoidRootPart", 5)
+                if BypassFlingCurrentTarget then
+                    BypassFlingStartTime = nil
+                    BypassFlingResetPending = false
+                end
+            end)
+        end)
+    end)
+end
+
+AbuseTab:CreateToggle({
+    Title = "Bypass Fling 50%",
+    Default = false,
+    Callback = function(Value)
+        pcall(function()
+            BypassFlingActive = Value
+            if Value then
+                StartBypassFling()
+            else
+                StopBypassFling()
+            end
+        end)
+    end,
+})
 pcall(function()
     if not AbuseTab then
         warn("AbuseTab não encontrada")
@@ -16671,453 +16859,6 @@ pcall(function()
                             end,
                         })
                     end)
-                end)
-            end,
-        })
-    end)
-end)
-pcall(function()
-    local VehicleTab = Window:CreateTab("Vehicle", "car")
-
-    local VehicleState = {
-        SpeedValue = 100,
-        AccelPercent = 50,
-        FlySpeed = 50,
-        FlyActive = false,
-        FlyConn = nil,
-        FlyBG = nil,
-        FlyBV = nil,
-        FlyInput = nil,
-        FlyInputEnd = nil,
-        SpeedOriginal = {},
-        AccelOriginal = {},
-        SpeedApplied = false,
-        AccelApplied = false,
-        SpeedLoop = nil,
-        AccelLoop = nil,
-    }
-
-    local function GetVehicle()
-        local char = LocalPlayer.Character
-        if not char then return nil end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if not hum or not hum.SeatPart then return nil end
-        local seat = hum.SeatPart
-        local vehicle = seat:FindFirstAncestorWhichIsA("Model")
-        if not vehicle then return nil end
-        return vehicle, seat
-    end
-
-    local function GetVehicleSeats(vehicle)
-        local seats = {}
-        pcall(function()
-            for _, v in ipairs(vehicle:GetDescendants()) do
-                if v:IsA("VehicleSeat") then
-                    table.insert(seats, v)
-                end
-            end
-        end)
-        return seats
-    end
-
-    local function GetVehiclePrimaryPart(vehicle, seat)
-        local primary = vehicle.PrimaryPart
-        if primary then return primary end
-        if seat then return seat end
-        local root = vehicle:FindFirstChild("HumanoidRootPart")
-        if root then return root end
-        for _, v in ipairs(vehicle:GetDescendants()) do
-            if v:IsA("BasePart") then return v end
-        end
-        return nil
-    end
-
-    local function ApplySpeedToVehicle(vehicle, speed)
-        pcall(function()
-            local seats = GetVehicleSeats(vehicle)
-            for _, seat in ipairs(seats) do
-                if VehicleState.SpeedOriginal[seat] == nil then
-                    VehicleState.SpeedOriginal[seat] = {
-                        MaxSpeed = seat.MaxSpeed,
-                        Torque = seat.Torque,
-                    }
-                end
-                seat.MaxSpeed = speed
-                seat.Torque = speed * 100
-            end
-        end)
-    end
-
-    local function RestoreSpeed()
-        pcall(function()
-            for seat, data in pairs(VehicleState.SpeedOriginal) do
-                if seat and seat.Parent then
-                    seat.MaxSpeed = data.MaxSpeed
-                    seat.Torque = data.Torque
-                end
-            end
-            VehicleState.SpeedOriginal = {}
-        end)
-    end
-
-    local function ApplyAccelToVehicle(vehicle, percent)
-        pcall(function()
-            local multiplier = 1 + (percent / 100) * 4
-            local seats = GetVehicleSeats(vehicle)
-            for _, seat in ipairs(seats) do
-                if VehicleState.AccelOriginal[seat] == nil then
-                    VehicleState.AccelOriginal[seat] = { Torque = seat.Torque }
-                end
-                local baseTorque = VehicleState.AccelOriginal[seat].Torque
-                if not baseTorque or baseTorque <= 0 then
-                    baseTorque = seat.MaxSpeed * 100
-                end
-                seat.Torque = baseTorque * multiplier
-            end
-        end)
-    end
-
-    local function RestoreAccel()
-        pcall(function()
-            for seat, data in pairs(VehicleState.AccelOriginal) do
-                if seat and seat.Parent then
-                    seat.Torque = data.Torque
-                end
-            end
-            VehicleState.AccelOriginal = {}
-        end)
-    end
-
-    local function StopSpeedLoop()
-        pcall(function()
-            if VehicleState.SpeedLoop then
-                VehicleState.SpeedLoop:Disconnect()
-                VehicleState.SpeedLoop = nil
-            end
-        end)
-    end
-
-    local function StopAccelLoop()
-        pcall(function()
-            if VehicleState.AccelLoop then
-                VehicleState.AccelLoop:Disconnect()
-                VehicleState.AccelLoop = nil
-            end
-        end)
-    end
-
-    local function StartSpeedLoop()
-        pcall(function()
-            StopSpeedLoop()
-            VehicleState.SpeedLoop = RunService.Heartbeat:Connect(function()
-                pcall(function()
-                    if not VehicleState.SpeedApplied then return end
-                    local vehicle = GetVehicle()
-                    if not vehicle then return end
-                    local seats = GetVehicleSeats(vehicle)
-                    for _, seat in ipairs(seats) do
-                        if seat.MaxSpeed ~= VehicleState.SpeedValue then
-                            seat.MaxSpeed = VehicleState.SpeedValue
-                        end
-                        if seat.Torque < VehicleState.SpeedValue * 100 then
-                            seat.Torque = VehicleState.SpeedValue * 100
-                        end
-                    end
-                end)
-            end)
-        end)
-    end
-
-    local function StartAccelLoop()
-        pcall(function()
-            StopAccelLoop()
-            VehicleState.AccelLoop = RunService.Heartbeat:Connect(function()
-                pcall(function()
-                    if not VehicleState.AccelApplied then return end
-                    local vehicle = GetVehicle()
-                    if not vehicle then return end
-                    ApplyAccelToVehicle(vehicle, VehicleState.AccelPercent)
-                end)
-            end)
-        end)
-    end
-
-    local function StopVehicleFly()
-        pcall(function()
-            VehicleState.FlyActive = false
-            if VehicleState.FlyConn then
-                VehicleState.FlyConn:Disconnect()
-                VehicleState.FlyConn = nil
-            end
-            if VehicleState.FlyInput then
-                VehicleState.FlyInput:Disconnect()
-                VehicleState.FlyInput = nil
-            end
-            if VehicleState.FlyInputEnd then
-                VehicleState.FlyInputEnd:Disconnect()
-                VehicleState.FlyInputEnd = nil
-            end
-            if VehicleState.FlyBG then
-                VehicleState.FlyBG:Destroy()
-                VehicleState.FlyBG = nil
-            end
-            if VehicleState.FlyBV then
-                VehicleState.FlyBV:Destroy()
-                VehicleState.FlyBV = nil
-            end
-        end)
-    end
-
-    local function StartVehicleFly()
-        pcall(function()
-            local vehicle, seat = GetVehicle()
-            if not vehicle or not seat then
-                Window:Notify({
-                    Title = "Vehicle Fly",
-                    Description = "You need to be sitting in a vehicle",
-                    Duration = 3,
-                    Type = "warning",
-                })
-                return
-            end
-
-            StopVehicleFly()
-            VehicleState.FlyActive = true
-
-            local root = GetVehiclePrimaryPart(vehicle, seat)
-            if not root then
-                VehicleState.FlyActive = false
-                return
-            end
-
-            local bg = Instance.new("BodyGyro")
-            bg.Name = "SwatVFlyBG"
-            bg.P = 9e4
-            bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-            bg.CFrame = root.CFrame
-            bg.Parent = root
-            VehicleState.FlyBG = bg
-
-            local bv = Instance.new("BodyVelocity")
-            bv.Name = "SwatVFlyBV"
-            bv.Velocity = Vector3.zero
-            bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-            bv.Parent = root
-            VehicleState.FlyBV = bv
-
-            local camera = workspace.CurrentCamera
-            local CONTROL = { F = 0, B = 0, L = 0, R = 0 }
-
-            VehicleState.FlyConn = RunService.RenderStepped:Connect(function()
-                pcall(function()
-                    if not VehicleState.FlyActive then return end
-                    local v, s = GetVehicle()
-                    if not v or not s then
-                        StopVehicleFly()
-                        return
-                    end
-                    local r = GetVehiclePrimaryPart(v, s)
-                    if not r or not r.Parent then
-                        StopVehicleFly()
-                        return
-                    end
-                    if VehicleState.FlyBV and VehicleState.FlyBV.Parent ~= r then
-                        VehicleState.FlyBV.Parent = r
-                    end
-                    if VehicleState.FlyBG and VehicleState.FlyBG.Parent ~= r then
-                        VehicleState.FlyBG.Parent = r
-                    end
-                    local cam = workspace.CurrentCamera
-                    if not cam then return end
-                    local look = cam.CFrame.LookVector
-                    local speed = VehicleState.FlySpeed
-                    if VehicleState.FlyBV then
-                        VehicleState.FlyBV.Velocity = look * speed
-                    end
-                    if VehicleState.FlyBG then
-                        VehicleState.FlyBG.CFrame = CFrame.lookAt(r.Position, r.Position + look)
-                    end
-                end)
-            end)
-
-            VehicleState.FlyInput = UserInputService.InputBegan:Connect(function(input, gp)
-                pcall(function()
-                    if gp then return end
-                    if input.KeyCode == Enum.KeyCode.W then CONTROL.F = 1
-                    elseif input.KeyCode == Enum.KeyCode.S then CONTROL.B = -1
-                    elseif input.KeyCode == Enum.KeyCode.A then CONTROL.L = -1
-                    elseif input.KeyCode == Enum.KeyCode.D then CONTROL.R = 1 end
-                end)
-            end)
-
-            VehicleState.FlyInputEnd = UserInputService.InputEnded:Connect(function(input)
-                pcall(function()
-                    if input.KeyCode == Enum.KeyCode.W then CONTROL.F = 0
-                    elseif input.KeyCode == Enum.KeyCode.S then CONTROL.B = 0
-                    elseif input.KeyCode == Enum.KeyCode.A then CONTROL.L = 0
-                    elseif input.KeyCode == Enum.KeyCode.D then CONTROL.R = 0 end
-                end)
-            end)
-        end)
-    end
-
-    pcall(function()
-        VehicleTab:CreateSlider({
-            Title = "Vehicle Speed",
-            Min = 1, Max = 20000, Default = 100,
-            Callback = function(Value)
-                pcall(function()
-                    VehicleState.SpeedValue = Value
-                end)
-            end,
-        })
-    end)
-
-    pcall(function()
-        VehicleTab:CreateToggle({
-            Title = "Apply Vehicle Speed",
-            Default = false,
-            Callback = function(Value)
-                pcall(function()
-                    VehicleState.SpeedApplied = Value
-                    if Value then
-                        local vehicle = GetVehicle()
-                        if not vehicle then
-                            Window:Notify({
-                                Title = "Vehicle Speed",
-                                Description = "You need to be sitting in a vehicle",
-                                Duration = 3,
-                                Type = "warning",
-                            })
-                            VehicleState.SpeedApplied = false
-                            return
-                        end
-                        ApplySpeedToVehicle(vehicle, VehicleState.SpeedValue)
-                        StartSpeedLoop()
-                    else
-                        StopSpeedLoop()
-                        RestoreSpeed()
-                    end
-                end)
-            end,
-        })
-    end)
-
-    pcall(function()
-        VehicleTab:CreateSlider({
-            Title = "Acceleration %",
-            Min = 0, Max = 100, Default = 50,
-            Callback = function(Value)
-                pcall(function()
-                    VehicleState.AccelPercent = Value
-                end)
-            end,
-        })
-    end)
-
-    pcall(function()
-        VehicleTab:CreateToggle({
-            Title = "Apply Acceleration",
-            Default = false,
-            Callback = function(Value)
-                pcall(function()
-                    VehicleState.AccelApplied = Value
-                    if Value then
-                        local vehicle = GetVehicle()
-                        if not vehicle then
-                            Window:Notify({
-                                Title = "Acceleration",
-                                Description = "You need to be sitting in a vehicle",
-                                Duration = 3,
-                                Type = "warning",
-                            })
-                            VehicleState.AccelApplied = false
-                            return
-                        end
-                        ApplyAccelToVehicle(vehicle, VehicleState.AccelPercent)
-                        StartAccelLoop()
-                    else
-                        StopAccelLoop()
-                        RestoreAccel()
-                    end
-                end)
-            end,
-        })
-    end)
-
-    pcall(function()
-        VehicleTab:CreateSlider({
-            Title = "Vehicle Fly Speed",
-            Min = 1, Max = 1000, Default = 50,
-            Callback = function(Value)
-                pcall(function()
-                    VehicleState.FlySpeed = Value
-                end)
-            end,
-        })
-    end)
-
-    pcall(function()
-        VehicleTab:CreateToggle({
-            Title = "Vehicle Fly",
-            Default = false,
-            Callback = function(Value)
-                pcall(function()
-                    if Value then
-                        StartVehicleFly()
-                    else
-                        StopVehicleFly()
-                    end
-                end)
-            end,
-        })
-    end)
-
-    pcall(function()
-        VehicleTab:CreateButton({
-            Title = "TP To Vehicle",
-            Callback = function()
-                pcall(function()
-                    local char = LocalPlayer.Character
-                    if not char then return end
-                    local myRoot = char:FindFirstChild("HumanoidRootPart")
-                    if not myRoot then return end
-
-                    local candidates = {}
-                    pcall(function()
-                        for _, obj in ipairs(workspace:GetDescendants()) do
-                            if obj:IsA("VehicleSeat") then
-                                local model = obj:FindFirstAncestorWhichIsA("Model")
-                                if model then
-                                    local primary = GetVehiclePrimaryPart(model, obj)
-                                    if primary and primary.Parent then
-                                        table.insert(candidates, { part = primary })
-                                    end
-                                end
-                            end
-                        end
-                    end)
-
-                    if #candidates == 0 then
-                        Window:Notify({
-                            Title = "TP To Vehicle",
-                            Description = "No vehicles found in this game",
-                            Duration = 3,
-                            Type = "warning",
-                        })
-                        return
-                    end
-
-                    local chosen = candidates[math.random(1, #candidates)]
-                    if chosen and chosen.part then
-                        myRoot.CFrame = chosen.part.CFrame + Vector3.new(0, 5, 0)
-                        Window:Notify({
-                            Title = "TP To Vehicle",
-                            Description = "Teleported to a random vehicle",
-                            Duration = 3,
-                            Type = "success",
-                        })
-                    end
                 end)
             end,
         })

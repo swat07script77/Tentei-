@@ -13460,6 +13460,200 @@ pcall(function()
     })
 end)
 pcall(function()
+    local BypassFlingActive = false
+    local BypassFlingConn = nil
+    local BypassFlingCharConn = nil
+    local BypassFlingOriginalCFrame = nil
+    local BypassFlingCurrentTarget = nil
+    local BypassFlingStartTime = nil
+    local BypassFlingResetPending = false
+    local BypassFlingBvTable = {}
+    local BypassFlingForce = 1e6
+    local BypassFlingResetDelay = 1.5
+
+    local function ResetCharacter()
+        pcall(function()
+            local char = LocalPlayer.Character
+            local hum = getHum(char)
+            if not hum then return end
+            if hum.Health <= 0 then return end
+            if replicatesignal then
+                pcall(function() replicatesignal(LocalPlayer.Kill) end)
+            else
+                hum.Health = 0
+            end
+        end)
+    end
+
+    local function StopBypassFling()
+        pcall(function()
+            BypassFlingActive = false
+            BypassFlingResetPending = false
+            BypassFlingStartTime = nil
+            BypassFlingCurrentTarget = nil
+            if BypassFlingConn then
+                BypassFlingConn:Disconnect()
+                BypassFlingConn = nil
+            end
+            if BypassFlingCharConn then
+                BypassFlingCharConn:Disconnect()
+                BypassFlingCharConn = nil
+            end
+            for _, bv in pairs(BypassFlingBvTable) do
+                pcall(function() bv:Destroy() end)
+            end
+            BypassFlingBvTable = {}
+            local char = LocalPlayer.Character
+            if char then
+                local root = getRoot(char)
+                if root then
+                    if BypassFlingOriginalCFrame then
+                        root.CFrame = BypassFlingOriginalCFrame
+                    end
+                    root.Velocity = Vector3.zero
+                    root.RotVelocity = Vector3.zero
+                    pcall(function() detach(root) end)
+                end
+            end
+            BypassFlingOriginalCFrame = nil
+        end)
+    end
+
+    local function ApplyForceToTarget(targetChar)
+        pcall(function()
+            if not targetChar then return end
+            local targetRoot = getRoot(targetChar)
+            if not targetRoot then return end
+            if not BypassFlingBvTable[targetRoot] then
+                local bv = Instance.new("BodyVelocity")
+                bv.Name = "SwatBypassFling"
+                bv.Velocity = Vector3.new(BypassFlingForce, BypassFlingForce, BypassFlingForce)
+                bv.MaxForce = Vector3.new(9e18, 9e18, 9e18)
+                bv.Parent = targetRoot
+                BypassFlingBvTable[targetRoot] = bv
+            else
+                local bv = BypassFlingBvTable[targetRoot]
+                if bv and bv.Parent then
+                    bv.Velocity = Vector3.new(BypassFlingForce, BypassFlingForce, BypassFlingForce)
+                end
+            end
+            targetRoot.Velocity = Vector3.new(BypassFlingForce, BypassFlingForce, BypassFlingForce)
+            targetRoot.RotVelocity = Vector3.new(BypassFlingForce, BypassFlingForce, BypassFlingForce)
+        end)
+    end
+
+    local function StartBypassFling()
+        pcall(function()
+            local target = GetAbuseTarget()
+            if not target then
+                Window:Notify({
+                    Title = "Bypass Fling",
+                    Description = "Select a target first",
+                    Duration = 3,
+                    Type = "warning",
+                })
+                BypassFlingActive = false
+                return
+            end
+            if not target.Character then
+                Window:Notify({
+                    Title = "Bypass Fling",
+                    Description = "Target has no character",
+                    Duration = 3,
+                    Type = "warning",
+                })
+                BypassFlingActive = false
+                return
+            end
+
+            local char = LocalPlayer.Character
+            if not char then BypassFlingActive = false return end
+            local root = getRoot(char)
+            local hum = getHum(char)
+            if not root or not hum then BypassFlingActive = false return end
+
+            BypassFlingCurrentTarget = target
+            BypassFlingActive = true
+            BypassFlingResetPending = false
+            BypassFlingStartTime = nil
+            BypassFlingOriginalCFrame = root.CFrame
+
+            if BypassFlingConn then BypassFlingConn:Disconnect(); BypassFlingConn = nil end
+
+            BypassFlingConn = RunService.Heartbeat:Connect(function()
+                pcall(function()
+                    if not BypassFlingActive then return end
+
+                    local curTarget = BypassFlingCurrentTarget
+                    if not curTarget or not curTarget.Character then
+                        StopBypassFling()
+                        return
+                    end
+
+                    local targetRoot = getRoot(curTarget.Character)
+                    if not targetRoot then StopBypassFling() return end
+
+                    local curChar = LocalPlayer.Character
+                    if not curChar then return end
+                    local curRoot = getRoot(curChar)
+                    local curHum = getHum(curChar)
+                    if not curRoot or not curHum then return end
+
+                    if curHum.Health <= 0 then return end
+
+                    if BypassFlingStartTime == nil then
+                        BypassFlingStartTime = tick()
+                    end
+
+                    local elapsed = tick() - BypassFlingStartTime
+
+                    curRoot.CFrame = CFrame.new(targetRoot.Position)
+                    curRoot.Velocity = Vector3.zero
+                    curRoot.RotVelocity = Vector3.zero
+
+                    pcall(function() curRoot:SetNetworkOwner(LocalPlayer) end)
+                    pcall(function() attach(curRoot, targetRoot) end)
+
+                    ApplyForceToTarget(curTarget.Character)
+
+                    if not BypassFlingResetPending and elapsed >= BypassFlingResetDelay then
+                        BypassFlingResetPending = true
+                        ResetCharacter()
+                    end
+                end)
+            end)
+
+            if BypassFlingCharConn then BypassFlingCharConn:Disconnect() end
+            BypassFlingCharConn = LocalPlayer.CharacterAdded:Connect(function(newChar)
+                pcall(function()
+                    if not BypassFlingActive then return end
+                    task.wait(0.3)
+                    newChar:WaitForChild("HumanoidRootPart", 5)
+                    if BypassFlingCurrentTarget then
+                        BypassFlingStartTime = nil
+                        BypassFlingResetPending = false
+                    end
+                end)
+            end)
+        end)
+    end
+
+    AbuseTab:CreateToggle({
+        Title = "Bypass Fling 50%",
+        Default = false,
+        Callback = function(Value)
+            pcall(function()
+                BypassFlingActive = Value
+                if Value then
+                    StartBypassFling()
+                else
+                    StopBypassFling()
+                end
+            end)
+        end,
+    })
+end)
+pcall(function()
     if not AbuseTab then
         warn("AbuseTab não encontrada")
         return
@@ -16676,4 +16870,3 @@ pcall(function()
         })
     end)
 end)
-

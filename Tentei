@@ -13640,29 +13640,7 @@ pcall(function()
     local TrollSwimThread = nil
     local TrollSwimActive = false
     local TrollJumpConn = nil
-    local TROLL_GROUND_OFFSET = -5
-
-    local function GetGroundY(targetRoot)
-        local y = nil
-        pcall(function()
-            local params = RaycastParams.new()
-            params.FilterType = Enum.RaycastFilterType.Exclude
-            params.FilterDescendantsInstances = {
-                targetRoot.Parent,
-                LocalPlayer.Character,
-            }
-            local origin = targetRoot.Position + Vector3.new(0, 200, 0)
-            local direction = Vector3.new(0, -1000, 0)
-            local result = workspace:Raycast(origin, direction, params)
-            if result then
-                y = result.Position.Y
-            end
-        end)
-        if y == nil then
-            y = targetRoot.Position.Y
-        end
-        return y
-    end
+    local TROLL_OFFSET = Vector3.new(0, -5, 0)
 
     local function StopWalkFling()
         pcall(function()
@@ -13868,10 +13846,7 @@ pcall(function()
                     local curRoot = getRoot(curChar)
                     if not curRoot then return end
 
-                    local groundY = GetGroundY(targetRoot)
-                    local finalY = groundY + TROLL_GROUND_OFFSET
-
-                    curRoot.CFrame = CFrame.new(targetRoot.Position.X, finalY, targetRoot.Position.Z)
+                    curRoot.CFrame = targetRoot.CFrame * CFrame.new(TROLL_OFFSET)
                     curRoot.Velocity = Vector3.zero
                     curRoot.RotVelocity = Vector3.zero
                     curRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)

@@ -1,3 +1,261 @@
+pcall(function()
+    local ExecutorsTab = Window:CreateTab("Executors", "terminal")
+
+    local function CopyText(text)
+        pcall(function()
+            if setclipboard then
+                setclipboard(tostring(text))
+                Window:Notify({
+                    Title = "Copied",
+                    Description = "Link copied to clipboard",
+                    Duration = 2,
+                    Type = "success",
+                })
+            end
+        end)
+    end
+
+    pcall(function()
+        local container = Instance.new("Frame")
+        container.Name = "DeltaContainer"
+        container.Size = UDim2.new(1, -20, 0, 0)
+        container.Position = UDim2.new(0, 10, 0, 10)
+        container.BackgroundColor3 = Color3.fromRGB(24, 28, 36)
+        container.BorderSizePixel = 0
+        container.AutomaticSize = Enum.AutomaticSize.Y
+        container.ZIndex = 50
+        container.Parent = ExecutorsTab.Content or ExecutorsTab.Frame or ExecutorsTab
+
+        local cc = Instance.new("UICorner", container)
+        cc.CornerRadius = UDim.new(0, 12)
+
+        local cs = Instance.new("UIStroke", container)
+        cs.Color = Color3.fromRGB(96, 176, 255)
+        cs.Thickness = 1.2
+        cs.Transparency = 0.2
+        cs.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+        local vlist = Instance.new("UIListLayout", container)
+        vlist.SortOrder = Enum.SortOrder.LayoutOrder
+        vlist.Padding = UDim.new(0, 8)
+
+        local pad = Instance.new("UIPadding", container)
+        pad.PaddingTop = UDim.new(0, 10)
+        pad.PaddingBottom = UDim.new(0, 10)
+        pad.PaddingLeft = UDim.new(0, 10)
+        pad.PaddingRight = UDim.new(0, 10)
+
+        local header = Instance.new("Frame")
+        header.Name = "Header"
+        header.Size = UDim2.new(1, 0, 0, 64)
+        header.BackgroundTransparency = 1
+        header.LayoutOrder = 1
+        header.ZIndex = 51
+        header.Parent = container
+
+        local icon = Instance.new("ImageLabel")
+        icon.Size = UDim2.new(0, 56, 0, 56)
+        icon.Position = UDim2.new(0, 0, 0, 4)
+        icon.BackgroundColor3 = Color3.fromRGB(16, 18, 24)
+        icon.BorderSizePixel = 0
+        icon.ScaleType = Enum.ScaleType.Fit
+        icon.Image = "rbxassetid://87686166065663" -- TROQUE PELO IMAGE ID REAL QUE O STUDIO GERAR
+        icon.ZIndex = 52
+        icon.Parent = header
+        local ic = Instance.new("UICorner", icon)
+        ic.CornerRadius = UDim.new(0, 10)
+        local is = Instance.new("UIStroke", icon)
+        is.Color = Color3.fromRGB(96, 176, 255)
+        is.Thickness = 1
+        is.Transparency = 0.3
+
+        local titleLbl = Instance.new("TextLabel")
+        titleLbl.Size = UDim2.new(1, -80, 0, 28)
+        titleLbl.Position = UDim2.new(0, 66, 0, 4)
+        titleLbl.BackgroundTransparency = 1
+        titleLbl.Text = "Delta Executor"
+        titleLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        titleLbl.Font = Enum.Font.GothamBold
+        titleLbl.TextSize = 18
+        titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+        titleLbl.ZIndex = 52
+        titleLbl.Parent = header
+
+        local subLbl = Instance.new("TextLabel")
+        subLbl.Size = UDim2.new(1, -80, 0, 20)
+        subLbl.Position = UDim2.new(0, 66, 0, 32)
+        subLbl.BackgroundTransparency = 1
+        subLbl.Text = "Support: sethiddenproperty ✓ | Percentage: 85%"
+        subLbl.TextColor3 = Color3.fromRGB(96, 176, 255)
+        subLbl.Font = Enum.Font.Gotham
+        subLbl.TextSize = 12
+        subLbl.TextXAlignment = Enum.TextXAlignment.Left
+        subLbl.ZIndex = 52
+        subLbl.Parent = header
+
+        local expandBtn = Instance.new("TextButton")
+        expandBtn.Name = "ExpandBtn"
+        expandBtn.Size = UDim2.new(1, 0, 0, 32)
+        expandBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
+        expandBtn.BorderSizePixel = 0
+        expandBtn.Text = "Show Details"
+        expandBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        expandBtn.Font = Enum.Font.GothamBold
+        expandBtn.TextSize = 13
+        expandBtn.AutoButtonColor = false
+        expandBtn.LayoutOrder = 2
+        expandBtn.ZIndex = 51
+        expandBtn.Parent = container
+        local ebc = Instance.new("UICorner", expandBtn)
+        ebc.CornerRadius = UDim.new(0, 8)
+        local ebs = Instance.new("UIStroke", expandBtn)
+        ebs.Color = Color3.fromRGB(0, 200, 100)
+        ebs.Thickness = 1
+
+        local collapseBtn = Instance.new("TextButton")
+        collapseBtn.Name = "CollapseBtn"
+        collapseBtn.Size = UDim2.new(1, 0, 0, 32)
+        collapseBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        collapseBtn.BorderSizePixel = 0
+        collapseBtn.Text = "Hide Details"
+        collapseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        collapseBtn.Font = Enum.Font.GothamBold
+        collapseBtn.TextSize = 13
+        collapseBtn.AutoButtonColor = false
+        collapseBtn.LayoutOrder = 3
+        collapseBtn.Visible = false
+        collapseBtn.ZIndex = 51
+        collapseBtn.Parent = container
+        local cbc = Instance.new("UICorner", collapseBtn)
+        cbc.CornerRadius = UDim.new(0, 8)
+        local cbs = Instance.new("UIStroke", collapseBtn)
+        cbs.Color = Color3.fromRGB(220, 70, 70)
+        cbs.Thickness = 1
+
+        local contentFrame = Instance.new("Frame")
+        contentFrame.Name = "DeltaContent"
+        contentFrame.Size = UDim2.new(1, 0, 0, 0)
+        contentFrame.BackgroundColor3 = Color3.fromRGB(14, 16, 22)
+        contentFrame.BorderSizePixel = 0
+        contentFrame.AutomaticSize = Enum.AutomaticSize.Y
+        contentFrame.LayoutOrder = 4
+        contentFrame.Visible = false
+        contentFrame.ZIndex = 51
+        contentFrame.Parent = container
+        local cfc = Instance.new("UICorner", contentFrame)
+        cfc.CornerRadius = UDim.new(0, 8)
+
+        local contentPad = Instance.new("UIPadding", contentFrame)
+        contentPad.PaddingTop = UDim.new(0, 10)
+        contentPad.PaddingBottom = UDim.new(0, 10)
+        contentPad.PaddingLeft = UDim.new(0, 12)
+        contentPad.PaddingRight = UDim.new(0, 12)
+
+        local contentList = Instance.new("UIListLayout", contentFrame)
+        contentList.SortOrder = Enum.SortOrder.LayoutOrder
+        contentList.Padding = UDim.new(0, 8)
+
+        local function AddLabel(text, color, size, order, height)
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, 0, 0, height or 20)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = text
+            lbl.TextColor3 = color or Color3.fromRGB(220, 230, 245)
+            lbl.Font = Enum.Font.Gotham
+            lbl.TextSize = size or 12
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.TextWrapped = true
+            lbl.LayoutOrder = order or 1
+            lbl.ZIndex = 52
+            lbl.Parent = contentFrame
+            return lbl
+        end
+
+        local function AddLinkButton(text, order)
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, 0, 0, 30)
+            btn.BackgroundColor3 = Color3.fromRGB(30, 34, 44)
+            btn.BorderSizePixel = 0
+            btn.Text = text
+            btn.TextColor3 = Color3.fromRGB(96, 176, 255)
+            btn.Font = Enum.Font.GothamBold
+            btn.TextSize = 12
+            btn.TextXAlignment = Enum.TextXAlignment.Left
+            btn.AutoButtonColor = false
+            btn.LayoutOrder = order or 1
+            btn.ZIndex = 52
+            btn.Parent = contentFrame
+
+            local bc = Instance.new("UICorner", btn)
+            bc.CornerRadius = UDim.new(0, 6)
+
+            local bs = Instance.new("UIStroke", btn)
+            bs.Color = Color3.fromRGB(96, 176, 255)
+            bs.Thickness = 1
+            bs.Transparency = 0.5
+
+            local btnPad = Instance.new("UIPadding", btn)
+            btnPad.PaddingLeft = UDim.new(0, 10)
+            btnPad.PaddingRight = UDim.new(0, 10)
+
+            btn.MouseEnter:Connect(function()
+                pcall(function()
+                    btn.BackgroundColor3 = Color3.fromRGB(40, 46, 60)
+                end)
+            end)
+
+            btn.MouseLeave:Connect(function()
+                pcall(function()
+                    btn.BackgroundColor3 = Color3.fromRGB(30, 34, 44)
+                end)
+            end)
+
+            btn.MouseButton1Click:Connect(function()
+                CopyText(text)
+            end)
+
+            return btn
+        end
+
+        AddLabel("Delta is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.", Color3.fromRGB(220, 230, 245), 12, 1, 44)
+        AddLabel("Support percentage: 85% — Delta can provide more support for this script on newer versions.", Color3.fromRGB(96, 176, 255), 12, 2, 34)
+        AddLabel("Android Download:", Color3.fromRGB(200, 210, 225), 12, 3, 18)
+        AddLinkButton("https://deltaexploits.gg/delta-executor-android", 4)
+        AddLabel("iOS Download:", Color3.fromRGB(200, 210, 225), 12, 5, 18)
+        AddLinkButton("https://deltaexploits.gg/delta-executor-ios", 6)
+        AddLabel("How it works: This menu auto-updates. Delta can give extra support for scripts like this one. Press the links to copy them.", Color3.fromRGB(160, 175, 200), 11, 7, 40)
+
+        expandBtn.MouseEnter:Connect(function()
+            pcall(function() expandBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 100) end)
+        end)
+        expandBtn.MouseLeave:Connect(function()
+            pcall(function() expandBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 80) end)
+        end)
+
+        collapseBtn.MouseEnter:Connect(function()
+            pcall(function() collapseBtn.BackgroundColor3 = Color3.fromRGB(210, 60, 60) end)
+        end)
+        collapseBtn.MouseLeave:Connect(function()
+            pcall(function() collapseBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50) end)
+        end)
+
+        expandBtn.MouseButton1Click:Connect(function()
+            pcall(function()
+                contentFrame.Visible = true
+                expandBtn.Visible = false
+                collapseBtn.Visible = true
+            end)
+        end)
+
+        collapseBtn.MouseButton1Click:Connect(function()
+            pcall(function()
+                contentFrame.Visible = false
+                expandBtn.Visible = true
+                collapseBtn.Visible = false
+            end)
+        end)
+    end)
+end)
 local MainTab = Window:CreateTab("Main", "swords")
 
 local function attach(Part, TargetPart)

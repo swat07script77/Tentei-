@@ -13640,7 +13640,7 @@ pcall(function()
     local TrollSwimThread = nil
     local TrollSwimActive = false
     local TrollJumpConn = nil
-    local TROLL_OFFSET = Vector3.new(0, -5, 0)
+    local TROLL_OFFSET = Vector3.new(0, -8, 0)
 
     local function StopWalkFling()
         pcall(function()
@@ -13868,6 +13868,98 @@ pcall(function()
                     StartTroll()
                 else
                     StopTroll()
+                end
+            end)
+        end,
+    })
+end)
+pcall(function()
+    local NetlagActive = false
+    local NetlagConn = nil
+    local NetlagTarget = nil
+    local NetlagCharConn = nil
+
+    local function StopNetlag()
+        pcall(function()
+            NetlagActive = false
+            NetlagTarget = nil
+            if NetlagConn then
+                NetlagConn:Disconnect()
+                NetlagConn = nil
+            end
+            if NetlagCharConn then
+                NetlagCharConn:Disconnect()
+                NetlagCharConn = nil
+            end
+        end)
+    end
+
+    local function StartNetlag()
+        pcall(function()
+            local target = GetAbuseTarget()
+            if not target then
+                Window:Notify({
+                    Title = "Netlag",
+                    Description = "Select a target first",
+                    Duration = 3,
+                    Type = "warning",
+                })
+                NetlagActive = false
+                return
+            end
+
+            NetlagTarget = target
+            NetlagActive = true
+
+            if NetlagConn then
+                NetlagConn:Disconnect()
+                NetlagConn = nil
+            end
+
+            NetlagConn = RunService.Heartbeat:Connect(function()
+                pcall(function()
+                    if not NetlagActive then return end
+
+                    local curTarget = NetlagTarget
+                    if not curTarget or not curTarget.Character then
+                        StopNetlag()
+                        return
+                    end
+
+                    local char = curTarget.Character
+                    for _, v in ipairs(char:GetDescendants()) do
+                        if v:IsA("BasePart") then
+                            pcall(function()
+                                if sethiddenproperty then
+                                    sethiddenproperty(v, "NetworkIsSleeping", true)
+                                end
+                            end)
+                        end
+                    end
+                end)
+            end)
+
+            if NetlagCharConn then NetlagCharConn:Disconnect() end
+            NetlagCharConn = target.CharacterAdded:Connect(function()
+                pcall(function()
+                    if NetlagActive and NetlagTarget == target then
+                        task.wait(0.3)
+                    end
+                end)
+            end)
+        end)
+    end
+
+    AbuseTab:CreateToggle({
+        Title = "Netlag",
+        Default = false,
+        Callback = function(Value)
+            pcall(function()
+                NetlagActive = Value
+                if Value then
+                    StartNetlag()
+                else
+                    StopNetlag()
                 end
             end)
         end,

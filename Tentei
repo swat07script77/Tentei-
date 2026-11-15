@@ -1,13 +1,6 @@
 pcall(function()
     local ExecutorsTab = Window:CreateTab("Executors", "terminal")
 
-    local ExecutorState = {
-        DeltaExpanded = false,
-        DeltaContent = nil,
-        DeltaExpandBtn = nil,
-        DeltaCollapseBtn = nil,
-    }
-
     local function CopyText(text)
         pcall(function()
             if setclipboard then
@@ -66,7 +59,7 @@ pcall(function()
         icon.BackgroundColor3 = Color3.fromRGB(16, 18, 24)
         icon.BorderSizePixel = 0
         icon.ScaleType = Enum.ScaleType.Fit
-        icon.Image = "rbxassetid://87686166065663"
+        icon.Image = "rbxassetid://87686166065663" -- TROQUE PELO IMAGE ID REAL QUE O STUDIO GERAR
         icon.ZIndex = 52
         icon.Parent = header
         local ic = Instance.new("UICorner", icon)
@@ -251,7 +244,6 @@ pcall(function()
                 contentFrame.Visible = true
                 expandBtn.Visible = false
                 collapseBtn.Visible = true
-                ExecutorState.DeltaExpanded = true
             end)
         end)
 
@@ -260,16 +252,10 @@ pcall(function()
                 contentFrame.Visible = false
                 expandBtn.Visible = true
                 collapseBtn.Visible = false
-                ExecutorState.DeltaExpanded = false
             end)
         end)
-
-        ExecutorState.DeltaContent = contentFrame
-        ExecutorState.DeltaExpandBtn = expandBtn
-        ExecutorState.DeltaCollapseBtn = collapseBtn
     end)
 end)
-
 local MainTab = Window:CreateTab("Main", "swords")
 
 local function attach(Part, TargetPart)

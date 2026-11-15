@@ -17441,10 +17441,7 @@ pcall(function()
     end)
 end)
 pcall(function()
-    local SupportTab = Window:GetTab and Window:GetTab("Support")
-    if not SupportTab then
-        SupportTab = Window:CreateTab("Support", "shield")
-    end
+    local SupportTab = Window:CreateTab("Support", "shield")
 
     local SupportState = {
         HiddenPropertyActive = true,
@@ -17483,209 +17480,32 @@ pcall(function()
     end
 
     local HiddenPropertyMethods = {
-        function(part)
-            if sethiddenproperty and InstanceHandle then
-                pcall(function()
-                    sethiddenproperty(part, "PhysicsRepRootRef", GetTargetPart(part, part))
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty and InstanceHandle then
-                pcall(function()
-                    sethiddenproperty(part, "PhysicsRepRootRef", nil)
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(part, "NetworkIsSleeping", false)
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(part, "Massless", false)
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(part, "CanCollide", true)
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(part, "RootPart", part)
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(part, "Velocity", Vector3.zero)
-                    sethiddenproperty(part, "RotVelocity", Vector3.zero)
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(part, "NetworkOwnership", LocalPlayer)
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(part, "AssemblyLinearVelocity", Vector3.zero)
-                    sethiddenproperty(part, "AssemblyAngularVelocity", Vector3.zero)
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(part, "CustomPhysicalProperties", PhysicalProperties.new(1, 0.3, 0.5))
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(part, "NetworkIsSleeping", true)
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(part, "CanTouch", true)
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(part, "CanQuery", true)
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(part, "CollisionGroupId", 0)
-                end)
-                return true
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(part, "CollisionGroup", "Default")
-                end)
-                return true
-            end
-            return false
-        end,
+        function(part) if sethiddenproperty and InstanceHandle then pcall(function() sethiddenproperty(part, "PhysicsRepRootRef", GetTargetPart(part, part)) end); return true end return false end,
+        function(part) if sethiddenproperty and InstanceHandle then pcall(function() sethiddenproperty(part, "PhysicsRepRootRef", nil) end); return true end return false end,
+        function(part) if sethiddenproperty then pcall(function() sethiddenproperty(part, "NetworkIsSleeping", false) end); return true end return false end,
+        function(part) if sethiddenproperty then pcall(function() sethiddenproperty(part, "Massless", false) end); return true end return false end,
+        function(part) if sethiddenproperty then pcall(function() sethiddenproperty(part, "CanCollide", true) end); return true end return false end,
+        function(part) if sethiddenproperty then pcall(function() sethiddenproperty(part, "RootPart", part) end); return true end return false end,
+        function(part) if sethiddenproperty then pcall(function() sethiddenproperty(part, "Velocity", Vector3.zero); sethiddenproperty(part, "RotVelocity", Vector3.zero) end); return true end return false end,
+        function(part) if sethiddenproperty then pcall(function() sethiddenproperty(part, "NetworkOwnership", LocalPlayer) end); return true end return false end,
+        function(part) if sethiddenproperty then pcall(function() sethiddenproperty(part, "AssemblyLinearVelocity", Vector3.zero); sethiddenproperty(part, "AssemblyAngularVelocity", Vector3.zero) end); return true end return false end,
+        function(part) if sethiddenproperty then pcall(function() sethiddenproperty(part, "CustomPhysicalProperties", PhysicalProperties.new(1, 0.3, 0.5)) end); return true end return false end,
+        function(part) if sethiddenproperty then pcall(function() sethiddenproperty(part, "NetworkIsSleeping", true) end); return true end return false end,
+        function(part) if sethiddenproperty then pcall(function() sethiddenproperty(part, "CanTouch", true) end); return true end return false end,
+        function(part) if sethiddenproperty then pcall(function() sethiddenproperty(part, "CanQuery", true) end); return true end return false end,
+        function(part) if sethiddenproperty then pcall(function() sethiddenproperty(part, "CollisionGroupId", 0) end); return true end return false end,
+        function(part) if sethiddenproperty then pcall(function() sethiddenproperty(part, "CollisionGroup", "Default") end); return true end return false end,
     }
 
     local NetworkMethods = {
-        function(part)
-            local ok = pcall(function()
-                part:SetNetworkOwner(LocalPlayer)
-            end)
-            return ok
-        end,
-        function(part)
-            local ok = pcall(function()
-                part:SetNetworkOwnershipAuto()
-            end)
-            return ok
-        end,
-        function(part)
-            local ok = pcall(function()
-                part:SetNetworkOwner(nil)
-            end)
-            return ok
-        end,
-        function(part)
-            if sethiddenproperty then
-                local ok = pcall(function()
-                    sethiddenproperty(part, "NetworkIsSleeping", false)
-                end)
-                return ok
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                local ok = pcall(function()
-                    sethiddenproperty(part, "NetworkOwnership", LocalPlayer)
-                end)
-                return ok
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                local ok = pcall(function()
-                    sethiddenproperty(part, "NetworkIsSleeping", true)
-                end)
-                return ok
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                local ok = pcall(function()
-                    sethiddenproperty(part, "NetworkOwner", LocalPlayer)
-                end)
-                return ok
-            end
-            return false
-        end,
-        function(part)
-            if sethiddenproperty then
-                local ok = pcall(function()
-                    sethiddenproperty(part, "RootRef", part)
-                end)
-                return ok
-            end
-            return false
-        end,
+        function(part) return pcall(function() part:SetNetworkOwner(LocalPlayer) end) end,
+        function(part) return pcall(function() part:SetNetworkOwnershipAuto() end) end,
+        function(part) return pcall(function() part:SetNetworkOwner(nil) end) end,
+        function(part) if sethiddenproperty then return pcall(function() sethiddenproperty(part, "NetworkIsSleeping", false) end) end return false end,
+        function(part) if sethiddenproperty then return pcall(function() sethiddenproperty(part, "NetworkOwnership", LocalPlayer) end) end return false end,
+        function(part) if sethiddenproperty then return pcall(function() sethiddenproperty(part, "NetworkIsSleeping", true) end) end return false end,
+        function(part) if sethiddenproperty then return pcall(function() sethiddenproperty(part, "NetworkOwner", LocalPlayer) end) end return false end,
+        function(part) if sethiddenproperty then return pcall(function() sethiddenproperty(part, "RootRef", part) end) end return false end,
     }
 
     local function HasFileAPI()
@@ -17760,14 +17580,11 @@ pcall(function()
 
     local function TryHiddenMethod(part)
         local methods = HiddenPropertyMethods
-        if SupportState.CurrentHiddenMethod > #methods then
-            SupportState.CurrentHiddenMethod = 1
-        end
+        if SupportState.CurrentHiddenMethod > #methods then SupportState.CurrentHiddenMethod = 1 end
         for attempt = 1, #methods do
             local idx = SupportState.CurrentHiddenMethod + attempt - 1
             if idx > #methods then idx = idx - #methods end
-            local method = methods[idx]
-            local ok, result = pcall(method, part)
+            local ok, result = pcall(methods[idx], part)
             if ok and result == true then
                 SupportState.CurrentHiddenMethod = idx
                 SupportState.HiddenFailCount = 0
@@ -17780,14 +17597,11 @@ pcall(function()
 
     local function TryNetworkMethod(part)
         local methods = NetworkMethods
-        if SupportState.CurrentNetworkMethod > #methods then
-            SupportState.CurrentNetworkMethod = 1
-        end
+        if SupportState.CurrentNetworkMethod > #methods then SupportState.CurrentNetworkMethod = 1 end
         for attempt = 1, #methods do
             local idx = SupportState.CurrentNetworkMethod + attempt - 1
             if idx > #methods then idx = idx - #methods end
-            local method = methods[idx]
-            local ok, result = pcall(method, part)
+            local ok, result = pcall(methods[idx], part)
             if ok and result == true then
                 SupportState.CurrentNetworkMethod = idx
                 SupportState.NetworkFailCount = 0
@@ -17802,7 +17616,7 @@ pcall(function()
         StopHiddenLoop()
         if not SupportState.HiddenPropertyActive then return end
         if SupportState.HiddenDisabled then
-            NotifyOnce("Support", "sethiddenproperty support is disabled for this executor. Re-enable the toggle to retry.", "warning")
+            NotifyOnce("Support", "sethiddenproperty support is disabled. Re-enable the toggle to retry.", "warning")
             return
         end
         SupportState.HiddenPropertyConn = RunService.Heartbeat:Connect(function()
@@ -17820,14 +17634,14 @@ pcall(function()
                 SupportState.HiddenFailCount = SupportState.HiddenFailCount + 1
                 if SupportState.HiddenFailCount >= 15 and not SupportState.HiddenWarned then
                     SupportState.HiddenWarned = true
-                    NotifyOnce("Support Failed", "sethiddenproperty support not available on this executor. Trying alternative methods...", "warning")
+                    NotifyOnce("Support Failed", "sethiddenproperty not available. Trying alternatives...", "warning")
                 end
                 if SupportState.HiddenFailCount >= 60 then
                     SupportState.HiddenDisabled = true
                     SupportState.HiddenPropertyActive = false
                     SaveSupportState()
                     StopHiddenLoop()
-                    NotifyOnce("Support Unavailable", "This executor does not support sethiddenproperty. All 15 methods failed. Support disabled.", "error")
+                    NotifyOnce("Support Unavailable", "All 15 methods failed. Support disabled.", "error")
                 end
             end
         end)
@@ -17837,7 +17651,7 @@ pcall(function()
         StopNetworkLoop()
         if not SupportState.NetworkActive then return end
         if SupportState.NetworkDisabled then
-            NotifyOnce("Support", "Network support is disabled for this executor. Re-enable the toggle to retry.", "warning")
+            NotifyOnce("Support", "Network support is disabled. Re-enable the toggle to retry.", "warning")
             return
         end
         SupportState.NetworkConn = RunService.Heartbeat:Connect(function()
@@ -17855,14 +17669,14 @@ pcall(function()
                 SupportState.NetworkFailCount = SupportState.NetworkFailCount + 1
                 if SupportState.NetworkFailCount >= 15 and not SupportState.NetworkWarned then
                     SupportState.NetworkWarned = true
-                    NotifyOnce("Support Failed", "Network support not available on this executor. Trying alternative methods...", "warning")
+                    NotifyOnce("Support Failed", "Network methods not available. Trying alternatives...", "warning")
                 end
                 if SupportState.NetworkFailCount >= 60 then
                     SupportState.NetworkDisabled = true
                     SupportState.NetworkActive = false
                     SaveSupportState()
                     StopNetworkLoop()
-                    NotifyOnce("Support Unavailable", "This executor does not support network methods. All 8 methods failed. Support disabled.", "error")
+                    NotifyOnce("Support Unavailable", "All 8 network methods failed. Support disabled.", "error")
                 end
             end
         end)
@@ -17881,11 +17695,7 @@ pcall(function()
                     SupportState.HiddenWarned = false
                     SupportState.HiddenDisabled = false
                     SaveSupportState()
-                    if Value then
-                        RunHiddenPropertyLoop()
-                    else
-                        StopHiddenLoop()
-                    end
+                    if Value then RunHiddenPropertyLoop() else StopHiddenLoop() end
                 end)
             end,
         })
@@ -17902,18 +17712,14 @@ pcall(function()
                     SupportState.NetworkWarned = false
                     SupportState.NetworkDisabled = false
                     SaveSupportState()
-                    if Value then
-                        RunNetworkLoop()
-                    else
-                        StopNetworkLoop()
-                    end
+                    if Value then RunNetworkLoop() else StopNetworkLoop() end
                 end)
             end,
         })
     end)
 
     pcall(function()
-        SupportTab:CreateLabel("Warning: some functions may stop working in future updates. This support system tries multiple methods automatically.")
+        SupportTab:CreateLabel("Warning: some functions may stop working in future updates.")
     end)
 
     if SupportState.HiddenPropertyActive and not SupportState.HiddenDisabled then
@@ -17933,8 +17739,6 @@ pcall(function()
         URL = "https://raw.githubusercontent.com/swat07script77/Tentei-/refs/heads/main/Delta%20modded",
         DownloadDuration = 5,
         UninstallDuration = 3,
-        ProgressConn = nil,
-        DownloadThread = nil,
         MainButton = nil,
         ProgressBar = nil,
         ProgressFill = nil,
@@ -17966,8 +17770,7 @@ pcall(function()
         pcall(function()
             if not HasFileAPI() then return end
             local HttpService = game:GetService("HttpService")
-            local data = { Installed = DeltaModdedState.Installed }
-            writefile(DeltaModdedState.SaveFile, HttpService:JSONEncode(data))
+            writefile(DeltaModdedState.SaveFile, HttpService:JSONEncode({ Installed = DeltaModdedState.Installed }))
         end)
     end
 
@@ -17984,9 +17787,7 @@ pcall(function()
         pcall(function()
             if DeltaModdedState.MainButton then
                 DeltaModdedState.MainButton.Text = text
-                if bgColor then
-                    DeltaModdedState.MainButton.BackgroundColor3 = bgColor
-                end
+                if bgColor then DeltaModdedState.MainButton.BackgroundColor3 = bgColor end
             end
         end)
     end
@@ -18004,9 +17805,7 @@ pcall(function()
 
     local function ShowProgress(show)
         pcall(function()
-            if DeltaModdedState.ProgressBar then
-                DeltaModdedState.ProgressBar.Visible = show
-            end
+            if DeltaModdedState.ProgressBar then DeltaModdedState.ProgressBar.Visible = show end
         end)
     end
 
@@ -18030,18 +17829,15 @@ pcall(function()
             SetProgress(0)
             SetButtonText("Downloading...", Color3.fromRGB(80, 80, 90))
             SetStatus("Downloading Delta Modded...", Color3.fromRGB(96, 176, 255))
-
             task.spawn(function()
                 pcall(function()
                     local startTime = tick()
                     local duration = DeltaModdedState.DownloadDuration
-
                     while DeltaModdedState.Downloading do
                         pcall(function()
                             local elapsed = tick() - startTime
                             local percent = math.clamp((elapsed / duration) * 100, 0, 100)
                             SetProgress(percent)
-
                             if elapsed >= duration then
                                 DeltaModdedState.Downloading = false
                                 DeltaModdedState.Installed = true
@@ -18049,20 +17845,10 @@ pcall(function()
                                 ShowProgress(false)
                                 RefreshButton()
                                 SetStatus("Executing script...", Color3.fromRGB(0, 200, 100))
-
-                                pcall(function()
-                                    loadstring(game:HttpGet(DeltaModdedState.URL))()
-                                end)
-
+                                pcall(function() loadstring(game:HttpGet(DeltaModdedState.URL))() end)
                                 SetStatus("Installed ✓", Color3.fromRGB(0, 200, 100))
-
                                 pcall(function()
-                                    Window:Notify({
-                                        Title = "Delta Modded",
-                                        Description = "Installed successfully!",
-                                        Duration = 3,
-                                        Type = "success",
-                                    })
+                                    Window:Notify({ Title = "Delta Modded", Description = "Installed successfully!", Duration = 3, Type = "success" })
                                 end)
                             end
                         end)
@@ -18081,18 +17867,15 @@ pcall(function()
             SetProgress(0)
             SetButtonText("Uninstalling...", Color3.fromRGB(80, 80, 90))
             SetStatus("Uninstalling Delta Modded...", Color3.fromRGB(200, 150, 50))
-
             task.spawn(function()
                 pcall(function()
                     local startTime = tick()
                     local duration = DeltaModdedState.UninstallDuration
-
                     while DeltaModdedState.Downloading do
                         pcall(function()
                             local elapsed = tick() - startTime
                             local percent = math.clamp((elapsed / duration) * 100, 0, 100)
                             SetProgress(percent)
-
                             if elapsed >= duration then
                                 DeltaModdedState.Downloading = false
                                 DeltaModdedState.Installed = false
@@ -18100,14 +17883,8 @@ pcall(function()
                                 ShowProgress(false)
                                 RefreshButton()
                                 SetStatus("Uninstalled", Color3.fromRGB(160, 180, 210))
-
                                 pcall(function()
-                                    Window:Notify({
-                                        Title = "Delta Modded",
-                                        Description = "Uninstalled. It will not run on next execution.",
-                                        Duration = 3,
-                                        Type = "info",
-                                    })
+                                    Window:Notify({ Title = "Delta Modded", Description = "Uninstalled. It will not run on next execution.", Duration = 3, Type = "info" })
                                 end)
                             end
                         end)
@@ -18121,11 +17898,7 @@ pcall(function()
     local function OnButtonClick()
         pcall(function()
             if DeltaModdedState.Downloading then return end
-            if DeltaModdedState.Installed then
-                RunUninstall()
-            else
-                RunDownload()
-            end
+            if DeltaModdedState.Installed then RunUninstall() else RunDownload() end
         end)
     end
 
@@ -18153,17 +17926,6 @@ pcall(function()
         cs.Thickness = 1.5
         cs.Transparency = 0.15
         cs.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-
-        local cg = Instance.new("UIGradient", container)
-        cg.Color = ColorSequence.new{
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(30, 36, 50)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(18, 22, 30)),
-        }
-        cg.Rotation = 90
-        cg.Transparency = NumberSequence.new{
-            NumberSequenceKeypoint.new(0.0, 0.3),
-            NumberSequenceKeypoint.new(1.0, 0.7),
-        }
 
         local vlist = Instance.new("UIListLayout", container)
         vlist.SortOrder = Enum.SortOrder.LayoutOrder
@@ -18226,11 +17988,6 @@ pcall(function()
         local pbc = Instance.new("UICorner", progressBar)
         pbc.CornerRadius = UDim.new(0, 12)
 
-        local pbs = Instance.new("UIStroke", progressBar)
-        pbs.Color = Color3.fromRGB(96, 176, 255)
-        pbs.Thickness = 1
-        pbs.Transparency = 0.4
-
         local progressFill = Instance.new("Frame")
         progressFill.Size = UDim2.new(0, 0, 1, 0)
         progressFill.BackgroundColor3 = Color3.fromRGB(96, 176, 255)
@@ -18241,12 +17998,6 @@ pcall(function()
 
         local pfc = Instance.new("UICorner", progressFill)
         pfc.CornerRadius = UDim.new(0, 12)
-
-        local pfg = Instance.new("UIGradient", progressFill)
-        pfg.Color = ColorSequence.new{
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(44, 100, 178)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(140, 200, 255)),
-        }
 
         local progressLabel = Instance.new("TextLabel")
         progressLabel.Size = UDim2.new(1, 0, 1, 0)
@@ -18276,10 +18027,6 @@ pcall(function()
         local bc = Instance.new("UICorner", button)
         bc.CornerRadius = UDim.new(0, 10)
 
-        local bs = Instance.new("UIStroke", button)
-        bs.Color = Color3.fromRGB(0, 200, 100)
-        bs.Thickness = 1.5
-
         button.MouseEnter:Connect(function()
             pcall(function()
                 if not DeltaModdedState.Downloading then
@@ -18300,25 +18047,16 @@ pcall(function()
             end)
         end)
 
-        button.MouseButton1Click:Connect(function()
-            OnButtonClick()
-        end)
+        button.MouseButton1Click:Connect(function() OnButtonClick() end)
     end)
 
     LoadInstalledState()
     RefreshButton()
 
     if DeltaModdedState.Installed then
+        pcall(function() loadstring(game:HttpGet(DeltaModdedState.URL))() end)
         pcall(function()
-            loadstring(game:HttpGet(DeltaModdedState.URL))()
-        end)
-        pcall(function()
-            Window:Notify({
-                Title = "Delta Modded",
-                Description = "Auto-executed (installed)",
-                Duration = 3,
-                Type = "success",
-            })
+            Window:Notify({ Title = "Delta Modded", Description = "Auto-executed (installed)", Duration = 3, Type = "success" })
         end)
     end
 end)

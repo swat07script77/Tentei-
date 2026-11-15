@@ -13631,6 +13631,341 @@ pcall(function()
     })
 end)
 pcall(function()
+    local TrollActive = false
+    local TrollConn = nil
+    local TrollOriginalCFrame = nil
+    local TrollTarget = nil
+    local TrollWalkFlingThread = nil
+    local TrollWalkFlingActive = false
+    local TrollSwimThread = nil
+    local TrollSwimActive = false
+    local TrollJumpConn = nil
+    local TROLL_OFFSET = Vector3.new(0, -8, 0)
+
+    local function StopWalkFling()
+        pcall(function()
+            TrollWalkFlingActive = false
+            if TrollWalkFlingThread then
+                task.cancel(TrollWalkFlingThread)
+                TrollWalkFlingThread = nil
+            end
+        end)
+    end
+
+    local function StartWalkFling()
+        pcall(function()
+            TrollWalkFlingActive = true
+            if TrollWalkFlingThread then
+                task.cancel(TrollWalkFlingThread)
+                TrollWalkFlingThread = nil
+            end
+            TrollWalkFlingThread = task.spawn(function()
+                while TrollWalkFlingActive do
+                    pcall(function()
+                        local char = LocalPlayer.Character
+                        if not char then return end
+                        local root = getRoot(char)
+                        if not root then return end
+                        local vel = root.Velocity
+                        root.Velocity = Vector3.new(0, 10000, 0)
+                        RunService.RenderStepped:Wait()
+                        if TrollWalkFlingActive and root.Parent then
+                            root.Velocity = vel
+                        end
+                        RunService.Stepped:Wait()
+                        if TrollWalkFlingActive and root.Parent then
+                            root.Velocity = Vector3.new(vel.X, vel.Y + 0.1, vel.Z)
+                        end
+                    end)
+                end
+            end)
+        end)
+    end
+
+    local function StopSwimToggle()
+        pcall(function()
+            TrollSwimActive = false
+            if TrollSwimThread then
+                task.cancel(TrollSwimThread)
+                TrollSwimThread = nil
+            end
+        end)
+    end
+
+    local function StartSwimToggle()
+        pcall(function()
+            TrollSwimActive = true
+            if TrollSwimThread then
+                task.cancel(TrollSwimThread)
+                TrollSwimThread = nil
+            end
+            TrollSwimThread = task.spawn(function()
+                while TrollSwimActive do
+                    pcall(function()
+                        local char = LocalPlayer.Character
+                        if not char then return end
+                        local hum = getHum(char)
+                        if not hum then return end
+                        hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
+                        local st = hum:GetState()
+                        if st == Enum.HumanoidStateType.Jumping or st == Enum.HumanoidStateType.Freefall then
+                            return
+                        end
+                        if st == Enum.HumanoidStateType.Swimming then
+                            hum:ChangeState(Enum.HumanoidStateType.Running)
+                        else
+                            hum:ChangeState(Enum.HumanoidStateType.Swimming)
+                        end
+                    end)
+                    task.wait()
+                end
+            end)
+        end)
+    end
+
+    local function StopJumpFix()
+        pcall(function()
+            if TrollJumpConn then
+                TrollJumpConn:Disconnect()
+                TrollJumpConn = nil
+            end
+        end)
+    end
+
+    local function StartJumpFix()
+        pcall(function()
+            StopJumpFix()
+            TrollJumpConn = UserInputService.JumpRequest:Connect(function()
+                pcall(function()
+                    if not TrollActive then return end
+                    local char = LocalPlayer.Character
+                    if not char then return end
+                    local hum = getHum(char)
+                    local root = getRoot(char)
+                    if hum and root then
+                        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                        root.AssemblyLinearVelocity = Vector3.new(
+                            root.AssemblyLinearVelocity.X,
+                            hum.JumpPower > 0 and hum.JumpPower or 50,
+                            root.AssemblyLinearVelocity.Z
+                        )
+                    end
+                end)
+            end)
+        end)
+    end
+
+    local function StopTroll()
+        pcall(function()
+            TrollActive = false
+            TrollTarget = nil
+            if TrollConn then
+                TrollConn:Disconnect()
+                TrollConn = nil
+            end
+            StopWalkFling()
+            StopSwimToggle()
+            StopJumpFix()
+            local char = LocalPlayer.Character
+            if char then
+                local root = getRoot(char)
+                if root then
+                    pcall(function() detach(root) end)
+                    if TrollOriginalCFrame then
+                        root.CFrame = TrollOriginalCFrame
+                    end
+                    root.Velocity = Vector3.zero
+                    root.RotVelocity = Vector3.zero
+                end
+                local hum = getHum(char)
+                if hum then
+                    pcall(function()
+                        hum:ChangeState(Enum.HumanoidStateType.Running)
+                    end)
+                end
+            end
+            TrollOriginalCFrame = nil
+        end)
+    end
+
+    local function StartTroll()
+        pcall(function()
+            local target = GetAbuseTarget()
+            if not target then
+                Window:Notify({
+                    Title = "Troll Sound In Target",
+                    Description = "Select a target first",
+                    Duration = 3,
+                    Type = "warning",
+                })
+                TrollActive = false
+                return
+            end
+            if not target.Character then
+                Window:Notify({
+                    Title = "Troll Sound In Target",
+                    Description = "Target has no character",
+                    Duration = 3,
+                    Type = "warning",
+                })
+                TrollActive = false
+                return
+            end
+
+            local char = LocalPlayer.Character
+            if not char then TrollActive = false return end
+            local root = getRoot(char)
+            if not root then TrollActive = false return end
+
+            TrollTarget = target
+            TrollActive = true
+            TrollOriginalCFrame = root.CFrame
+
+            StartWalkFling()
+            StartSwimToggle()
+            StartJumpFix()
+
+            if TrollConn then TrollConn:Disconnect(); TrollConn = nil end
+
+            TrollConn = RunService.Heartbeat:Connect(function()
+                pcall(function()
+                    if not TrollActive then return end
+
+                    local curTarget = TrollTarget
+                    if not curTarget or not curTarget.Character then
+                        StopTroll()
+                        return
+                    end
+
+                    local targetChar = curTarget.Character
+                    local targetRoot = getRoot(targetChar)
+                    if not targetRoot then StopTroll() return end
+
+                    local curChar = LocalPlayer.Character
+                    if not curChar then return end
+                    local curRoot = getRoot(curChar)
+                    if not curRoot then return end
+
+                    curRoot.CFrame = targetRoot.CFrame * CFrame.new(TROLL_OFFSET)
+                    curRoot.Velocity = Vector3.zero
+                    curRoot.RotVelocity = Vector3.zero
+                    curRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+
+                    pcall(function() curRoot:SetNetworkOwner(LocalPlayer) end)
+                    pcall(function() attach(curRoot, targetRoot) end)
+                end)
+            end)
+        end)
+    end
+
+    AbuseTab:CreateToggle({
+        Title = "Troll Sound In Target",
+        Default = false,
+        Callback = function(Value)
+            pcall(function()
+                TrollActive = Value
+                if Value then
+                    StartTroll()
+                else
+                    StopTroll()
+                end
+            end)
+        end,
+    })
+end)
+pcall(function()
+    local NetlagActive = false
+    local NetlagConn = nil
+    local NetlagTarget = nil
+    local NetlagCharConn = nil
+
+    local function StopNetlag()
+        pcall(function()
+            NetlagActive = false
+            NetlagTarget = nil
+            if NetlagConn then
+                NetlagConn:Disconnect()
+                NetlagConn = nil
+            end
+            if NetlagCharConn then
+                NetlagCharConn:Disconnect()
+                NetlagCharConn = nil
+            end
+        end)
+    end
+
+    local function StartNetlag()
+        pcall(function()
+            local target = GetAbuseTarget()
+            if not target then
+                Window:Notify({
+                    Title = "Netlag",
+                    Description = "Select a target first",
+                    Duration = 3,
+                    Type = "warning",
+                })
+                NetlagActive = false
+                return
+            end
+
+            NetlagTarget = target
+            NetlagActive = true
+
+            if NetlagConn then
+                NetlagConn:Disconnect()
+                NetlagConn = nil
+            end
+
+            NetlagConn = RunService.Heartbeat:Connect(function()
+                pcall(function()
+                    if not NetlagActive then return end
+
+                    local curTarget = NetlagTarget
+                    if not curTarget or not curTarget.Character then
+                        StopNetlag()
+                        return
+                    end
+
+                    local char = curTarget.Character
+                    for _, v in ipairs(char:GetDescendants()) do
+                        if v:IsA("BasePart") then
+                            pcall(function()
+                                if sethiddenproperty then
+                                    sethiddenproperty(v, "NetworkIsSleeping", true)
+                                end
+                            end)
+                        end
+                    end
+                end)
+            end)
+
+            if NetlagCharConn then NetlagCharConn:Disconnect() end
+            NetlagCharConn = target.CharacterAdded:Connect(function()
+                pcall(function()
+                    if NetlagActive and NetlagTarget == target then
+                        task.wait(0.3)
+                    end
+                end)
+            end)
+        end)
+    end
+
+    AbuseTab:CreateToggle({
+        Title = "Netlag",
+        Default = false,
+        Callback = function(Value)
+            pcall(function()
+                NetlagActive = Value
+                if Value then
+                    StartNetlag()
+                else
+                    StopNetlag()
+                end
+            end)
+        end,
+    })
+end)
+pcall(function()
     if not AbuseTab then
         warn("AbuseTab não encontrada")
         return

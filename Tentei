@@ -17458,6 +17458,8 @@ pcall(function()
         NetworkDisabled = false,
         HiddenSwitchCooldown = 0,
         NetworkSwitchCooldown = 0,
+        HiddenFound = false,
+        NetworkFound = false,
         SaveFile = "SwatSupport.json",
     }
 
@@ -17561,7 +17563,49 @@ pcall(function()
         end)
     end
 
+    local function FindFirstHiddenMethod(part, target)
+        for i, method in ipairs(HiddenMethods) do
+            local ok, success = pcall(method.apply, part, target)
+            if ok and success == true then
+                return i
+            end
+        end
+        return nil
+    end
+
+    local function FindFirstNetworkMethod(part)
+        for i, method in ipairs(NetworkMethods) do
+            local ok, success = pcall(method.apply, part)
+            if ok and success == true then
+                return i
+            end
+        end
+        return nil
+    end
+
     local function ApplyHiddenMethod(part, target)
+        if not SupportState.HiddenFound then
+            local idx = FindFirstHiddenMethod(part, target)
+            if idx then
+                SupportState.HiddenIndex = idx
+                SupportState.HiddenFound = true
+                SupportState.HiddenFailCount = 0
+                SupportState.HiddenSwitchCooldown = tick()
+                SaveState()
+                Notify("Support Active", "Using: " .. HiddenMethods[idx].name, "success")
+                return true
+            end
+            SupportState.HiddenFailCount = SupportState.HiddenFailCount + 1
+            if SupportState.HiddenFailCount >= 10 and not SupportState.HiddenWarned then
+                SupportState.HiddenWarned = true
+                SupportState.HiddenDisabled = true
+                SupportState.HiddenPropertyActive = false
+                SaveState()
+                Notify("Support Unavailable", "No hidden property method works on this executor.", "error")
+            end
+            return false
+        end
+
         local idx = SupportState.HiddenIndex
         if idx > #HiddenMethods then idx = 1 end
         local method = HiddenMethods[idx]
@@ -17582,22 +17626,45 @@ pcall(function()
             SupportState.HiddenIndex = SupportState.HiddenIndex + 1
             if SupportState.HiddenIndex > #HiddenMethods then
                 SupportState.HiddenIndex = 1
+                SupportState.HiddenFound = false
                 SupportState.HiddenDisabled = true
                 SupportState.HiddenPropertyActive = false
                 SaveState()
                 if not SupportState.HiddenWarned then
                     SupportState.HiddenWarned = true
-                    Notify("Support Unavailable", "None of the hidden property methods work on this executor.", "error")
+                    Notify("Support Unavailable", "No hidden property method works anymore.", "error")
                 end
             else
                 SaveState()
-                Notify("Support Switched", "Switched to: " .. HiddenMethods[SupportState.HiddenIndex].name, "info")
+                Notify("Support Switched", "Now using: " .. HiddenMethods[SupportState.HiddenIndex].name, "info")
             end
         end
         return false
     end
 
     local function ApplyNetworkMethod(part)
+        if not SupportState.NetworkFound then
+            local idx = FindFirstNetworkMethod(part)
+            if idx then
+                SupportState.NetworkIndex = idx
+                SupportState.NetworkFound = true
+                SupportState.NetworkFailCount = 0
+                SupportState.NetworkSwitchCooldown = tick()
+                SaveState()
+                Notify("Support Active", "Network: " .. NetworkMethods[idx].name, "success")
+                return true
+            end
+            SupportState.NetworkFailCount = SupportState.NetworkFailCount + 1
+            if SupportState.NetworkFailCount >= 10 and not SupportState.NetworkWarned then
+                SupportState.NetworkWarned = true
+                SupportState.NetworkDisabled = true
+                SupportState.NetworkActive = false
+                SaveState()
+                Notify("Support Unavailable", "No network method works on this executor.", "error")
+            end
+            return false
+        end
+
         local idx = SupportState.NetworkIndex
         if idx > #NetworkMethods then idx = 1 end
         local method = NetworkMethods[idx]
@@ -17618,16 +17685,17 @@ pcall(function()
             SupportState.NetworkIndex = SupportState.NetworkIndex + 1
             if SupportState.NetworkIndex > #NetworkMethods then
                 SupportState.NetworkIndex = 1
+                SupportState.NetworkFound = false
                 SupportState.NetworkDisabled = true
                 SupportState.NetworkActive = false
                 SaveState()
                 if not SupportState.NetworkWarned then
                     SupportState.NetworkWarned = true
-                    Notify("Support Unavailable", "None of the network methods work on this executor.", "error")
+                    Notify("Support Unavailable", "No network method works anymore.", "error")
                 end
             else
                 SaveState()
-                Notify("Support Switched", "Network method: " .. NetworkMethods[SupportState.NetworkIndex].name, "info")
+                Notify("Support Switched", "Network: " .. NetworkMethods[SupportState.NetworkIndex].name, "info")
             end
         end
         return false
@@ -17697,7 +17765,7 @@ pcall(function()
                     SupportState.HiddenFailCount = 0
                     SupportState.HiddenWarned = false
                     SupportState.HiddenDisabled = false
-                    SupportState.HiddenIndex = 1
+                    SupportState.HiddenFound = false
                     SupportState.HiddenSwitchCooldown = 0
                     SaveState()
                     if Value then RunHiddenLoop() else StopHiddenLoop() end
@@ -17716,7 +17784,7 @@ pcall(function()
                     SupportState.NetworkFailCount = 0
                     SupportState.NetworkWarned = false
                     SupportState.NetworkDisabled = false
-                    SupportState.NetworkIndex = 1
+                    SupportState.NetworkFound = false
                     SupportState.NetworkSwitchCooldown = 0
                     SaveState()
                     if Value then RunNetworkLoop() else StopNetworkLoop() end

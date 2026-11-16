@@ -17440,3 +17440,610 @@ pcall(function()
         })
     end)
 end)
+pcall(function()
+    local SupportTab = Window:CreateTab("Support", "shield")
+
+    local SupportState = {
+        HiddenPropertyActive = true,
+        NetworkActive = true,
+        HiddenPropertyConn = nil,
+        NetworkConn = nil,
+        CurrentHiddenMethod = 1,
+        CurrentNetworkMethod = 1,
+        HiddenFailCount = 0,
+        NetworkFailCount = 0,
+        HiddenWarned = false,
+        NetworkWarned = false,
+        HiddenDisabled = false,
+        NetworkDisabled = false,
+        HiddenSupported = false,
+        NetworkSupported = false,
+        LastCheck = 0,
+        SaveFile = "SwatSupport.json",
+    }
+
+    local InstanceHandle = nil
+    pcall(function()
+        InstanceHandle = getfenv and getfenv().InstanceHandle or nil
+    end)
+
+    local function GetTargetPart(part, target)
+        local result = part
+        if InstanceHandle and target then
+            local ok, handle = pcall(function()
+                return InstanceHandle.new(target)
+            end)
+            if ok and handle then
+                result = handle
+            end
+        end
+        return result
+    end
+
+    local HiddenPropertyTesters = {
+        function(part) return pcall(function() sethiddenproperty(part, "PhysicsRepRootRef", GetTargetPart(part, part)) end) end,
+        function(part) return pcall(function() sethiddenproperty(part, "NetworkIsSleeping", false) end) end,
+        function(part) return pcall(function() sethiddenproperty(part, "Massless", false) end) end,
+        function(part) return pcall(function() sethiddenproperty(part, "CanCollide", true) end) end,
+        function(part) return pcall(function() sethiddenproperty(part, "RootPart", part) end) end,
+        function(part) return pcall(function() sethiddenproperty(part, "NetworkOwnership", LocalPlayer) end) end,
+        function(part) return pcall(function() sethiddenproperty(part, "CanTouch", true) end) end,
+        function(part) return pcall(function() sethiddenproperty(part, "CanQuery", true) end) end,
+        function(part) return pcall(function() sethiddenproperty(part, "CollisionGroupId", 0) end) end,
+        function(part) return pcall(function() sethiddenproperty(part, "CollisionGroup", "Default") end) end,
+    }
+
+    local NetworkTesters = {
+        function(part) return pcall(function() part:SetNetworkOwner(LocalPlayer) end) end,
+        function(part) return pcall(function() part:SetNetworkOwnershipAuto() end) end,
+        function(part) return pcall(function() part:SetNetworkOwner(nil) end) end,
+        function(part) return pcall(function() sethiddenproperty(part, "NetworkIsSleeping", false) end) end,
+        function(part) return pcall(function() sethiddenproperty(part, "NetworkOwnership", LocalPlayer) end) end,
+        function(part) return pcall(function() sethiddenproperty(part, "NetworkOwner", LocalPlayer) end) end,
+    }
+
+    local function HasFileAPI()
+        return type(isfile) == "function" and type(readfile) == "function" and type(writefile) == "function"
+    end
+
+    local function LoadSupportState()
+        pcall(function()
+            if not HasFileAPI() then return end
+            if isfile(SupportState.SaveFile) then
+                local raw = readfile(SupportState.SaveFile)
+                if raw and raw ~= "" then
+                    local HttpService = game:GetService("HttpService")
+                    local data = HttpService:JSONDecode(raw)
+                    if type(data) == "table" then
+                        if data.HiddenPropertyActive ~= nil then SupportState.HiddenPropertyActive = data.HiddenPropertyActive end
+                        if data.NetworkActive ~= nil then SupportState.NetworkActive = data.NetworkActive end
+                        if data.HiddenDisabled ~= nil then SupportState.HiddenDisabled = data.HiddenDisabled end
+                        if data.NetworkDisabled ~= nil then SupportState.NetworkDisabled = data.NetworkDisabled end
+                    end
+                end
+            end
+        end)
+    end
+
+    local function SaveSupportState()
+        pcall(function()
+            if not HasFileAPI() then return end
+            local HttpService = game:GetService("HttpService")
+            local data = {
+                HiddenPropertyActive = SupportState.HiddenPropertyActive,
+                NetworkActive = SupportState.NetworkActive,
+                HiddenDisabled = SupportState.HiddenDisabled,
+                NetworkDisabled = SupportState.NetworkDisabled,
+            }
+            writefile(SupportState.SaveFile, HttpService:JSONEncode(data))
+        end)
+    end
+
+    local function NotifyOnce(title, desc, kind)
+        pcall(function()
+            Window:Notify({
+                Title = title,
+                Description = desc,
+                Duration = 5,
+                Type = kind or "warning",
+            })
+        end)
+    end
+
+    local function TestHiddenSupport(part)
+        if not sethiddenproperty then
+            SupportState.HiddenSupported = false
+            SupportState.HiddenDisabled = true
+            SaveSupportState()
+            return false
+        end
+        for i, tester in ipairs(HiddenPropertyTesters) do
+            local ok = pcall(tester, part)
+            if ok then
+                SupportState.CurrentHiddenMethod = i
+                SupportState.HiddenSupported = true
+                SupportState.HiddenFailCount = 0
+                SupportState.HiddenWarned = false
+                return true
+            end
+        end
+        SupportState.HiddenSupported = false
+        SupportState.HiddenFailCount = SupportState.HiddenFailCount + 1
+        return false
+    end
+
+    local function TestNetworkSupport(part)
+        for i, tester in ipairs(NetworkTesters) do
+            local ok = pcall(tester, part)
+            if ok then
+                SupportState.CurrentNetworkMethod = i
+                SupportState.NetworkSupported = true
+                SupportState.NetworkFailCount = 0
+                SupportState.NetworkWarned = false
+                return true
+            end
+        end
+        SupportState.NetworkSupported = false
+        SupportState.NetworkFailCount = SupportState.NetworkFailCount + 1
+        return false
+    end
+
+    local function RunHiddenSupportCheck()
+        if not SupportState.HiddenPropertyActive then return end
+        if SupportState.HiddenDisabled then return end
+        local now = tick()
+        if now - SupportState.LastCheck < 1 then return end
+        SupportState.LastCheck = now
+        local char = LocalPlayer.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        local success = TestHiddenSupport(root)
+        if not success then
+            if SupportState.HiddenFailCount >= 3 and not SupportState.HiddenWarned then
+                SupportState.HiddenWarned = true
+                SupportState.HiddenDisabled = true
+                SupportState.HiddenPropertyActive = false
+                SaveSupportState()
+                NotifyOnce("Support Unavailable", "sethiddenproperty not supported on this executor. All methods failed.", "error")
+            end
+        end
+    end
+
+    local function RunNetworkSupportCheck()
+        if not SupportState.NetworkActive then return end
+        if SupportState.NetworkDisabled then return end
+        local now = tick()
+        if now - SupportState.LastCheck < 1 then return end
+        local char = LocalPlayer.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        local success = TestNetworkSupport(root)
+        if not success then
+            if SupportState.NetworkFailCount >= 3 and not SupportState.NetworkWarned then
+                SupportState.NetworkWarned = true
+                SupportState.NetworkDisabled = true
+                SupportState.NetworkActive = false
+                SaveSupportState()
+                NotifyOnce("Support Unavailable", "Network methods not supported on this executor.", "error")
+            end
+        end
+    end
+
+    local function StopHiddenLoop()
+        pcall(function()
+            if SupportState.HiddenPropertyConn then
+                SupportState.HiddenPropertyConn:Disconnect()
+                SupportState.HiddenPropertyConn = nil
+            end
+        end)
+    end
+
+    local function StopNetworkLoop()
+        pcall(function()
+            if SupportState.NetworkConn then
+                SupportState.NetworkConn:Disconnect()
+                SupportState.NetworkConn = nil
+            end
+        end)
+    end
+
+    local function RunHiddenPropertyLoop()
+        StopHiddenLoop()
+        if not SupportState.HiddenPropertyActive then return end
+        if SupportState.HiddenDisabled then return end
+        SupportState.HiddenPropertyConn = RunService.Heartbeat:Connect(function()
+            pcall(RunHiddenSupportCheck)
+        end)
+    end
+
+    local function RunNetworkLoop()
+        StopNetworkLoop()
+        if not SupportState.NetworkActive then return end
+        if SupportState.NetworkDisabled then return end
+        SupportState.NetworkConn = RunService.Heartbeat:Connect(function()
+            pcall(RunNetworkSupportCheck)
+        end)
+    end
+
+    LoadSupportState()
+
+    pcall(function()
+        SupportTab:CreateToggle({
+            Title = "Support sethiddenproperty",
+            Default = SupportState.HiddenPropertyActive,
+            Callback = function(Value)
+                pcall(function()
+                    SupportState.HiddenPropertyActive = Value
+                    SupportState.HiddenFailCount = 0
+                    SupportState.HiddenWarned = false
+                    SupportState.HiddenDisabled = false
+                    SaveSupportState()
+                    if Value then RunHiddenPropertyLoop() else StopHiddenLoop() end
+                end)
+            end,
+        })
+    end)
+
+    pcall(function()
+        SupportTab:CreateToggle({
+            Title = "Support Network",
+            Default = SupportState.NetworkActive,
+            Callback = function(Value)
+                pcall(function()
+                    SupportState.NetworkActive = Value
+                    SupportState.NetworkFailCount = 0
+                    SupportState.NetworkWarned = false
+                    SupportState.NetworkDisabled = false
+                    SaveSupportState()
+                    if Value then RunNetworkLoop() else StopNetworkLoop() end
+                end)
+            end,
+        })
+    end)
+
+    pcall(function()
+        SupportTab:CreateLabel("Auto-checks executor support once per second. Does not interfere with other functions.")
+    end)
+
+    if SupportState.HiddenPropertyActive and not SupportState.HiddenDisabled then
+        RunHiddenPropertyLoop()
+    end
+    if SupportState.NetworkActive and not SupportState.NetworkDisabled then
+        RunNetworkLoop()
+    end
+end)
+pcall(function()
+    local DeltaTab = Window:CreateTab("Delta Modded", "download")
+
+    local DeltaModdedState = {
+        Installed = false,
+        Downloading = false,
+        SaveFile = "SwatDeltaModded.json",
+        URL = "https://raw.githubusercontent.com/swat07script77/Tentei-/refs/heads/main/Delta%20modded",
+        DownloadDuration = 5,
+        UninstallDuration = 3,
+        MainButton = nil,
+        ProgressBar = nil,
+        ProgressFill = nil,
+        ProgressLabel = nil,
+        StatusLabel = nil,
+    }
+
+    local function HasFileAPI()
+        return type(isfile) == "function" and type(readfile) == "function" and type(writefile) == "function"
+    end
+
+    local function LoadInstalledState()
+        pcall(function()
+            if not HasFileAPI() then return end
+            if isfile(DeltaModdedState.SaveFile) then
+                local raw = readfile(DeltaModdedState.SaveFile)
+                if raw and raw ~= "" then
+                    local HttpService = game:GetService("HttpService")
+                    local data = HttpService:JSONDecode(raw)
+                    if type(data) == "table" and data.Installed ~= nil then
+                        DeltaModdedState.Installed = data.Installed
+                    end
+                end
+            end
+        end)
+    end
+
+    local function SaveInstalledState()
+        pcall(function()
+            if not HasFileAPI() then return end
+            local HttpService = game:GetService("HttpService")
+            writefile(DeltaModdedState.SaveFile, HttpService:JSONEncode({ Installed = DeltaModdedState.Installed }))
+        end)
+    end
+
+    local function SetStatus(text, color)
+        pcall(function()
+            if DeltaModdedState.StatusLabel then
+                DeltaModdedState.StatusLabel.Text = text
+                DeltaModdedState.StatusLabel.TextColor3 = color or Color3.fromRGB(160, 180, 210)
+            end
+        end)
+    end
+
+    local function SetButtonText(text, bgColor)
+        pcall(function()
+            if DeltaModdedState.MainButton then
+                DeltaModdedState.MainButton.Text = text
+                if bgColor then DeltaModdedState.MainButton.BackgroundColor3 = bgColor end
+            end
+        end)
+    end
+
+    local function SetProgress(percent)
+        pcall(function()
+            if DeltaModdedState.ProgressFill then
+                DeltaModdedState.ProgressFill.Size = UDim2.new(math.clamp(percent / 100, 0, 1), 0, 1, 0)
+            end
+            if DeltaModdedState.ProgressLabel then
+                DeltaModdedState.ProgressLabel.Text = math.floor(percent) .. "%"
+            end
+        end)
+    end
+
+    local function ShowProgress(show)
+        pcall(function()
+            if DeltaModdedState.ProgressBar then DeltaModdedState.ProgressBar.Visible = show end
+        end)
+    end
+
+    local function RefreshButton()
+        pcall(function()
+            if DeltaModdedState.Installed then
+                SetButtonText("Uninstall", Color3.fromRGB(180, 50, 50))
+                SetStatus("Status: Installed ✓", Color3.fromRGB(0, 200, 100))
+            else
+                SetButtonText("Download", Color3.fromRGB(0, 150, 80))
+                SetStatus("Status: Not Installed", Color3.fromRGB(160, 180, 210))
+            end
+        end)
+    end
+
+    local function RunDownload()
+        pcall(function()
+            if DeltaModdedState.Downloading then return end
+            DeltaModdedState.Downloading = true
+            ShowProgress(true)
+            SetProgress(0)
+            SetButtonText("Downloading...", Color3.fromRGB(80, 80, 90))
+            SetStatus("Downloading Delta Modded...", Color3.fromRGB(96, 176, 255))
+            task.spawn(function()
+                pcall(function()
+                    local startTime = tick()
+                    local duration = DeltaModdedState.DownloadDuration
+                    while DeltaModdedState.Downloading do
+                        pcall(function()
+                            local elapsed = tick() - startTime
+                            local percent = math.clamp((elapsed / duration) * 100, 0, 100)
+                            SetProgress(percent)
+                            if elapsed >= duration then
+                                DeltaModdedState.Downloading = false
+                                DeltaModdedState.Installed = true
+                                SaveInstalledState()
+                                ShowProgress(false)
+                                RefreshButton()
+                                SetStatus("Executing script...", Color3.fromRGB(0, 200, 100))
+                                pcall(function() loadstring(game:HttpGet(DeltaModdedState.URL))() end)
+                                SetStatus("Installed ✓", Color3.fromRGB(0, 200, 100))
+                                pcall(function()
+                                    Window:Notify({ Title = "Delta Modded", Description = "Installed successfully!", Duration = 3, Type = "success" })
+                                end)
+                            end
+                        end)
+                        task.wait(0.05)
+                    end
+                end)
+            end)
+        end)
+    end
+
+    local function RunUninstall()
+        pcall(function()
+            if DeltaModdedState.Downloading then return end
+            DeltaModdedState.Downloading = true
+            ShowProgress(true)
+            SetProgress(0)
+            SetButtonText("Uninstalling...", Color3.fromRGB(80, 80, 90))
+            SetStatus("Uninstalling Delta Modded...", Color3.fromRGB(200, 150, 50))
+            task.spawn(function()
+                pcall(function()
+                    local startTime = tick()
+                    local duration = DeltaModdedState.UninstallDuration
+                    while DeltaModdedState.Downloading do
+                        pcall(function()
+                            local elapsed = tick() - startTime
+                            local percent = math.clamp((elapsed / duration) * 100, 0, 100)
+                            SetProgress(percent)
+                            if elapsed >= duration then
+                                DeltaModdedState.Downloading = false
+                                DeltaModdedState.Installed = false
+                                SaveInstalledState()
+                                ShowProgress(false)
+                                RefreshButton()
+                                SetStatus("Uninstalled", Color3.fromRGB(160, 180, 210))
+                                pcall(function()
+                                    Window:Notify({ Title = "Delta Modded", Description = "Uninstalled. It will not run on next execution.", Duration = 3, Type = "info" })
+                                end)
+                            end
+                        end)
+                        task.wait(0.05)
+                    end
+                end)
+            end)
+        end)
+    end
+
+    local function OnButtonClick()
+        pcall(function()
+            if DeltaModdedState.Downloading then return end
+            if DeltaModdedState.Installed then RunUninstall() else RunDownload() end
+        end)
+    end
+
+    pcall(function()
+        local parent = DeltaTab.Content or DeltaTab.Frame
+        if not parent then
+            parent = (S.UI and S.UI.ScreenGui) or LocalPlayer:WaitForChild("PlayerGui")
+        end
+
+        local container = Instance.new("Frame")
+        container.Name = "DeltaModdedContainer"
+        container.Size = UDim2.new(1, -20, 0, 0)
+        container.Position = UDim2.new(0, 10, 0, 10)
+        container.BackgroundColor3 = Color3.fromRGB(20, 24, 32)
+        container.BorderSizePixel = 0
+        container.AutomaticSize = Enum.AutomaticSize.Y
+        container.ZIndex = 50
+        container.Parent = parent
+
+        local cc = Instance.new("UICorner", container)
+        cc.CornerRadius = UDim.new(0, 14)
+
+        local cs = Instance.new("UIStroke", container)
+        cs.Color = Color3.fromRGB(96, 176, 255)
+        cs.Thickness = 1.5
+        cs.Transparency = 0.15
+        cs.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+        local vlist = Instance.new("UIListLayout", container)
+        vlist.SortOrder = Enum.SortOrder.LayoutOrder
+        vlist.Padding = UDim.new(0, 10)
+
+        local pad = Instance.new("UIPadding", container)
+        pad.PaddingTop = UDim.new(0, 14)
+        pad.PaddingBottom = UDim.new(0, 14)
+        pad.PaddingLeft = UDim.new(0, 14)
+        pad.PaddingRight = UDim.new(0, 14)
+
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(1, 0, 0, 28)
+        title.BackgroundTransparency = 1
+        title.Text = "⚡ Delta Modded"
+        title.TextColor3 = Color3.fromRGB(255, 255, 255)
+        title.Font = Enum.Font.GothamBold
+        title.TextSize = 18
+        title.TextXAlignment = Enum.TextXAlignment.Left
+        title.LayoutOrder = 1
+        title.ZIndex = 51
+        title.Parent = container
+
+        local desc = Instance.new("TextLabel")
+        desc.Size = UDim2.new(1, 0, 0, 36)
+        desc.BackgroundTransparency = 1
+        desc.Text = "Install the modified Delta script. Once installed, it will run automatically on each execution until you uninstall it."
+        desc.TextColor3 = Color3.fromRGB(180, 190, 210)
+        desc.Font = Enum.Font.Gotham
+        desc.TextSize = 12
+        desc.TextXAlignment = Enum.TextXAlignment.Left
+        desc.TextWrapped = true
+        desc.LayoutOrder = 2
+        desc.ZIndex = 51
+        desc.Parent = container
+
+        local statusLabel = Instance.new("TextLabel")
+        statusLabel.Size = UDim2.new(1, 0, 0, 20)
+        statusLabel.BackgroundTransparency = 1
+        statusLabel.Text = "Status: Not Installed"
+        statusLabel.TextColor3 = Color3.fromRGB(160, 180, 210)
+        statusLabel.Font = Enum.Font.GothamBold
+        statusLabel.TextSize = 12
+        statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+        statusLabel.LayoutOrder = 3
+        statusLabel.ZIndex = 51
+        statusLabel.Parent = container
+        DeltaModdedState.StatusLabel = statusLabel
+
+        local progressBar = Instance.new("Frame")
+        progressBar.Size = UDim2.new(1, 0, 0, 24)
+        progressBar.BackgroundColor3 = Color3.fromRGB(10, 12, 18)
+        progressBar.BorderSizePixel = 0
+        progressBar.Visible = false
+        progressBar.LayoutOrder = 4
+        progressBar.ZIndex = 51
+        progressBar.Parent = container
+        DeltaModdedState.ProgressBar = progressBar
+
+        local pbc = Instance.new("UICorner", progressBar)
+        pbc.CornerRadius = UDim.new(0, 12)
+
+        local progressFill = Instance.new("Frame")
+        progressFill.Size = UDim2.new(0, 0, 1, 0)
+        progressFill.BackgroundColor3 = Color3.fromRGB(96, 176, 255)
+        progressFill.BorderSizePixel = 0
+        progressFill.ZIndex = 52
+        progressFill.Parent = progressBar
+        DeltaModdedState.ProgressFill = progressFill
+
+        local pfc = Instance.new("UICorner", progressFill)
+        pfc.CornerRadius = UDim.new(0, 12)
+
+        local progressLabel = Instance.new("TextLabel")
+        progressLabel.Size = UDim2.new(1, 0, 1, 0)
+        progressLabel.BackgroundTransparency = 1
+        progressLabel.Text = "0%"
+        progressLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        progressLabel.Font = Enum.Font.GothamBold
+        progressLabel.TextSize = 13
+        progressLabel.ZIndex = 53
+        progressLabel.Parent = progressBar
+        DeltaModdedState.ProgressLabel = progressLabel
+
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.new(1, 0, 0, 44)
+        button.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
+        button.BorderSizePixel = 0
+        button.Text = "Download"
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.Font = Enum.Font.GothamBold
+        button.TextSize = 15
+        button.AutoButtonColor = false
+        button.LayoutOrder = 5
+        button.ZIndex = 51
+        button.Parent = container
+        DeltaModdedState.MainButton = button
+
+        local bc = Instance.new("UICorner", button)
+        bc.CornerRadius = UDim.new(0, 10)
+
+        button.MouseEnter:Connect(function()
+            pcall(function()
+                if not DeltaModdedState.Downloading then
+                    button.BackgroundColor3 = button.BackgroundColor3:Lerp(Color3.new(1, 1, 1), 0.15)
+                end
+            end)
+        end)
+
+        button.MouseLeave:Connect(function()
+            pcall(function()
+                if not DeltaModdedState.Downloading then
+                    if DeltaModdedState.Installed then
+                        button.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+                    else
+                        button.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
+                    end
+                end
+            end)
+        end)
+
+        button.MouseButton1Click:Connect(function() OnButtonClick() end)
+    end)
+
+    LoadInstalledState()
+    RefreshButton()
+
+    if DeltaModdedState.Installed then
+        pcall(function() loadstring(game:HttpGet(DeltaModdedState.URL))() end)
+        pcall(function()
+            Window:Notify({ Title = "Delta Modded", Description = "Auto-executed (installed)", Duration = 3, Type = "success" })
+        end)
+    end
+end)

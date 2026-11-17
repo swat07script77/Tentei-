@@ -18774,47 +18774,48 @@ pcall(function()
     end
 
     local executors = {
-        {
-            Name = "Codex Executor",
-            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
-            Percentage = "85%",
-            Description = "Codex is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
-            Link = "https://raw.githubusercontent.com/Ahma174/Executor/refs/heads/main/Codex.txt",
-            Icon = "",
-        },
-        {
-            Name = "Delta Executor",
-            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
-            Percentage = "85%",
-            Description = "Delta is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
-            Link = "https://raw.githubusercontent.com/swat07script77/Tentei-/refs/heads/main/delta",
-            Icon = "",
-        },
-        {
-            Name = "Vega X Executor",
-            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
-            Percentage = "85%",
-            Description = "Vega X is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
-            Link = "https://scriptblox.com/raw/Universal-Script-Vega-X-Executor-10322",
-            Icon = "",
-        },
-        {
-            Name = "Arceus X Neo V2.0",
-            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
-            Percentage = "85%",
-            Description = "Arceus X Neo V2.0 is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
-            Link = "https://raw.githubusercontent.com/AZYsGithub/chillz-workshop/main/Arceus%20X%20V3",
-            Icon = "",
-        },
-        {
-            Name = "Synapse X",
-            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
-            Percentage = "85%",
-            Description = "Synapse X is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
-            Link = "https://scriptblox.com/raw/Universal-Script-Synapse-X-Remake-236535",
-            Icon = "",
-        },
-    }
+    {
+        Name = "Codex Executor",
+        Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+        Percentage = "85%",
+        Description = "Codex is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
+        Link = [[loadstring(game:HttpGet("https://raw.githubusercontent.com/Ahma174/Executor/refs/heads/main/Codex.txt"))()]],
+        Icon = "",
+    },
+    {
+        Name = "Delta Executor",
+        Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+        Percentage = "85%",
+        Description = "Delta is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
+        Link = [[loadstring(game:HttpGet("https://raw.githubusercontent.com/swat07script77/Tentei-/refs/heads/main/delta"))()]],
+        Icon = "",
+    },
+    {
+        Name = "Vega X Executor",
+        Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+        Percentage = "85%",
+        Description = "Vega X is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
+        Link = [[loadstring(game:HttpGet("https://scriptblox.com/raw/Universal-Script-Vega-X-Executor-10322"))()]],
+        Icon = "",
+    },
+    {
+        Name = "Arceus X Neo V2.0",
+        Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+        Percentage = "85%",
+        Description = "Arceus X Neo V2.0 is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
+        Link = [[loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/chillz-workshop/main/Arceus%20X%20V3"))()]],
+        Icon = "",
+    },
+    {
+        Name = "Synapse X",
+        Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+        Percentage = "85%",
+        Description = "Synapse X is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
+        Link = [[loadstring(game:HttpGet("https://scriptblox.com/raw/Universal-Script-Synapse-X-Remake-236535"))()]],
+        Icon = "",
+    },
+}
+
 
     for i, exec in ipairs(executors) do
         CreateExecutorBlock(exec, i)

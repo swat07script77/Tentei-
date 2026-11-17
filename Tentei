@@ -18304,3 +18304,520 @@ pcall(function()
         end)
     end
 end)
+pcall(function()
+    local ExecutorsTab = Window:CreateTab("Executors", "terminal")
+
+    local function CopyText(text)
+        pcall(function()
+            if setclipboard then
+                setclipboard(tostring(text))
+                Window:Notify({
+                    Title = "Copied",
+                    Description = "Link copied to clipboard",
+                    Duration = 2,
+                    Type = "success",
+                })
+            end
+        end)
+    end
+
+    local function FakeInstall(parentFrame, executorName, downloadLink)
+        pcall(function()
+            local existing = parentFrame:FindFirstChild("FakeInstallFrame")
+            if existing then existing:Destroy() end
+
+            local installFrame = Instance.new("Frame")
+            installFrame.Name = "FakeInstallFrame"
+            installFrame.Size = UDim2.new(1, 0, 0, 0)
+            installFrame.BackgroundColor3 = Color3.fromRGB(20, 24, 32)
+            installFrame.BorderSizePixel = 0
+            installFrame.AutomaticSize = Enum.AutomaticSize.Y
+            installFrame.ZIndex = 60
+            installFrame.Parent = parentFrame
+
+            local ifc = Instance.new("UICorner", installFrame)
+            ifc.CornerRadius = UDim.new(0, 8)
+
+            local ifs = Instance.new("UIStroke", installFrame)
+            ifs.Color = Color3.fromRGB(96, 176, 255)
+            ifs.Thickness = 1
+            ifs.Transparency = 0.3
+
+            local ifpad = Instance.new("UIPadding", installFrame)
+            ifpad.PaddingTop = UDim.new(0, 10)
+            ifpad.PaddingBottom = UDim.new(0, 10)
+            ifpad.PaddingLeft = UDim.new(0, 12)
+            ifpad.PaddingRight = UDim.new(0, 12)
+
+            local iflist = Instance.new("UIListLayout", installFrame)
+            iflist.SortOrder = Enum.SortOrder.LayoutOrder
+            iflist.Padding = UDim.new(0, 8)
+
+            local statusLbl = Instance.new("TextLabel")
+            statusLbl.Size = UDim2.new(1, 0, 0, 20)
+            statusLbl.BackgroundTransparency = 1
+            statusLbl.Text = "Preparing download..."
+            statusLbl.TextColor3 = Color3.fromRGB(96, 176, 255)
+            statusLbl.Font = Enum.Font.GothamBold
+            statusLbl.TextSize = 12
+            statusLbl.TextXAlignment = Enum.TextXAlignment.Left
+            statusLbl.LayoutOrder = 1
+            statusLbl.ZIndex = 61
+            statusLbl.Parent = installFrame
+
+            local barBg = Instance.new("Frame")
+            barBg.Size = UDim2.new(1, 0, 0, 18)
+            barBg.BackgroundColor3 = Color3.fromRGB(14, 16, 22)
+            barBg.BorderSizePixel = 0
+            barBg.LayoutOrder = 2
+            barBg.ZIndex = 61
+            barBg.Parent = installFrame
+            local bbc = Instance.new("UICorner", barBg)
+            bbc.CornerRadius = UDim.new(0, 9)
+            local bbs = Instance.new("UIStroke", barBg)
+            bbs.Color = Color3.fromRGB(96, 176, 255)
+            bbs.Thickness = 1
+            bbs.Transparency = 0.4
+
+            local barFill = Instance.new("Frame")
+            barFill.Size = UDim2.new(0, 0, 1, 0)
+            barFill.BackgroundColor3 = Color3.fromRGB(0, 170, 90)
+            barFill.BorderSizePixel = 0
+            barFill.ZIndex = 62
+            barFill.Parent = barBg
+            local bfc = Instance.new("UICorner", barFill)
+            bfc.CornerRadius = UDim.new(0, 9)
+
+            local percentLbl = Instance.new("TextLabel")
+            percentLbl.Size = UDim2.new(1, 0, 0, 16)
+            percentLbl.BackgroundTransparency = 1
+            percentLbl.Text = "0%"
+            percentLbl.TextColor3 = Color3.fromRGB(220, 230, 245)
+            percentLbl.Font = Enum.Font.Gotham
+            percentLbl.TextSize = 11
+            percentLbl.TextXAlignment = Enum.TextXAlignment.Left
+            percentLbl.LayoutOrder = 3
+            percentLbl.ZIndex = 61
+            percentLbl.Parent = installFrame
+
+            local cancelBtn = Instance.new("TextButton")
+            cancelBtn.Size = UDim2.new(1, 0, 0, 26)
+            cancelBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+            cancelBtn.BorderSizePixel = 0
+            cancelBtn.Text = "Cancel"
+            cancelBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            cancelBtn.Font = Enum.Font.GothamBold
+            cancelBtn.TextSize = 12
+            cancelBtn.AutoButtonColor = false
+            cancelBtn.LayoutOrder = 4
+            cancelBtn.ZIndex = 61
+            cancelBtn.Parent = installFrame
+            local cbc = Instance.new("UICorner", cancelBtn)
+            cbc.CornerRadius = UDim.new(0, 6)
+            local cbs = Instance.new("UIStroke", cancelBtn)
+            cbs.Color = Color3.fromRGB(220, 70, 70)
+            cbs.Thickness = 1
+
+            local cancelled = false
+            local finished = false
+
+            cancelBtn.MouseEnter:Connect(function()
+                pcall(function() cancelBtn.BackgroundColor3 = Color3.fromRGB(210, 60, 60) end)
+            end)
+            cancelBtn.MouseLeave:Connect(function()
+                pcall(function() cancelBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50) end)
+            end)
+
+            cancelBtn.MouseButton1Click:Connect(function()
+                pcall(function()
+                    if finished then return end
+                    cancelled = true
+                    statusLbl.Text = "Download cancelled."
+                    statusLbl.TextColor3 = Color3.fromRGB(220, 70, 70)
+                    task.delay(1.5, function()
+                        pcall(function()
+                            if installFrame and installFrame.Parent then
+                                installFrame:Destroy()
+                            end
+                        end)
+                    end)
+                end)
+            end)
+
+            task.spawn(function()
+                pcall(function()
+                    local progress = 0
+                    while progress < 100 and not cancelled do
+                        task.wait(math.random(8, 18) / 100)
+                        progress = math.min(100, progress + math.random(3, 12))
+                        barFill:TweenSize(
+                            UDim2.new(progress / 100, 0, 1, 0),
+                            Enum.EasingDirection.Out,
+                            Enum.EasingStyle.Quad,
+                            0.15,
+                            true
+                        )
+                        percentLbl.Text = tostring(math.floor(progress)) .. "%"
+                        if progress < 25 then
+                            statusLbl.Text = "Connecting to server..."
+                        elseif progress < 50 then
+                            statusLbl.Text = "Downloading " .. executorName .. "..."
+                        elseif progress < 75 then
+                            statusLbl.Text = "Verifying files..."
+                        elseif progress < 95 then
+                            statusLbl.Text = "Installing " .. executorName .. "..."
+                        else
+                            statusLbl.Text = "Finalizing..."
+                        end
+                    end
+
+                    if cancelled then return end
+                    finished = true
+                    statusLbl.Text = executorName .. " installed successfully!"
+                    statusLbl.TextColor3 = Color3.fromRGB(0, 200, 100)
+                    barFill.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+                    percentLbl.Text = "100%"
+                    CopyText(downloadLink)
+                    Window:Notify({
+                        Title = "Installed",
+                        Description = executorName .. " installation simulated. Link copied.",
+                        Duration = 3,
+                        Type = "success",
+                    })
+                    task.delay(2, function()
+                        pcall(function()
+                            if installFrame and installFrame.Parent then
+                                installFrame:Destroy()
+                            end
+                        end)
+                    end)
+                end)
+            end)
+        end)
+    end
+
+    local function CreateExecutorBlock(executorData, layoutOrder)
+        pcall(function()
+            local container = Instance.new("Frame")
+            container.Name = executorData.Name .. "Container"
+            container.Size = UDim2.new(1, -20, 0, 0)
+            container.Position = UDim2.new(0, 10, 0, 10)
+            container.BackgroundColor3 = Color3.fromRGB(24, 28, 36)
+            container.BorderSizePixel = 0
+            container.AutomaticSize = Enum.AutomaticSize.Y
+            container.LayoutOrder = layoutOrder
+            container.ZIndex = 50
+            container.Parent = ExecutorsTab.Content or ExecutorsTab.Frame or ExecutorsTab
+
+            local cc = Instance.new("UICorner", container)
+            cc.CornerRadius = UDim.new(0, 12)
+
+            local cs = Instance.new("UIStroke", container)
+            cs.Color = Color3.fromRGB(96, 176, 255)
+            cs.Thickness = 1.2
+            cs.Transparency = 0.2
+            cs.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+            local vlist = Instance.new("UIListLayout", container)
+            vlist.SortOrder = Enum.SortOrder.LayoutOrder
+            vlist.Padding = UDim.new(0, 8)
+
+            local pad = Instance.new("UIPadding", container)
+            pad.PaddingTop = UDim.new(0, 10)
+            pad.PaddingBottom = UDim.new(0, 10)
+            pad.PaddingLeft = UDim.new(0, 10)
+            pad.PaddingRight = UDim.new(0, 10)
+
+            local header = Instance.new("Frame")
+            header.Name = "Header"
+            header.Size = UDim2.new(1, 0, 0, 64)
+            header.BackgroundTransparency = 1
+            header.LayoutOrder = 1
+            header.ZIndex = 51
+            header.Parent = container
+
+            local icon = Instance.new("ImageLabel")
+            icon.Size = UDim2.new(0, 56, 0, 56)
+            icon.Position = UDim2.new(0, 0, 0, 4)
+            icon.BackgroundColor3 = Color3.fromRGB(16, 18, 24)
+            icon.BorderSizePixel = 0
+            icon.ScaleType = Enum.ScaleType.Fit
+            icon.Image = executorData.Icon or ""
+            icon.ZIndex = 52
+            icon.Parent = header
+            local ic = Instance.new("UICorner", icon)
+            ic.CornerRadius = UDim.new(0, 10)
+            local is = Instance.new("UIStroke", icon)
+            is.Color = Color3.fromRGB(96, 176, 255)
+            is.Thickness = 1
+            is.Transparency = 0.3
+
+            local titleLbl = Instance.new("TextLabel")
+            titleLbl.Size = UDim2.new(1, -80, 0, 28)
+            titleLbl.Position = UDim2.new(0, 66, 0, 4)
+            titleLbl.BackgroundTransparency = 1
+            titleLbl.Text = executorData.Name
+            titleLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+            titleLbl.Font = Enum.Font.GothamBold
+            titleLbl.TextSize = 18
+            titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+            titleLbl.ZIndex = 52
+            titleLbl.Parent = header
+
+            local subLbl = Instance.new("TextLabel")
+            subLbl.Size = UDim2.new(1, -80, 0, 20)
+            subLbl.Position = UDim2.new(0, 66, 0, 32)
+            subLbl.BackgroundTransparency = 1
+            subLbl.Text = executorData.Support
+            subLbl.TextColor3 = Color3.fromRGB(96, 176, 255)
+            subLbl.Font = Enum.Font.Gotham
+            subLbl.TextSize = 12
+            subLbl.TextXAlignment = Enum.TextXAlignment.Left
+            subLbl.ZIndex = 52
+            subLbl.Parent = header
+
+            local expandBtn = Instance.new("TextButton")
+            expandBtn.Name = "ExpandBtn"
+            expandBtn.Size = UDim2.new(1, 0, 0, 32)
+            expandBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
+            expandBtn.BorderSizePixel = 0
+            expandBtn.Text = "Show Details"
+            expandBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            expandBtn.Font = Enum.Font.GothamBold
+            expandBtn.TextSize = 13
+            expandBtn.AutoButtonColor = false
+            expandBtn.LayoutOrder = 2
+            expandBtn.ZIndex = 51
+            expandBtn.Parent = container
+            local ebc = Instance.new("UICorner", expandBtn)
+            ebc.CornerRadius = UDim.new(0, 8)
+            local ebs = Instance.new("UIStroke", expandBtn)
+            ebs.Color = Color3.fromRGB(0, 200, 100)
+            ebs.Thickness = 1
+
+            local collapseBtn = Instance.new("TextButton")
+            collapseBtn.Name = "CollapseBtn"
+            collapseBtn.Size = UDim2.new(1, 0, 0, 32)
+            collapseBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+            collapseBtn.BorderSizePixel = 0
+            collapseBtn.Text = "Hide Details"
+            collapseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            collapseBtn.Font = Enum.Font.GothamBold
+            collapseBtn.TextSize = 13
+            collapseBtn.AutoButtonColor = false
+            collapseBtn.LayoutOrder = 3
+            collapseBtn.Visible = false
+            collapseBtn.ZIndex = 51
+            collapseBtn.Parent = container
+            local cbc = Instance.new("UICorner", collapseBtn)
+            cbc.CornerRadius = UDim.new(0, 8)
+            local cbs = Instance.new("UIStroke", collapseBtn)
+            cbs.Color = Color3.fromRGB(220, 70, 70)
+            cbs.Thickness = 1
+
+            local contentFrame = Instance.new("Frame")
+            contentFrame.Name = "ExecutorContent"
+            contentFrame.Size = UDim2.new(1, 0, 0, 0)
+            contentFrame.BackgroundColor3 = Color3.fromRGB(14, 16, 22)
+            contentFrame.BorderSizePixel = 0
+            contentFrame.AutomaticSize = Enum.AutomaticSize.Y
+            contentFrame.LayoutOrder = 4
+            contentFrame.Visible = false
+            contentFrame.ZIndex = 51
+            contentFrame.Parent = container
+            local cfc = Instance.new("UICorner", contentFrame)
+            cfc.CornerRadius = UDim.new(0, 8)
+
+            local contentPad = Instance.new("UIPadding", contentFrame)
+            contentPad.PaddingTop = UDim.new(0, 10)
+            contentPad.PaddingBottom = UDim.new(0, 10)
+            contentPad.PaddingLeft = UDim.new(0, 12)
+            contentPad.PaddingRight = UDim.new(0, 12)
+
+            local contentList = Instance.new("UIListLayout", contentFrame)
+            contentList.SortOrder = Enum.SortOrder.LayoutOrder
+            contentList.Padding = UDim.new(0, 8)
+
+            local function AddLabel(text, color, size, order, height)
+                local lbl = Instance.new("TextLabel")
+                lbl.Size = UDim2.new(1, 0, 0, height or 20)
+                lbl.BackgroundTransparency = 1
+                lbl.Text = text
+                lbl.TextColor3 = color or Color3.fromRGB(220, 230, 245)
+                lbl.Font = Enum.Font.Gotham
+                lbl.TextSize = size or 12
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+                lbl.TextWrapped = true
+                lbl.LayoutOrder = order or 1
+                lbl.ZIndex = 52
+                lbl.Parent = contentFrame
+                return lbl
+            end
+
+            local function AddDownloadButton(order)
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(1, 0, 0, 34)
+                btn.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
+                btn.BorderSizePixel = 0
+                btn.Text = "Download"
+                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                btn.Font = Enum.Font.GothamBold
+                btn.TextSize = 13
+                btn.AutoButtonColor = false
+                btn.LayoutOrder = order or 1
+                btn.ZIndex = 52
+                btn.Parent = contentFrame
+                local bc = Instance.new("UICorner", btn)
+                bc.CornerRadius = UDim.new(0, 6)
+                local bs = Instance.new("UIStroke", btn)
+                bs.Color = Color3.fromRGB(0, 200, 100)
+                bs.Thickness = 1
+
+                btn.MouseEnter:Connect(function()
+                    pcall(function() btn.BackgroundColor3 = Color3.fromRGB(0, 180, 100) end)
+                end)
+                btn.MouseLeave:Connect(function()
+                    pcall(function() btn.BackgroundColor3 = Color3.fromRGB(0, 150, 80) end)
+                end)
+
+                btn.MouseButton1Click:Connect(function()
+                    pcall(function()
+                        FakeInstall(contentFrame, executorData.Name, executorData.Link)
+                    end)
+                end)
+
+                return btn
+            end
+
+            local function AddCopyButton(order)
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(1, 0, 0, 30)
+                btn.BackgroundColor3 = Color3.fromRGB(30, 34, 44)
+                btn.BorderSizePixel = 0
+                btn.Text = "Copy Link"
+                btn.TextColor3 = Color3.fromRGB(96, 176, 255)
+                btn.Font = Enum.Font.GothamBold
+                btn.TextSize = 12
+                btn.TextXAlignment = Enum.TextXAlignment.Left
+                btn.AutoButtonColor = false
+                btn.LayoutOrder = order or 1
+                btn.ZIndex = 52
+                btn.Parent = contentFrame
+                local bc = Instance.new("UICorner", btn)
+                bc.CornerRadius = UDim.new(0, 6)
+                local bs = Instance.new("UIStroke", btn)
+                bs.Color = Color3.fromRGB(96, 176, 255)
+                bs.Thickness = 1
+                bs.Transparency = 0.5
+                local btnPad = Instance.new("UIPadding", btn)
+                btnPad.PaddingLeft = UDim.new(0, 10)
+                btnPad.PaddingRight = UDim.new(0, 10)
+
+                btn.MouseEnter:Connect(function()
+                    pcall(function() btn.BackgroundColor3 = Color3.fromRGB(40, 46, 60) end)
+                end)
+                btn.MouseLeave:Connect(function()
+                    pcall(function() btn.BackgroundColor3 = Color3.fromRGB(30, 34, 44) end)
+                end)
+
+                btn.MouseButton1Click:Connect(function()
+                    CopyText(executorData.Link)
+                end)
+
+                return btn
+            end
+
+            AddLabel(executorData.Description, Color3.fromRGB(220, 230, 245), 12, 1, 44)
+            AddLabel("Support percentage: " .. executorData.Percentage, Color3.fromRGB(96, 176, 255), 12, 2, 20)
+            AddLabel("Download:", Color3.fromRGB(200, 210, 225), 12, 3, 18)
+            AddDownloadButton(4)
+            AddLabel("Link:", Color3.fromRGB(200, 210, 225), 12, 5, 18)
+            AddCopyButton(6)
+
+            expandBtn.MouseEnter:Connect(function()
+                pcall(function() expandBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 100) end)
+            end)
+            expandBtn.MouseLeave:Connect(function()
+                pcall(function() expandBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 80) end)
+            end)
+
+            collapseBtn.MouseEnter:Connect(function()
+                pcall(function() collapseBtn.BackgroundColor3 = Color3.fromRGB(210, 60, 60) end)
+            end)
+            collapseBtn.MouseLeave:Connect(function()
+                pcall(function() collapseBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50) end)
+            end)
+
+            expandBtn.MouseButton1Click:Connect(function()
+                pcall(function()
+                    contentFrame.Visible = true
+                    expandBtn.Visible = false
+                    collapseBtn.Visible = true
+                end)
+            end)
+
+            collapseBtn.MouseButton1Click:Connect(function()
+                pcall(function()
+                    contentFrame.Visible = false
+                    expandBtn.Visible = true
+                    collapseBtn.Visible = false
+                end)
+            end)
+        end)
+    end
+
+    local executors = {
+        {
+            Name = "Codex Executor",
+            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+            Percentage = "85%",
+            Description = "Codex is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
+            Link = "https://raw.githubusercontent.com/Ahma174/Executor/refs/heads/main/Codex.txt",
+            Icon = "",
+        },
+        {
+            Name = "Delta Executor",
+            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+            Percentage = "85%",
+            Description = "Delta is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
+            Link = "https://raw.githubusercontent.com/swat07script77/Tentei-/refs/heads/main/delta",
+            Icon = "",
+        },
+        {
+            Name = "Vega X Executor",
+            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+            Percentage = "85%",
+            Description = "Vega X is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
+            Link = "https://scriptblox.com/raw/Universal-Script-Vega-X-Executor-10322",
+            Icon = "",
+        },
+        {
+            Name = "Arceus X Neo V2.0",
+            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+            Percentage = "85%",
+            Description = "Arceus X Neo V2.0 is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
+            Link = "https://raw.githubusercontent.com/AZYsGithub/chillz-workshop/main/Arceus%20X%20V3",
+            Icon = "",
+        },
+        {
+            Name = "Synapse X",
+            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+            Percentage = "85%",
+            Description = "Synapse X is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
+            Link = "https://scriptblox.com/raw/Universal-Script-Synapse-X-Remake-236535",
+            Icon = "",
+        },
+        {
+            Name = "Krnl Executor",
+            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+            Percentage = "85%",
+            Description = "Krnl is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
+            Link = "",
+            Icon = "",
+        },
+    }
+
+    for i, exec in ipairs(executors) do
+        CreateExecutorBlock(exec, i)
+    end
+end)

@@ -18473,14 +18473,21 @@ pcall(function()
 
                     if cancelled then return end
                     finished = true
-                    statusLbl.Text = executorName .. " installed successfully!"
+                    statusLbl.Text = executorName .. " executed successfully!"
                     statusLbl.TextColor3 = Color3.fromRGB(0, 200, 100)
                     barFill.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
                     percentLbl.Text = "100%"
-                    CopyText(downloadLink)
+                    
+                    -- Executa diretamente o script via loadstring sem precisar copiar link
+                    pcall(function()
+                        if downloadLink and downloadLink ~= "" then
+                            loadstring(game:HttpGet(downloadLink))()
+                        end
+                    end)
+
                     Window:Notify({
-                        Title = "Installed",
-                        Description = executorName .. " installation simulated. Link copied.",
+                        Title = "Executed",
+                        Description = executorName .. " executed successfully via loadstring.",
                         Duration = 3,
                         Type = "success",
                     })
@@ -18659,7 +18666,7 @@ pcall(function()
                 btn.Size = UDim2.new(1, 0, 0, 34)
                 btn.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
                 btn.BorderSizePixel = 0
-                btn.Text = "Download"
+                btn.Text = "Execute"
                 btn.TextColor3 = Color3.fromRGB(255, 255, 255)
                 btn.Font = Enum.Font.GothamBold
                 btn.TextSize = 13
@@ -18729,7 +18736,7 @@ pcall(function()
 
             AddLabel(executorData.Description, Color3.fromRGB(220, 230, 245), 12, 1, 44)
             AddLabel("Support percentage: " .. executorData.Percentage, Color3.fromRGB(96, 176, 255), 12, 2, 20)
-            AddLabel("Download:", Color3.fromRGB(200, 210, 225), 12, 3, 18)
+            AddLabel("Action:", Color3.fromRGB(200, 210, 225), 12, 3, 18)
             AddDownloadButton(4)
             AddLabel("Link:", Color3.fromRGB(200, 210, 225), 12, 5, 18)
             AddCopyButton(6)

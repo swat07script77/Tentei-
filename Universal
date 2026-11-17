@@ -18304,3 +18304,246 @@ pcall(function()
         end)
     end
 end)
+pcall(function()
+    local ExecutorsTab = Window:CreateTab("Executors", "terminal")
+
+    local function FakeInstall(parentFrame, executorName, downloadLink)
+        pcall(function()
+            local existing = parentFrame:FindFirstChild("FakeInstallFrame")
+            if existing then existing:Destroy() end
+
+            local installFrame = Instance.new("Frame")
+            installFrame.Name = "FakeInstallFrame"
+            installFrame.Size = UDim2.new(1, 0, 0, 0)
+            installFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+            installFrame.BorderSizePixel = 0
+            installFrame.AutomaticSize = Enum.AutomaticSize.Y
+            installFrame.ZIndex = 60
+            installFrame.Parent = parentFrame
+
+            local ifc = Instance.new("UICorner", installFrame)
+            ifc.CornerRadius = UDim.new(0, 8)
+
+            local ifs = Instance.new("UIStroke", installFrame)
+            ifs.Color = Color3.fromRGB(96, 176, 255)
+            ifs.Thickness = 1
+            ifs.Transparency = 0.3
+
+            local ifpad = Instance.new("UIPadding", installFrame)
+            ifpad.PaddingTop = UDim.new(0, 10)
+            ifpad.PaddingBottom = UDim.new(0, 10)
+            ifpad.PaddingLeft = UDim.new(0, 12)
+            ifpad.PaddingRight = UDim.new(0, 12)
+
+            local iflist = Instance.new("UIListLayout", installFrame)
+            iflist.SortOrder = Enum.SortOrder.LayoutOrder
+            iflist.Padding = UDim.new(0, 8)
+
+            local statusLbl = Instance.new("TextLabel")
+            statusLbl.Size = UDim2.new(1, 0, 0, 20)
+            statusLbl.BackgroundTransparency = 1
+            statusLbl.Text = "Preparing execution..."
+            statusLbl.TextColor3 = Color3.fromRGB(96, 176, 255)
+            statusLbl.Font = Enum.Font.GothamBold
+            statusLbl.TextSize = 12
+            statusLbl.TextXAlignment = Enum.TextXAlignment.Left
+            statusLbl.LayoutOrder = 1
+            statusLbl.ZIndex = 61
+            statusLbl.Parent = installFrame
+
+            local barBg = Instance.new("Frame")
+            barBg.Size = UDim2.new(1, 0, 0, 18)
+            barBg.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+            barBg.BorderSizePixel = 0
+            barBg.LayoutOrder = 2
+            barBg.ZIndex = 61
+            barBg.Parent = installFrame
+            local bbc = Instance.new("UICorner", barBg)
+            bbc.CornerRadius = UDim.new(0, 9)
+
+            local barFill = Instance.new("Frame")
+            barFill.Size = UDim2.new(0, 0, 1, 0)
+            barFill.BackgroundColor3 = Color3.fromRGB(0, 170, 90)
+            barFill.BorderSizePixel = 0
+            barFill.ZIndex = 62
+            barFill.Parent = barBg
+            local bfc = Instance.new("UICorner", barFill)
+            bfc.CornerRadius = UDim.new(0, 9)
+
+            local percentLbl = Instance.new("TextLabel")
+            percentLbl.Size = UDim2.new(1, 0, 0, 16)
+            percentLbl.BackgroundTransparency = 1
+            percentLbl.Text = "0%"
+            percentLbl.TextColor3 = Color3.fromRGB(220, 230, 245)
+            percentLbl.Font = Enum.Font.Gotham
+            percentLbl.TextSize = 11
+            percentLbl.TextXAlignment = Enum.TextXAlignment.Left
+            percentLbl.LayoutOrder = 3
+            percentLbl.ZIndex = 61
+            percentLbl.Parent = installFrame
+
+            task.spawn(function()
+                pcall(function()
+                    local progress = 0
+                    while progress < 100 do
+                        task.wait(math.random(8, 15) / 100)
+                        progress = math.min(100, progress + math.random(5, 15))
+                        barFill:TweenSize(
+                            UDim2.new(progress / 100, 0, 1, 0),
+                            Enum.EasingDirection.Out,
+                            Enum.EasingStyle.Quad,
+                            0.15,
+                            true
+                        )
+                        percentLbl.Text = tostring(math.floor(progress)) .. "%"
+                        if progress < 50 then
+                            statusLbl.Text = "Fetching " .. executorName .. "..."
+                        else
+                            statusLbl.Text = "Executing script..."
+                        end
+                    end
+
+                    statusLbl.Text = executorName .. " executed!"
+                    statusLbl.TextColor3 = Color3.fromRGB(0, 200, 100)
+                    barFill.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+                    percentLbl.Text = "100%"
+
+                    pcall(function()
+                        if downloadLink and downloadLink ~= "" then
+                            loadstring(game:HttpGet(downloadLink))()
+                        end
+                    end)
+
+                    Window:Notify({
+                        Title = "Executed",
+                        Description = executorName .. " executed successfully.",
+                        Duration = 3,
+                        Type = "success",
+                    })
+
+                    task.delay(1.5, function()
+                        pcall(function()
+                            if installFrame and installFrame.Parent then
+                                installFrame:Destroy()
+                            end
+                        end)
+                    end)
+                end)
+            end)
+        end)
+    end
+
+    local function CreateExecutorBlock(executorData, layoutOrder)
+        pcall(function()
+            local container = Instance.new("Frame")
+            container.Name = executorData.Name .. "Container"
+            container.Size = UDim2.new(1, -20, 0, 0)
+            container.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+            container.BorderSizePixel = 0
+            container.AutomaticSize = Enum.AutomaticSize.Y
+            container.LayoutOrder = layoutOrder
+            container.ZIndex = 50
+            container.Parent = ExecutorsTab.Content or ExecutorsTab.Frame or ExecutorsTab
+
+            local cc = Instance.new("UICorner", container)
+            cc.CornerRadius = UDim.new(0, 12)
+
+            local cs = Instance.new("UIStroke", container)
+            cs.Color = Color3.fromRGB(96, 176, 255)
+            cs.Thickness = 1.2
+            cs.Transparency = 0.2
+
+            local vlist = Instance.new("UIListLayout", container)
+            vlist.SortOrder = Enum.SortOrder.LayoutOrder
+            vlist.Padding = UDim.new(0, 8)
+
+            local pad = Instance.new("UIPadding", container)
+            pad.PaddingTop = UDim.new(0, 10)
+            pad.PaddingBottom = UDim.new(0, 10)
+            pad.PaddingLeft = UDim.new(0, 10)
+            pad.PaddingRight = UDim.new(0, 10)
+
+            local header = Instance.new("Frame")
+            header.Name = "Header"
+            header.Size = UDim2.new(1, 0, 0, 64)
+            header.BackgroundTransparency = 1
+            header.LayoutOrder = 1
+            header.Parent = container
+
+            local titleLbl = Instance.new("TextLabel")
+            titleLbl.Size = UDim2.new(1, 0, 0, 28)
+            titleLbl.Position = UDim2.new(0, 0, 0, 4)
+            titleLbl.BackgroundTransparency = 1
+            titleLbl.Text = executorData.Name
+            titleLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+            titleLbl.Font = Enum.Font.GothamBold
+            titleLbl.TextSize = 18
+            titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+            titleLbl.Parent = header
+
+            local subLbl = Instance.new("TextLabel")
+            subLbl.Size = UDim2.new(1, 0, 0, 20)
+            subLbl.Position = UDim2.new(0, 0, 0, 32)
+            subLbl.BackgroundTransparency = 1
+            subLbl.Text = executorData.Support
+            subLbl.TextColor3 = Color3.fromRGB(96, 176, 255)
+            subLbl.Font = Enum.Font.Gotham
+            subLbl.TextSize = 12
+            subLbl.TextXAlignment = Enum.TextXAlignment.Left
+            subLbl.Parent = header
+
+            local execBtn = Instance.new("TextButton")
+            execBtn.Size = UDim2.new(1, 0, 0, 34)
+            execBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
+            execBtn.BorderSizePixel = 0
+            execBtn.Text = "Execute Script"
+            execBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            execBtn.Font = Enum.Font.GothamBold
+            execBtn.TextSize = 13
+            execBtn.AutoButtonColor = false
+            execBtn.LayoutOrder = 2
+            execBtn.Parent = container
+
+            local ebc = Instance.new("UICorner", execBtn)
+            ebc.CornerRadius = UDim.new(0, 8)
+
+            execBtn.MouseButton1Click:Connect(function()
+                pcall(function()
+                    FakeInstall(container, executorData.Name, executorData.Link)
+                end)
+            end)
+        end)
+    end
+
+    local executors = {
+        {
+            Name = "Codex Executor",
+            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+            Link = "https://raw.githubusercontent.com/Ahma174/Executor/refs/heads/main/Codex.txt",
+        },
+        {
+            Name = "Delta Executor",
+            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+            Link = "https://raw.githubusercontent.com/swat07script77/Tentei-/refs/heads/main/delta",
+        },
+        {
+            Name = "Vega X Executor",
+            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+            Link = "https://scriptblox.com/raw/Universal-Script-Vega-X-Executor-10322",
+        },
+        {
+            Name = "Arceus X Neo V2.0",
+            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+            Link = "https://raw.githubusercontent.com/AZYsGithub/chillz-workshop/main/Arceus%20X%20V3",
+        },
+        {
+            Name = "Synapse X",
+            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
+            Link = "https://scriptblox.com/raw/Universal-Script-Synapse-X-Remake-236535",
+        },
+    }
+
+    for i, exec in ipairs(executors) do
+        CreateExecutorBlock(exec, i)
+    end
+end)

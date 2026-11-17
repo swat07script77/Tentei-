@@ -18807,14 +18807,6 @@ pcall(function()
             Link = "https://scriptblox.com/raw/Universal-Script-Synapse-X-Remake-236535",
             Icon = "",
         },
-        {
-            Name = "Krnl Executor",
-            Support = "Support: sethiddenproperty ✓ | Percentage: 85%",
-            Percentage = "85%",
-            Description = "Krnl is an executor for Android and iOS that supports sethiddenproperty, firetouchinterest, and many other functions required by this script.",
-            Link = "",
-            Icon = "",
-        },
     }
 
     for i, exec in ipairs(executors) do

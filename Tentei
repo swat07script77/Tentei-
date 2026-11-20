@@ -17609,370 +17609,507 @@ pcall(function()
         })
     end)
 end)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+local function isSafePart(candidate)
+	if typeof(candidate) ~= "Instance" then return false end
+	if not candidate:IsA("BasePart") then return false end
+	local ok, alive = pcall(function()
+		return candidate.Parent ~= nil
+	end)
+	return ok and alive == true
+end
+
+local function PhysicsRepRootInstance(candidate)
+	if not isSafePart(candidate) then return nil end
+	return candidate
+end
+
+local function PhysicsRepRootPart(part, overrideRoot)
+	if isSafePart(overrideRoot) then
+		return overrideRoot
+	end
+	if not isSafePart(part) then return nil end
+	local ok, root = pcall(function()
+		return part.AssemblyRootPart
+	end)
+	if ok and isSafePart(root) then
+		return root
+	end
+	return part
+end
+
+local function PhysicsRepRootRef(target)
+	local valid = isSafePart(target)
+	return {
+		Current = valid and target or nil,
+		Valid = valid,
+	}
+end
+
+local function PhysicsRepRootPartName(rootPart)
+	if not isSafePart(rootPart) then return "" end
+	local ok, name = pcall(function()
+		return rootPart.Name
+	end)
+	return (ok and type(name) == "string") and name or ""
+end
+
+local function PhysicsRepRootAssembly(rootPart)
+	local assembly = {}
+	local root = PhysicsRepRootPart(rootPart, nil)
+	if not root then return assembly end
+	table.insert(assembly, root)
+	local ok, connected = pcall(function()
+		return root:GetConnectedParts(true)
+	end)
+	if ok and type(connected) == "table" then
+		for _, item in ipairs(connected) do
+			if isSafePart(item) and item ~= root then
+				table.insert(assembly, item)
+			end
+		end
+	end
+	return assembly
+end
+
+local function PhysicsRepRootHandle(target)
+	local current = PhysicsRepRootInstance(target)
+
+	local function refresh()
+		if not isSafePart(current) then
+			current = nil
+		end
+		return current
+	end
+
+	return {
+		Get = function()
+			return refresh()
+		end,
+		IsValid = function()
+			return refresh() ~= nil
+		end,
+		Set = function(nextPart)
+			current = PhysicsRepRootInstance(nextPart)
+			return current
+		end,
+		Clear = function()
+			current = nil
+		end,
+	}
+end
+
+local function getRootPart(character)
+	if not character then return nil end
+	local candidate = character:FindFirstChild("HumanoidRootPart")
+		or character:FindFirstChild("Torso")
+		or character:FindFirstChild("UpperTorso")
+	return PhysicsRepRootPart(candidate, nil)
+end
+
+local function resolveInstanceHandle(target)
+	local safeTarget = PhysicsRepRootInstance(target)
+	if not safeTarget then return nil end
+	local handleClass = getfenv and getfenv().InstanceHandle or nil
+	if type(handleClass) == "table" and type(handleClass.new) == "function" then
+		local ok, handle = pcall(function()
+			return handleClass.new(safeTarget)
+		end)
+		if ok and handle ~= nil then
+			return handle
+		end
+	end
+	return safeTarget
+end
+
+local function trySetHidden(part, propertyName, value)
+	if not isSafePart(part) then return false end
+	local setter = getfenv and getfenv().sethiddenproperty or sethiddenproperty
+	if type(setter) ~= "function" then return false end
+	local ok, result = pcall(setter, part, propertyName, value)
+	if not ok or result == false then
+		return false
+	end
+	return true
+end
+
+local function trySetNetwork(part, callback)
+	if not isSafePart(part) or type(callback) ~= "function" then return false end
+	local ok = pcall(callback, part)
+	return ok == true
+end
+
+local function hasFileSupport()
+	return type(isfile) == "function"
+		and type(readfile) == "function"
+		and type(writefile) == "function"
+end
+
 pcall(function()
-    local SupportTab = Window:CreateTab("Support", "shield")
+	local SupportTab = Window:CreateTab("Support", "shield")
 
-    local SupportState = {
-        HiddenPropertyActive = true,
-        NetworkActive = true,
-        HiddenPropertyConn = nil,
-        NetworkConn = nil,
-        HiddenIndex = 1,
-        NetworkIndex = 1,
-        HiddenFailCount = 0,
-        NetworkFailCount = 0,
-        HiddenWarned = false,
-        NetworkWarned = false,
-        HiddenDisabled = false,
-        NetworkDisabled = false,
-        HiddenSwitchCooldown = 0,
-        NetworkSwitchCooldown = 0,
-        HiddenFound = false,
-        NetworkFound = false,
-        SaveFile = "SwatSupport.json",
-    }
+	local SupportState = {
+		HiddenPropertyActive = true,
+		NetworkActive = true,
+		AutoSwitchEnabled = true,
+		HiddenPropertyConn = nil,
+		NetworkConn = nil,
+		HiddenIndex = 1,
+		NetworkIndex = 1,
+		HiddenFailCount = 0,
+		NetworkFailCount = 0,
+		HiddenSwitchCooldown = 0,
+		NetworkSwitchCooldown = 0,
+		SaveFile = "SwatSupport.json",
+		StatusLabel = nil,
+	}
 
-    local InstanceHandle = nil
-    pcall(function()
-        InstanceHandle = getfenv and getfenv().InstanceHandle or nil
-    end)
+	local HiddenMethods = {
+		{ name = "PhysicsRepRootRef", apply = function(part, target) return trySetHidden(part, "PhysicsRepRootRef", resolveInstanceHandle(target)) end },
+		{ name = "PhysicsRepRootPart", apply = function(part, target) return trySetHidden(part, "PhysicsRepRootPart", resolveInstanceHandle(target)) end },
+		{ name = "RootPart", apply = function(part, target) return trySetHidden(part, "RootPart", target) end },
+		{ name = "RootRef", apply = function(part, target) return trySetHidden(part, "RootRef", target) end },
+		{ name = "NetworkOwnership", apply = function(part) return trySetHidden(part, "NetworkOwnership", LocalPlayer) end },
+		{ name = "NetworkOwner", apply = function(part) return trySetHidden(part, "NetworkOwner", LocalPlayer) end },
+		{ name = "Massless", apply = function(part) return trySetHidden(part, "Massless", false) end },
+		{ name = "CanCollide", apply = function(part) return trySetHidden(part, "CanCollide", true) end },
+		{ name = "CanTouch", apply = function(part) return trySetHidden(part, "CanTouch", true) end },
+		{ name = "CanQuery", apply = function(part) return trySetHidden(part, "CanQuery", true) end },
+		{ name = "CollisionGroupId", apply = function(part) return trySetHidden(part, "CollisionGroupId", 0) end },
+		{ name = "CollisionGroup", apply = function(part) return trySetHidden(part, "CollisionGroup", "Default") end },
+		{ name = "NetworkIsSleeping", apply = function(part) return trySetHidden(part, "NetworkIsSleeping", false) end },
+		{ name = "CustomPhysicalProperties", apply = function(part) return trySetHidden(part, "CustomPhysicalProperties", PhysicalProperties.new(1, 0.3, 0.5)) end },
+	}
 
-    local function GetHandle(target)
-        if not InstanceHandle or not target then return target end
-        local ok, handle = pcall(function() return InstanceHandle.new(target) end)
-        if ok and handle then return handle end
-        return target
-    end
+	local NetworkMethods = {
+		{ name = "SetNetworkOwner_Local", apply = function(part) return trySetNetwork(part, function(p) p:SetNetworkOwner(LocalPlayer) end) end },
+		{ name = "SetNetworkOwnershipAuto", apply = function(part) return trySetNetwork(part, function(p) p:SetNetworkOwnershipAuto() end) end },
+		{ name = "SetNetworkOwner_Nil", apply = function(part) return trySetNetwork(part, function(p) p:SetNetworkOwner(nil) end) end },
+	}
 
-    local function TryHidden(part, prop, value)
-        if not sethiddenproperty then return false end
-        local ok, result = pcall(sethiddenproperty, part, prop, value)
-        if not ok then return false end
-        if result == false then return false end
-        return true
-    end
+	local function notifySupport(title, desc, kind)
+		pcall(function()
+			Window:Notify({
+				Title = title,
+				Description = desc,
+				Duration = 4,
+				Type = kind or "info",
+			})
+		end)
+	end
 
-    local HiddenMethods = {
-        { name = "PhysicsRepRootRef", apply = function(part, target) return TryHidden(part, "PhysicsRepRootRef", GetHandle(target)) end },
-        { name = "PhysicsRepRootPart", apply = function(part, target) return TryHidden(part, "PhysicsRepRootPart", GetHandle(target)) end },
-        { name = "RootPart", apply = function(part, target) return TryHidden(part, "RootPart", target) end },
-        { name = "RootRef", apply = function(part, target) return TryHidden(part, "RootRef", target) end },
-        { name = "NetworkOwnership", apply = function(part, target) return TryHidden(part, "NetworkOwnership", LocalPlayer) end },
-        { name = "NetworkOwner", apply = function(part, target) return TryHidden(part, "NetworkOwner", LocalPlayer) end },
-        { name = "Massless", apply = function(part, target) return TryHidden(part, "Massless", false) end },
-        { name = "CanCollide", apply = function(part, target) return TryHidden(part, "CanCollide", true) end },
-        { name = "CanTouch", apply = function(part, target) return TryHidden(part, "CanTouch", true) end },
-        { name = "CanQuery", apply = function(part, target) return TryHidden(part, "CanQuery", true) end },
-        { name = "CollisionGroupId", apply = function(part, target) return TryHidden(part, "CollisionGroupId", 0) end },
-        { name = "CollisionGroup", apply = function(part, target) return TryHidden(part, "CollisionGroup", "Default") end },
-        { name = "NetworkIsSleeping", apply = function(part, target) return TryHidden(part, "NetworkIsSleeping", false) end },
-        { name = "CustomPhysicalProperties", apply = function(part, target) return TryHidden(part, "CustomPhysicalProperties", PhysicalProperties.new(1, 0.3, 0.5)) end },
-    }
+	local function getCurrentHiddenName()
+		local m = HiddenMethods[SupportState.HiddenIndex]
+		return m and m.name or "None"
+	end
 
-    local function TryNet(part, fn)
-        local ok = pcall(fn, part)
-        return ok
-    end
+	local function getCurrentNetworkName()
+		local m = NetworkMethods[SupportState.NetworkIndex]
+		return m and m.name or "None"
+	end
 
-    local NetworkMethods = {
-        { name = "SetNetworkOwner_Local", apply = function(part) return TryNet(part, function(p) p:SetNetworkOwner(LocalPlayer) end) end },
-        { name = "SetNetworkOwnershipAuto", apply = function(part) return TryNet(part, function(p) p:SetNetworkOwnershipAuto() end) end },
-        { name = "SetNetworkOwner_Nil", apply = function(part) return TryNet(part, function(p) p:SetNetworkOwner(nil) end) end },
-    }
+	local function refreshStatusLabel()
+		if not SupportState.StatusLabel then return end
+		pcall(function()
+			local text = string.format(
+				"Hidden: %s (%s) | Net: %s (%s)",
+				SupportState.HiddenPropertyActive and "ON" or "OFF",
+				getCurrentHiddenName(),
+				SupportState.NetworkActive and "ON" or "OFF",
+				getCurrentNetworkName()
+			)
+			if type(SupportState.StatusLabel.Set) == "function" then
+				SupportState.StatusLabel:Set(text)
+			elseif type(SupportState.StatusLabel.SetText) == "function" then
+				SupportState.StatusLabel:SetText(text)
+			end
+		end)
+	end
 
-    local function HasFileAPI()
-        return type(isfile) == "function" and type(readfile) == "function" and type(writefile) == "function"
-    end
+	local function saveSupportState()
+		pcall(function()
+			if not hasFileSupport() then return end
+			local payload = {
+				HiddenPropertyActive = SupportState.HiddenPropertyActive,
+				NetworkActive = SupportState.NetworkActive,
+				AutoSwitchEnabled = SupportState.AutoSwitchEnabled,
+				HiddenIndex = SupportState.HiddenIndex,
+				NetworkIndex = SupportState.NetworkIndex,
+			}
+			writefile(SupportState.SaveFile, HttpService:JSONEncode(payload))
+		end)
+	end
 
-    local function LoadState()
-        pcall(function()
-            if not HasFileAPI() then return end
-            if isfile(SupportState.SaveFile) then
-                local raw = readfile(SupportState.SaveFile)
-                if raw and raw ~= "" then
-                    local HttpService = game:GetService("HttpService")
-                    local data = HttpService:JSONDecode(raw)
-                    if type(data) == "table" then
-                        if data.HiddenPropertyActive ~= nil then SupportState.HiddenPropertyActive = data.HiddenPropertyActive end
-                        if data.NetworkActive ~= nil then SupportState.NetworkActive = data.NetworkActive end
-                        if data.HiddenDisabled ~= nil then SupportState.HiddenDisabled = data.HiddenDisabled end
-                        if data.NetworkDisabled ~= nil then SupportState.NetworkDisabled = data.NetworkDisabled end
-                        if data.HiddenIndex then SupportState.HiddenIndex = data.HiddenIndex end
-                        if data.NetworkIndex then SupportState.NetworkIndex = data.NetworkIndex end
-                    end
-                end
-            end
-        end)
-    end
+	local function loadSupportState()
+		pcall(function()
+			if not hasFileSupport() then return end
+			if isfile(SupportState.SaveFile) then
+				local raw = readfile(SupportState.SaveFile)
+				if raw and raw ~= "" then
+					local decoded = HttpService:JSONDecode(raw)
+					if type(decoded) == "table" then
+						if decoded.HiddenPropertyActive ~= nil then SupportState.HiddenPropertyActive = decoded.HiddenPropertyActive end
+						if decoded.NetworkActive ~= nil then SupportState.NetworkActive = decoded.NetworkActive end
+						if decoded.AutoSwitchEnabled ~= nil then SupportState.AutoSwitchEnabled = decoded.AutoSwitchEnabled end
+						if type(decoded.HiddenIndex) == "number" and HiddenMethods[decoded.HiddenIndex] then
+							SupportState.HiddenIndex = decoded.HiddenIndex
+						end
+						if type(decoded.NetworkIndex) == "number" and NetworkMethods[decoded.NetworkIndex] then
+							SupportState.NetworkIndex = decoded.NetworkIndex
+						end
+					end
+				end
+			end
+		end)
+	end
 
-    local function SaveState()
-        pcall(function()
-            if not HasFileAPI() then return end
-            local HttpService = game:GetService("HttpService")
-            local data = {
-                HiddenPropertyActive = SupportState.HiddenPropertyActive,
-                NetworkActive = SupportState.NetworkActive,
-                HiddenDisabled = SupportState.HiddenDisabled,
-                NetworkDisabled = SupportState.NetworkDisabled,
-                HiddenIndex = SupportState.HiddenIndex,
-                NetworkIndex = SupportState.NetworkIndex,
-            }
-            writefile(SupportState.SaveFile, HttpService:JSONEncode(data))
-        end)
-    end
+	local function switchHiddenMethod(reason)
+		if not SupportState.AutoSwitchEnabled and reason ~= "manual" then
+			return false
+		end
+		local now = tick()
+		if reason ~= "manual" and (now - SupportState.HiddenSwitchCooldown) < 1.5 then
+			return false
+		end
+		SupportState.HiddenSwitchCooldown = now
+		SupportState.HiddenFailCount = 0
+		SupportState.HiddenIndex = (SupportState.HiddenIndex % #HiddenMethods) + 1
+		saveSupportState()
+		refreshStatusLabel()
+		notifySupport("Support Switched", "Hidden -> " .. getCurrentHiddenName(), "info")
+		return true
+	end
 
-    local function Notify(title, desc, kind)
-        pcall(function()
-            Window:Notify({
-                Title = title,
-                Description = desc,
-                Duration = 5,
-                Type = kind or "warning",
-            })
-        end)
-    end
+	local function switchNetworkMethod(reason)
+		if not SupportState.AutoSwitchEnabled and reason ~= "manual" then
+			return false
+		end
+		local now = tick()
+		if reason ~= "manual" and (now - SupportState.NetworkSwitchCooldown) < 1.5 then
+			return false
+		end
+		SupportState.NetworkSwitchCooldown = now
+		SupportState.NetworkFailCount = 0
+		SupportState.NetworkIndex = (SupportState.NetworkIndex % #NetworkMethods) + 1
+		saveSupportState()
+		refreshStatusLabel()
+		notifySupport("Support Switched", "Network -> " .. getCurrentNetworkName(), "info")
+		return true
+	end
 
-    local function FindFirstHiddenMethod(part, target)
-        for i, method in ipairs(HiddenMethods) do
-            local ok, success = pcall(method.apply, part, target)
-            if ok and success == true then
-                return i
-            end
-        end
-        return nil
-    end
+	local function applyHiddenToPart(part, targetPart)
+		local safeSource = PhysicsRepRootPart(part, nil)
+		if not SupportState.HiddenPropertyActive or not safeSource then
+			return false
+		end
+		local safeTarget = PhysicsRepRootPart(targetPart, safeSource)
+		local ref = PhysicsRepRootRef(safeTarget)
+		local handle = PhysicsRepRootHandle(ref.Current)
+		local finalTarget = handle.IsValid() and handle.Get() or safeSource
+		local _ = PhysicsRepRootPartName(finalTarget)
 
-    local function FindFirstNetworkMethod(part)
-        for i, method in ipairs(NetworkMethods) do
-            local ok, success = pcall(method.apply, part)
-            if ok and success == true then
-                return i
-            end
-        end
-        return nil
-    end
+		local method = HiddenMethods[SupportState.HiddenIndex] or HiddenMethods[1]
+		local ok, success = pcall(method.apply, safeSource, finalTarget)
+		if ok and success == true then
+			SupportState.HiddenFailCount = 0
+			return true
+		end
+		SupportState.HiddenFailCount = SupportState.HiddenFailCount + 1
+		if SupportState.HiddenFailCount >= 4 then
+			switchHiddenMethod("fallback")
+		end
+		return false
+	end
 
-    local function ApplyHiddenMethod(part, target)
-        if not SupportState.HiddenFound then
-            local idx = FindFirstHiddenMethod(part, target)
-            if idx then
-                SupportState.HiddenIndex = idx
-                SupportState.HiddenFound = true
-                SupportState.HiddenFailCount = 0
-                SupportState.HiddenSwitchCooldown = tick()
-                SaveState()
-                Notify("Support Active", "Using: " .. HiddenMethods[idx].name, "success")
-                return true
-            end
-            SupportState.HiddenFailCount = SupportState.HiddenFailCount + 1
-            if SupportState.HiddenFailCount >= 10 and not SupportState.HiddenWarned then
-                SupportState.HiddenWarned = true
-                SupportState.HiddenDisabled = true
-                SupportState.HiddenPropertyActive = false
-                SaveState()
-                Notify("Support Unavailable", "No hidden property method works on this executor.", "error")
-            end
-            return false
-        end
+	local function applyNetworkToPart(part)
+		local safeSource = PhysicsRepRootPart(part, nil)
+		if not SupportState.NetworkActive or not safeSource then
+			return false
+		end
+		local method = NetworkMethods[SupportState.NetworkIndex] or NetworkMethods[1]
+		local ok, success = pcall(method.apply, safeSource)
+		if ok and success == true then
+			SupportState.NetworkFailCount = 0
+			return true
+		end
+		SupportState.NetworkFailCount = SupportState.NetworkFailCount + 1
+		if SupportState.NetworkFailCount >= 4 then
+			switchNetworkMethod("fallback")
+		end
+		return false
+	end
 
-        local idx = SupportState.HiddenIndex
-        if idx > #HiddenMethods then idx = 1 end
-        local method = HiddenMethods[idx]
-        local ok, success = pcall(method.apply, part, target)
-        if ok and success == true then
-            SupportState.HiddenFailCount = 0
-            return true
-        end
+	-- Chamada direta usada pelo attach() e pela função Kill em tempo real
+	_G.SwatSupportAttach = function(sourcePart, targetPart)
+		local safeSource = PhysicsRepRootPart(sourcePart, nil)
+		if not safeSource then return end
+		local safeTarget = PhysicsRepRootPart(targetPart, nil)
+		pcall(function()
+			if SupportState.HiddenPropertyActive then
+				applyHiddenToPart(safeSource, safeTarget or safeSource)
+				if safeTarget and safeTarget ~= safeSource then
+					applyHiddenToPart(safeTarget, safeSource)
+				end
+			end
+			if SupportState.NetworkActive then
+				applyNetworkToPart(safeSource)
+				local assembly = PhysicsRepRootAssembly(safeSource)
+				for _, assemblyPart in ipairs(assembly) do
+					trySetNetwork(assemblyPart, function(p)
+						p:SetNetworkOwner(LocalPlayer)
+					end)
+				end
+				if safeTarget and safeTarget ~= safeSource then
+					trySetNetwork(safeTarget, function(p)
+						p:SetNetworkOwner(LocalPlayer)
+					end)
+				end
+			end
+		end)
+	end
 
-        SupportState.HiddenFailCount = SupportState.HiddenFailCount + 1
-        if SupportState.HiddenFailCount >= 5 then
-            SupportState.HiddenFailCount = 0
-            local now = tick()
-            if now - SupportState.HiddenSwitchCooldown < 3 then
-                return false
-            end
-            SupportState.HiddenSwitchCooldown = now
-            SupportState.HiddenIndex = SupportState.HiddenIndex + 1
-            if SupportState.HiddenIndex > #HiddenMethods then
-                SupportState.HiddenIndex = 1
-                SupportState.HiddenFound = false
-                SupportState.HiddenDisabled = true
-                SupportState.HiddenPropertyActive = false
-                SaveState()
-                if not SupportState.HiddenWarned then
-                    SupportState.HiddenWarned = true
-                    Notify("Support Unavailable", "No hidden property method works anymore.", "error")
-                end
-            else
-                SaveState()
-                Notify("Support Switched", "Now using: " .. HiddenMethods[SupportState.HiddenIndex].name, "info")
-            end
-        end
-        return false
-    end
+	_G.SwatSupportDetach = function(sourcePart)
+		local safeSource = PhysicsRepRootPart(sourcePart, nil)
+		if not safeSource then return end
+		pcall(function()
+			trySetHidden(safeSource, "PhysicsRepRootRef", nil)
+			trySetHidden(safeSource, "PhysicsRepRootPart", nil)
+		end)
+	end
 
-    local function ApplyNetworkMethod(part)
-        if not SupportState.NetworkFound then
-            local idx = FindFirstNetworkMethod(part)
-            if idx then
-                SupportState.NetworkIndex = idx
-                SupportState.NetworkFound = true
-                SupportState.NetworkFailCount = 0
-                SupportState.NetworkSwitchCooldown = tick()
-                SaveState()
-                Notify("Support Active", "Network: " .. NetworkMethods[idx].name, "success")
-                return true
-            end
-            SupportState.NetworkFailCount = SupportState.NetworkFailCount + 1
-            if SupportState.NetworkFailCount >= 10 and not SupportState.NetworkWarned then
-                SupportState.NetworkWarned = true
-                SupportState.NetworkDisabled = true
-                SupportState.NetworkActive = false
-                SaveState()
-                Notify("Support Unavailable", "No network method works on this executor.", "error")
-            end
-            return false
-        end
+	local function stopHiddenLoop()
+		if SupportState.HiddenPropertyConn then
+			SupportState.HiddenPropertyConn:Disconnect()
+			SupportState.HiddenPropertyConn = nil
+		end
+	end
 
-        local idx = SupportState.NetworkIndex
-        if idx > #NetworkMethods then idx = 1 end
-        local method = NetworkMethods[idx]
-        local ok, success = pcall(method.apply, part)
-        if ok and success == true then
-            SupportState.NetworkFailCount = 0
-            return true
-        end
+	local function stopNetworkLoop()
+		if SupportState.NetworkConn then
+			SupportState.NetworkConn:Disconnect()
+			SupportState.NetworkConn = nil
+		end
+	end
 
-        SupportState.NetworkFailCount = SupportState.NetworkFailCount + 1
-        if SupportState.NetworkFailCount >= 5 then
-            SupportState.NetworkFailCount = 0
-            local now = tick()
-            if now - SupportState.NetworkSwitchCooldown < 3 then
-                return false
-            end
-            SupportState.NetworkSwitchCooldown = now
-            SupportState.NetworkIndex = SupportState.NetworkIndex + 1
-            if SupportState.NetworkIndex > #NetworkMethods then
-                SupportState.NetworkIndex = 1
-                SupportState.NetworkFound = false
-                SupportState.NetworkDisabled = true
-                SupportState.NetworkActive = false
-                SaveState()
-                if not SupportState.NetworkWarned then
-                    SupportState.NetworkWarned = true
-                    Notify("Support Unavailable", "No network method works anymore.", "error")
-                end
-            else
-                SaveState()
-                Notify("Support Switched", "Network: " .. NetworkMethods[SupportState.NetworkIndex].name, "info")
-            end
-        end
-        return false
-    end
+	local function startHiddenLoop()
+		stopHiddenLoop()
+		if not SupportState.HiddenPropertyActive then return end
+		SupportState.HiddenPropertyConn = RunService.Heartbeat:Connect(function()
+			if not SupportState.HiddenPropertyActive then return end
+			local root = getRootPart(LocalPlayer.Character)
+			if root then
+				applyHiddenToPart(root, root)
+			end
+		end)
+	end
 
-    local function StopHiddenLoop()
-        pcall(function()
-            if SupportState.HiddenPropertyConn then
-                SupportState.HiddenPropertyConn:Disconnect()
-                SupportState.HiddenPropertyConn = nil
-            end
-        end)
-    end
+	local function startNetworkLoop()
+		stopNetworkLoop()
+		if not SupportState.NetworkActive then return end
+		SupportState.NetworkConn = RunService.Heartbeat:Connect(function()
+			if not SupportState.NetworkActive then return end
+			local root = getRootPart(LocalPlayer.Character)
+			if root then
+				applyNetworkToPart(root)
+			end
+		end)
+	end
 
-    local function StopNetworkLoop()
-        pcall(function()
-            if SupportState.NetworkConn then
-                SupportState.NetworkConn:Disconnect()
-                SupportState.NetworkConn = nil
-            end
-        end)
-    end
+	loadSupportState()
 
-    local function RunHiddenLoop()
-        StopHiddenLoop()
-        if not SupportState.HiddenPropertyActive then return end
-        if SupportState.HiddenDisabled then return end
-        SupportState.HiddenPropertyConn = RunService.Heartbeat:Connect(function()
-            pcall(function()
-                if not SupportState.HiddenPropertyActive then return end
-                if SupportState.HiddenDisabled then return end
-                local char = LocalPlayer.Character
-                if not char then return end
-                local root = char:FindFirstChild("HumanoidRootPart")
-                if not root then return end
-                ApplyHiddenMethod(root, root)
-            end)
-        end)
-    end
+	pcall(function()
+		SupportTab:CreateToggle({
+			Title = "Support sethiddenproperty",
+			Default = SupportState.HiddenPropertyActive,
+			Callback = function(Value)
+				SupportState.HiddenPropertyActive = Value
+				SupportState.HiddenFailCount = 0
+				saveSupportState()
+				refreshStatusLabel()
+				if Value then startHiddenLoop() else stopHiddenLoop() end
+			end,
+		})
+	end)
 
-    local function RunNetworkLoop()
-        StopNetworkLoop()
-        if not SupportState.NetworkActive then return end
-        if SupportState.NetworkDisabled then return end
-        SupportState.NetworkConn = RunService.Heartbeat:Connect(function()
-            pcall(function()
-                if not SupportState.NetworkActive then return end
-                if SupportState.NetworkDisabled then return end
-                local char = LocalPlayer.Character
-                if not char then return end
-                local root = char:FindFirstChild("HumanoidRootPart")
-                if not root then return end
-                ApplyNetworkMethod(root)
-            end)
-        end)
-    end
+	pcall(function()
+		SupportTab:CreateToggle({
+			Title = "Support Network",
+			Default = SupportState.NetworkActive,
+			Callback = function(Value)
+				SupportState.NetworkActive = Value
+				SupportState.NetworkFailCount = 0
+				saveSupportState()
+				refreshStatusLabel()
+				if Value then startNetworkLoop() else stopNetworkLoop() end
+			end,
+		})
+	end)
 
-    LoadState()
+	pcall(function()
+		SupportTab:CreateToggle({
+			Title = "Auto Switch Method",
+			Default = SupportState.AutoSwitchEnabled,
+			Callback = function(Value)
+				SupportState.AutoSwitchEnabled = Value
+				saveSupportState()
+			end,
+		})
+	end)
 
-    pcall(function()
-        SupportTab:CreateToggle({
-            Title = "Support sethiddenproperty",
-            Default = SupportState.HiddenPropertyActive,
-            Callback = function(Value)
-                pcall(function()
-                    SupportState.HiddenPropertyActive = Value
-                    SupportState.HiddenFailCount = 0
-                    SupportState.HiddenWarned = false
-                    SupportState.HiddenDisabled = false
-                    SupportState.HiddenFound = false
-                    SupportState.HiddenSwitchCooldown = 0
-                    SaveState()
-                    if Value then RunHiddenLoop() else StopHiddenLoop() end
-                end)
-            end,
-        })
-    end)
+	pcall(function()
+		SupportTab:CreateButton({
+			Title = "Next Method Now",
+			Callback = function()
+				switchHiddenMethod("manual")
+				switchNetworkMethod("manual")
+			end,
+		})
+	end)
 
-    pcall(function()
-        SupportTab:CreateToggle({
-            Title = "Support Network",
-            Default = SupportState.NetworkActive,
-            Callback = function(Value)
-                pcall(function()
-                    SupportState.NetworkActive = Value
-                    SupportState.NetworkFailCount = 0
-                    SupportState.NetworkWarned = false
-                    SupportState.NetworkDisabled = false
-                    SupportState.NetworkFound = false
-                    SupportState.NetworkSwitchCooldown = 0
-                    SaveState()
-                    if Value then RunNetworkLoop() else StopNetworkLoop() end
-                end)
-            end,
-        })
-    end)
+	pcall(function()
+		SupportTab:CreateButton({
+			Title = "Reset Support State",
+			Callback = function()
+				SupportState.HiddenIndex = 1
+				SupportState.NetworkIndex = 1
+				SupportState.HiddenFailCount = 0
+				SupportState.NetworkFailCount = 0
+				SupportState.HiddenPropertyActive = true
+				SupportState.NetworkActive = true
+				SupportState.AutoSwitchEnabled = true
+				saveSupportState()
+				startHiddenLoop()
+				startNetworkLoop()
+				refreshStatusLabel()
+				notifySupport("Support Reset", "Restored default methods and active loops.", "success")
+			end,
+		})
+	end)
 
-    pcall(function()
-        SupportTab:CreateLabel("Tries properties in order. Switches only when the current one stops working.")
-    end)
+	pcall(function()
+		SupportState.StatusLabel = SupportTab:CreateLabel(
+			string.format(
+				"Hidden: %s (%s) | Net: %s (%s)",
+				SupportState.HiddenPropertyActive and "ON" or "OFF",
+				getCurrentHiddenName(),
+				SupportState.NetworkActive and "ON" or "OFF",
+				getCurrentNetworkName()
+			)
+		)
+	end)
 
-    if SupportState.HiddenPropertyActive and not SupportState.HiddenDisabled then
-        RunHiddenLoop()
-    end
-    if SupportState.NetworkActive and not SupportState.NetworkDisabled then
-        RunNetworkLoop()
-    end
+	if SupportState.HiddenPropertyActive then
+		startHiddenLoop()
+	end
+	if SupportState.NetworkActive then
+		startNetworkLoop()
+	end
 end)
+
 pcall(function()
     local DeltaTab = Window:CreateTab("Delta Modded", "download")
 

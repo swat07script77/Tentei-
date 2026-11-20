@@ -17647,7 +17647,7 @@ pcall(function()
 		end)
 	end
 
-	local function getCurrentHiddenName()
+	local function getHiddenName()
 		local name = "None"
 		pcall(function()
 			local m = HiddenMethods[SupportState.HiddenIndex]
@@ -17658,7 +17658,7 @@ pcall(function()
 		return name
 	end
 
-	local function getCurrentNetworkName()
+	local function getNetworkName()
 		local name = "None"
 		pcall(function()
 			local m = NetworkMethods[SupportState.NetworkIndex]
@@ -17675,9 +17675,9 @@ pcall(function()
 			local text = string.format(
 				"Hidden: %s (%s) | Net: %s (%s)",
 				SupportState.HiddenPropertyActive and "ON" or "OFF",
-				getCurrentHiddenName(),
+				getHiddenName(),
 				SupportState.NetworkActive and "ON" or "OFF",
-				getCurrentNetworkName()
+				getNetworkName()
 			)
 			if type(SupportState.StatusLabel.Set) == "function" then
 				SupportState.StatusLabel:Set(text)
@@ -17831,7 +17831,10 @@ pcall(function()
 		pcall(function()
 			local safeTarget = PhysicsRepRootInstance(target)
 			if not safeTarget then return end
-			local handleClass = getfenv and getfenv().InstanceHandle or nil
+			local handleClass = nil
+			pcall(function()
+				handleClass = InstanceHandle or _G.InstanceHandle
+			end)
 			if type(handleClass) == "table" and type(handleClass.new) == "function" then
 				local ok, handle = pcall(function()
 					return handleClass.new(safeTarget)
@@ -17850,7 +17853,10 @@ pcall(function()
 		local applied = false
 		pcall(function()
 			if not isSafePart(part) then return end
-			local setter = getfenv and getfenv().sethiddenproperty or sethiddenproperty
+			local setter = nil
+			pcall(function()
+				setter = sethiddenproperty or _G.sethiddenproperty
+			end)
 			if type(setter) ~= "function" then return end
 			local ok, result = pcall(setter, part, propertyName, value)
 			if ok and result ~= false then
@@ -17957,7 +17963,7 @@ pcall(function()
 			SupportState.HiddenIndex = (SupportState.HiddenIndex % #HiddenMethods) + 1
 			saveSupportState()
 			refreshStatusLabel()
-			notifySupport("Support Switched", "Hidden -> " .. getCurrentHiddenName(), "info")
+			notifySupport("Support Switched", "Hidden -> " .. getHiddenName(), "info")
 			switched = true
 		end)
 		return switched
@@ -17978,7 +17984,7 @@ pcall(function()
 			SupportState.NetworkIndex = (SupportState.NetworkIndex % #NetworkMethods) + 1
 			saveSupportState()
 			refreshStatusLabel()
-			notifySupport("Support Switched", "Network -> " .. getCurrentNetworkName(), "info")
+			notifySupport("Support Switched", "Network -> " .. getNetworkName(), "info")
 			switched = true
 		end)
 		return switched
@@ -18207,9 +18213,9 @@ pcall(function()
 			string.format(
 				"Hidden: %s (%s) | Net: %s (%s)",
 				SupportState.HiddenPropertyActive and "ON" or "OFF",
-				getCurrentHiddenName(),
+				getHiddenName(),
 				SupportState.NetworkActive and "ON" or "OFF",
-				getCurrentNetworkName()
+				getNetworkName()
 			)
 		)
 	end)

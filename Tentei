@@ -17609,147 +17609,12 @@ pcall(function()
         })
     end)
 end)
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
-local LocalPlayer = Players.LocalPlayer
-
-local function isSafePart(candidate)
-	if typeof(candidate) ~= "Instance" then return false end
-	if not candidate:IsA("BasePart") then return false end
-	local ok, alive = pcall(function()
-		return candidate.Parent ~= nil
-	end)
-	return ok and alive == true
-end
-
-local function PhysicsRepRootInstance(candidate)
-	if not isSafePart(candidate) then return nil end
-	return candidate
-end
-
-local function PhysicsRepRootPart(part, overrideRoot)
-	if isSafePart(overrideRoot) then
-		return overrideRoot
-	end
-	if not isSafePart(part) then return nil end
-	local ok, root = pcall(function()
-		return part.AssemblyRootPart
-	end)
-	if ok and isSafePart(root) then
-		return root
-	end
-	return part
-end
-
-local function PhysicsRepRootRef(target)
-	local valid = isSafePart(target)
-	return {
-		Current = valid and target or nil,
-		Valid = valid,
-	}
-end
-
-local function PhysicsRepRootPartName(rootPart)
-	if not isSafePart(rootPart) then return "" end
-	local ok, name = pcall(function()
-		return rootPart.Name
-	end)
-	return (ok and type(name) == "string") and name or ""
-end
-
-local function PhysicsRepRootAssembly(rootPart)
-	local assembly = {}
-	local root = PhysicsRepRootPart(rootPart, nil)
-	if not root then return assembly end
-	table.insert(assembly, root)
-	local ok, connected = pcall(function()
-		return root:GetConnectedParts(true)
-	end)
-	if ok and type(connected) == "table" then
-		for _, item in ipairs(connected) do
-			if isSafePart(item) and item ~= root then
-				table.insert(assembly, item)
-			end
-		end
-	end
-	return assembly
-end
-
-local function PhysicsRepRootHandle(target)
-	local current = PhysicsRepRootInstance(target)
-
-	local function refresh()
-		if not isSafePart(current) then
-			current = nil
-		end
-		return current
-	end
-
-	return {
-		Get = function()
-			return refresh()
-		end,
-		IsValid = function()
-			return refresh() ~= nil
-		end,
-		Set = function(nextPart)
-			current = PhysicsRepRootInstance(nextPart)
-			return current
-		end,
-		Clear = function()
-			current = nil
-		end,
-	}
-end
-
-local function getRootPart(character)
-	if not character then return nil end
-	local candidate = character:FindFirstChild("HumanoidRootPart")
-		or character:FindFirstChild("Torso")
-		or character:FindFirstChild("UpperTorso")
-	return PhysicsRepRootPart(candidate, nil)
-end
-
-local function resolveInstanceHandle(target)
-	local safeTarget = PhysicsRepRootInstance(target)
-	if not safeTarget then return nil end
-	local handleClass = getfenv and getfenv().InstanceHandle or nil
-	if type(handleClass) == "table" and type(handleClass.new) == "function" then
-		local ok, handle = pcall(function()
-			return handleClass.new(safeTarget)
-		end)
-		if ok and handle ~= nil then
-			return handle
-		end
-	end
-	return safeTarget
-end
-
-local function trySetHidden(part, propertyName, value)
-	if not isSafePart(part) then return false end
-	local setter = getfenv and getfenv().sethiddenproperty or sethiddenproperty
-	if type(setter) ~= "function" then return false end
-	local ok, result = pcall(setter, part, propertyName, value)
-	if not ok or result == false then
-		return false
-	end
-	return true
-end
-
-local function trySetNetwork(part, callback)
-	if not isSafePart(part) or type(callback) ~= "function" then return false end
-	local ok = pcall(callback, part)
-	return ok == true
-end
-
-local function hasFileSupport()
-	return type(isfile) == "function"
-		and type(readfile) == "function"
-		and type(writefile) == "function"
-end
-
 pcall(function()
+	local Players = game:GetService("Players")
+	local RunService = game:GetService("RunService")
+	local HttpService = game:GetService("HttpService")
+	local LocalPlayer = Players.LocalPlayer
+
 	local SupportTab = Window:CreateTab("Support", "shield")
 
 	local SupportState = {
@@ -17768,28 +17633,8 @@ pcall(function()
 		StatusLabel = nil,
 	}
 
-	local HiddenMethods = {
-		{ name = "PhysicsRepRootRef", apply = function(part, target) return trySetHidden(part, "PhysicsRepRootRef", resolveInstanceHandle(target)) end },
-		{ name = "PhysicsRepRootPart", apply = function(part, target) return trySetHidden(part, "PhysicsRepRootPart", resolveInstanceHandle(target)) end },
-		{ name = "RootPart", apply = function(part, target) return trySetHidden(part, "RootPart", target) end },
-		{ name = "RootRef", apply = function(part, target) return trySetHidden(part, "RootRef", target) end },
-		{ name = "NetworkOwnership", apply = function(part) return trySetHidden(part, "NetworkOwnership", LocalPlayer) end },
-		{ name = "NetworkOwner", apply = function(part) return trySetHidden(part, "NetworkOwner", LocalPlayer) end },
-		{ name = "Massless", apply = function(part) return trySetHidden(part, "Massless", false) end },
-		{ name = "CanCollide", apply = function(part) return trySetHidden(part, "CanCollide", true) end },
-		{ name = "CanTouch", apply = function(part) return trySetHidden(part, "CanTouch", true) end },
-		{ name = "CanQuery", apply = function(part) return trySetHidden(part, "CanQuery", true) end },
-		{ name = "CollisionGroupId", apply = function(part) return trySetHidden(part, "CollisionGroupId", 0) end },
-		{ name = "CollisionGroup", apply = function(part) return trySetHidden(part, "CollisionGroup", "Default") end },
-		{ name = "NetworkIsSleeping", apply = function(part) return trySetHidden(part, "NetworkIsSleeping", false) end },
-		{ name = "CustomPhysicalProperties", apply = function(part) return trySetHidden(part, "CustomPhysicalProperties", PhysicalProperties.new(1, 0.3, 0.5)) end },
-	}
-
-	local NetworkMethods = {
-		{ name = "SetNetworkOwner_Local", apply = function(part) return trySetNetwork(part, function(p) p:SetNetworkOwner(LocalPlayer) end) end },
-		{ name = "SetNetworkOwnershipAuto", apply = function(part) return trySetNetwork(part, function(p) p:SetNetworkOwnershipAuto() end) end },
-		{ name = "SetNetworkOwner_Nil", apply = function(part) return trySetNetwork(part, function(p) p:SetNetworkOwner(nil) end) end },
-	}
+	local HiddenMethods = {}
+	local NetworkMethods = {}
 
 	local function notifySupport(title, desc, kind)
 		pcall(function()
@@ -17803,18 +17648,30 @@ pcall(function()
 	end
 
 	local function getCurrentHiddenName()
-		local m = HiddenMethods[SupportState.HiddenIndex]
-		return m and m.name or "None"
+		local name = "None"
+		pcall(function()
+			local m = HiddenMethods[SupportState.HiddenIndex]
+			if m and m.name then
+				name = m.name
+			end
+		end)
+		return name
 	end
 
 	local function getCurrentNetworkName()
-		local m = NetworkMethods[SupportState.NetworkIndex]
-		return m and m.name or "None"
+		local name = "None"
+		pcall(function()
+			local m = NetworkMethods[SupportState.NetworkIndex]
+			if m and m.name then
+				name = m.name
+			end
+		end)
+		return name
 	end
 
 	local function refreshStatusLabel()
-		if not SupportState.StatusLabel then return end
 		pcall(function()
+			if not SupportState.StatusLabel then return end
 			local text = string.format(
 				"Hidden: %s (%s) | Net: %s (%s)",
 				SupportState.HiddenPropertyActive and "ON" or "OFF",
@@ -17828,6 +17685,201 @@ pcall(function()
 				SupportState.StatusLabel:SetText(text)
 			end
 		end)
+	end
+
+	local function isSafePart(candidate)
+		local valid = false
+		pcall(function()
+			if typeof(candidate) == "Instance" and candidate:IsA("BasePart") and candidate.Parent ~= nil then
+				valid = true
+			end
+		end)
+		return valid
+	end
+
+	local function PhysicsRepRootInstance(candidate)
+		local result = nil
+		pcall(function()
+			if isSafePart(candidate) then
+				result = candidate
+			end
+		end)
+		return result
+	end
+
+	local function PhysicsRepRootPart(part, overrideRoot)
+		local result = nil
+		pcall(function()
+			if isSafePart(overrideRoot) then
+				result = overrideRoot
+				return
+			end
+			if not isSafePart(part) then return end
+			local ok, root = pcall(function()
+				return part.AssemblyRootPart
+			end)
+			if ok and isSafePart(root) then
+				result = root
+			else
+				result = part
+			end
+		end)
+		return result
+	end
+
+	local function PhysicsRepRootRef(target)
+		local ref = { Current = nil, Valid = false }
+		pcall(function()
+			local valid = isSafePart(target)
+			ref.Current = valid and target or nil
+			ref.Valid = valid
+		end)
+		return ref
+	end
+
+	local function PhysicsRepRootPartName(rootPart)
+		local nameOut = ""
+		pcall(function()
+			if not isSafePart(rootPart) then return end
+			local ok, name = pcall(function()
+				return rootPart.Name
+			end)
+			if ok and type(name) == "string" then
+				nameOut = name
+			end
+		end)
+		return nameOut
+	end
+
+	local function PhysicsRepRootAssembly(rootPart)
+		local assembly = {}
+		pcall(function()
+			local root = PhysicsRepRootPart(rootPart, nil)
+			if not root then return end
+			table.insert(assembly, root)
+			local ok, connected = pcall(function()
+				return root:GetConnectedParts(true)
+			end)
+			if ok and type(connected) == "table" then
+				for _, item in ipairs(connected) do
+					if isSafePart(item) and item ~= root then
+						table.insert(assembly, item)
+					end
+				end
+			end
+		end)
+		return assembly
+	end
+
+	local function PhysicsRepRootHandle(target)
+		local current = PhysicsRepRootInstance(target)
+
+		local function refresh()
+			pcall(function()
+				if not isSafePart(current) then
+					current = nil
+				end
+			end)
+			return current
+		end
+
+		return {
+			Get = function()
+				local out = nil
+				pcall(function()
+					out = refresh()
+				end)
+				return out
+			end,
+			IsValid = function()
+				local valid = false
+				pcall(function()
+					valid = refresh() ~= nil
+				end)
+				return valid
+			end,
+			Set = function(nextPart)
+				local out = nil
+				pcall(function()
+					current = PhysicsRepRootInstance(nextPart)
+					out = current
+				end)
+				return out
+			end,
+			Clear = function()
+				pcall(function()
+					current = nil
+				end)
+			end,
+		}
+	end
+
+	local function getRootPart(character)
+		local root = nil
+		pcall(function()
+			if not character then return end
+			local candidate = character:FindFirstChild("HumanoidRootPart")
+				or character:FindFirstChild("Torso")
+				or character:FindFirstChild("UpperTorso")
+			root = PhysicsRepRootPart(candidate, nil)
+		end)
+		return root
+	end
+
+	local function resolveInstanceHandle(target)
+		local resolved = nil
+		pcall(function()
+			local safeTarget = PhysicsRepRootInstance(target)
+			if not safeTarget then return end
+			local handleClass = getfenv and getfenv().InstanceHandle or nil
+			if type(handleClass) == "table" and type(handleClass.new) == "function" then
+				local ok, handle = pcall(function()
+					return handleClass.new(safeTarget)
+				end)
+				if ok and handle ~= nil then
+					resolved = handle
+					return
+				end
+			end
+			resolved = safeTarget
+		end)
+		return resolved
+	end
+
+	local function trySetHidden(part, propertyName, value)
+		local applied = false
+		pcall(function()
+			if not isSafePart(part) then return end
+			local setter = getfenv and getfenv().sethiddenproperty or sethiddenproperty
+			if type(setter) ~= "function" then return end
+			local ok, result = pcall(setter, part, propertyName, value)
+			if ok and result ~= false then
+				applied = true
+			end
+		end)
+		return applied
+	end
+
+	local function trySetNetwork(part, callback)
+		local applied = false
+		pcall(function()
+			if not isSafePart(part) or type(callback) ~= "function" then return end
+			local ok = pcall(callback, part)
+			if ok == true then
+				applied = true
+			end
+		end)
+		return applied
+	end
+
+	local function hasFileSupport()
+		local supported = false
+		pcall(function()
+			supported = type(isfile) == "function"
+				and type(readfile) == "function"
+				and type(writefile) == "function"
+		end)
+		return supported
 	end
 
 	local function saveSupportState()
@@ -17867,88 +17919,126 @@ pcall(function()
 		end)
 	end
 
+	HiddenMethods = {
+		{ name = "PhysicsRepRootRef", apply = function(part, target) return trySetHidden(part, "PhysicsRepRootRef", resolveInstanceHandle(target)) end },
+		{ name = "PhysicsRepRootPart", apply = function(part, target) return trySetHidden(part, "PhysicsRepRootPart", resolveInstanceHandle(target)) end },
+		{ name = "RootPart", apply = function(part, target) return trySetHidden(part, "RootPart", target) end },
+		{ name = "RootRef", apply = function(part, target) return trySetHidden(part, "RootRef", target) end },
+		{ name = "NetworkOwnership", apply = function(part) return trySetHidden(part, "NetworkOwnership", LocalPlayer) end },
+		{ name = "NetworkOwner", apply = function(part) return trySetHidden(part, "NetworkOwner", LocalPlayer) end },
+		{ name = "Massless", apply = function(part) return trySetHidden(part, "Massless", false) end },
+		{ name = "CanCollide", apply = function(part) return trySetHidden(part, "CanCollide", true) end },
+		{ name = "CanTouch", apply = function(part) return trySetHidden(part, "CanTouch", true) end },
+		{ name = "CanQuery", apply = function(part) return trySetHidden(part, "CanQuery", true) end },
+		{ name = "CollisionGroupId", apply = function(part) return trySetHidden(part, "CollisionGroupId", 0) end },
+		{ name = "CollisionGroup", apply = function(part) return trySetHidden(part, "CollisionGroup", "Default") end },
+		{ name = "NetworkIsSleeping", apply = function(part) return trySetHidden(part, "NetworkIsSleeping", false) end },
+		{ name = "CustomPhysicalProperties", apply = function(part) return trySetHidden(part, "CustomPhysicalProperties", PhysicalProperties.new(1, 0.3, 0.5)) end },
+	}
+
+	NetworkMethods = {
+		{ name = "SetNetworkOwner_Local", apply = function(part) return trySetNetwork(part, function(p) p:SetNetworkOwner(LocalPlayer) end) end },
+		{ name = "SetNetworkOwnershipAuto", apply = function(part) return trySetNetwork(part, function(p) p:SetNetworkOwnershipAuto() end) end },
+		{ name = "SetNetworkOwner_Nil", apply = function(part) return trySetNetwork(part, function(p) p:SetNetworkOwner(nil) end) end },
+	}
+
 	local function switchHiddenMethod(reason)
-		if not SupportState.AutoSwitchEnabled and reason ~= "manual" then
-			return false
-		end
-		local now = tick()
-		if reason ~= "manual" and (now - SupportState.HiddenSwitchCooldown) < 1.5 then
-			return false
-		end
-		SupportState.HiddenSwitchCooldown = now
-		SupportState.HiddenFailCount = 0
-		SupportState.HiddenIndex = (SupportState.HiddenIndex % #HiddenMethods) + 1
-		saveSupportState()
-		refreshStatusLabel()
-		notifySupport("Support Switched", "Hidden -> " .. getCurrentHiddenName(), "info")
-		return true
+		local switched = false
+		pcall(function()
+			if not SupportState.AutoSwitchEnabled and reason ~= "manual" then
+				return
+			end
+			local now = tick()
+			if reason ~= "manual" and (now - SupportState.HiddenSwitchCooldown) < 1.5 then
+				return
+			end
+			SupportState.HiddenSwitchCooldown = now
+			SupportState.HiddenFailCount = 0
+			SupportState.HiddenIndex = (SupportState.HiddenIndex % #HiddenMethods) + 1
+			saveSupportState()
+			refreshStatusLabel()
+			notifySupport("Support Switched", "Hidden -> " .. getCurrentHiddenName(), "info")
+			switched = true
+		end)
+		return switched
 	end
 
 	local function switchNetworkMethod(reason)
-		if not SupportState.AutoSwitchEnabled and reason ~= "manual" then
-			return false
-		end
-		local now = tick()
-		if reason ~= "manual" and (now - SupportState.NetworkSwitchCooldown) < 1.5 then
-			return false
-		end
-		SupportState.NetworkSwitchCooldown = now
-		SupportState.NetworkFailCount = 0
-		SupportState.NetworkIndex = (SupportState.NetworkIndex % #NetworkMethods) + 1
-		saveSupportState()
-		refreshStatusLabel()
-		notifySupport("Support Switched", "Network -> " .. getCurrentNetworkName(), "info")
-		return true
+		local switched = false
+		pcall(function()
+			if not SupportState.AutoSwitchEnabled and reason ~= "manual" then
+				return
+			end
+			local now = tick()
+			if reason ~= "manual" and (now - SupportState.NetworkSwitchCooldown) < 1.5 then
+				return
+			end
+			SupportState.NetworkSwitchCooldown = now
+			SupportState.NetworkFailCount = 0
+			SupportState.NetworkIndex = (SupportState.NetworkIndex % #NetworkMethods) + 1
+			saveSupportState()
+			refreshStatusLabel()
+			notifySupport("Support Switched", "Network -> " .. getCurrentNetworkName(), "info")
+			switched = true
+		end)
+		return switched
 	end
 
 	local function applyHiddenToPart(part, targetPart)
-		local safeSource = PhysicsRepRootPart(part, nil)
-		if not SupportState.HiddenPropertyActive or not safeSource then
-			return false
-		end
-		local safeTarget = PhysicsRepRootPart(targetPart, safeSource)
-		local ref = PhysicsRepRootRef(safeTarget)
-		local handle = PhysicsRepRootHandle(ref.Current)
-		local finalTarget = handle.IsValid() and handle.Get() or safeSource
-		local _ = PhysicsRepRootPartName(finalTarget)
+		local applied = false
+		pcall(function()
+			local safeSource = PhysicsRepRootPart(part, nil)
+			if not SupportState.HiddenPropertyActive or not safeSource then
+				return
+			end
+			local safeTarget = PhysicsRepRootPart(targetPart, safeSource)
+			local ref = PhysicsRepRootRef(safeTarget)
+			local handle = PhysicsRepRootHandle(ref.Current)
+			local finalTarget = handle.IsValid() and handle.Get() or safeSource
+			local _ = PhysicsRepRootPartName(finalTarget)
 
-		local method = HiddenMethods[SupportState.HiddenIndex] or HiddenMethods[1]
-		local ok, success = pcall(method.apply, safeSource, finalTarget)
-		if ok and success == true then
-			SupportState.HiddenFailCount = 0
-			return true
-		end
-		SupportState.HiddenFailCount = SupportState.HiddenFailCount + 1
-		if SupportState.HiddenFailCount >= 4 then
-			switchHiddenMethod("fallback")
-		end
-		return false
+			local method = HiddenMethods[SupportState.HiddenIndex] or HiddenMethods[1]
+			local ok, success = pcall(method.apply, safeSource, finalTarget)
+			if ok and success == true then
+				SupportState.HiddenFailCount = 0
+				applied = true
+				return
+			end
+			SupportState.HiddenFailCount = SupportState.HiddenFailCount + 1
+			if SupportState.HiddenFailCount >= 4 then
+				switchHiddenMethod("fallback")
+			end
+		end)
+		return applied
 	end
 
 	local function applyNetworkToPart(part)
-		local safeSource = PhysicsRepRootPart(part, nil)
-		if not SupportState.NetworkActive or not safeSource then
-			return false
-		end
-		local method = NetworkMethods[SupportState.NetworkIndex] or NetworkMethods[1]
-		local ok, success = pcall(method.apply, safeSource)
-		if ok and success == true then
-			SupportState.NetworkFailCount = 0
-			return true
-		end
-		SupportState.NetworkFailCount = SupportState.NetworkFailCount + 1
-		if SupportState.NetworkFailCount >= 4 then
-			switchNetworkMethod("fallback")
-		end
-		return false
+		local applied = false
+		pcall(function()
+			local safeSource = PhysicsRepRootPart(part, nil)
+			if not SupportState.NetworkActive or not safeSource then
+				return
+			end
+			local method = NetworkMethods[SupportState.NetworkIndex] or NetworkMethods[1]
+			local ok, success = pcall(method.apply, safeSource)
+			if ok and success == true then
+				SupportState.NetworkFailCount = 0
+				applied = true
+				return
+			end
+			SupportState.NetworkFailCount = SupportState.NetworkFailCount + 1
+			if SupportState.NetworkFailCount >= 4 then
+				switchNetworkMethod("fallback")
+			end
+		end)
+		return applied
 	end
 
-	-- Chamada direta usada pelo attach() e pela função Kill em tempo real
 	_G.SwatSupportAttach = function(sourcePart, targetPart)
-		local safeSource = PhysicsRepRootPart(sourcePart, nil)
-		if not safeSource then return end
-		local safeTarget = PhysicsRepRootPart(targetPart, nil)
 		pcall(function()
+			local safeSource = PhysicsRepRootPart(sourcePart, nil)
+			if not safeSource then return end
+			local safeTarget = PhysicsRepRootPart(targetPart, nil)
 			if SupportState.HiddenPropertyActive then
 				applyHiddenToPart(safeSource, safeTarget or safeSource)
 				if safeTarget and safeTarget ~= safeSource then
@@ -17973,49 +18063,61 @@ pcall(function()
 	end
 
 	_G.SwatSupportDetach = function(sourcePart)
-		local safeSource = PhysicsRepRootPart(sourcePart, nil)
-		if not safeSource then return end
 		pcall(function()
+			local safeSource = PhysicsRepRootPart(sourcePart, nil)
+			if not safeSource then return end
 			trySetHidden(safeSource, "PhysicsRepRootRef", nil)
 			trySetHidden(safeSource, "PhysicsRepRootPart", nil)
 		end)
 	end
 
 	local function stopHiddenLoop()
-		if SupportState.HiddenPropertyConn then
-			SupportState.HiddenPropertyConn:Disconnect()
-			SupportState.HiddenPropertyConn = nil
-		end
-	end
-
-	local function stopNetworkLoop()
-		if SupportState.NetworkConn then
-			SupportState.NetworkConn:Disconnect()
-			SupportState.NetworkConn = nil
-		end
-	end
-
-	local function startHiddenLoop()
-		stopHiddenLoop()
-		if not SupportState.HiddenPropertyActive then return end
-		SupportState.HiddenPropertyConn = RunService.Heartbeat:Connect(function()
-			if not SupportState.HiddenPropertyActive then return end
-			local root = getRootPart(LocalPlayer.Character)
-			if root then
-				applyHiddenToPart(root, root)
+		pcall(function()
+			if SupportState.HiddenPropertyConn then
+				SupportState.HiddenPropertyConn:Disconnect()
+				SupportState.HiddenPropertyConn = nil
 			end
 		end)
 	end
 
-	local function startNetworkLoop()
-		stopNetworkLoop()
-		if not SupportState.NetworkActive then return end
-		SupportState.NetworkConn = RunService.Heartbeat:Connect(function()
-			if not SupportState.NetworkActive then return end
-			local root = getRootPart(LocalPlayer.Character)
-			if root then
-				applyNetworkToPart(root)
+	local function stopNetworkLoop()
+		pcall(function()
+			if SupportState.NetworkConn then
+				SupportState.NetworkConn:Disconnect()
+				SupportState.NetworkConn = nil
 			end
+		end)
+	end
+
+	local function startHiddenLoop()
+		pcall(function()
+			stopHiddenLoop()
+			if not SupportState.HiddenPropertyActive then return end
+			SupportState.HiddenPropertyConn = RunService.Heartbeat:Connect(function()
+				pcall(function()
+					if not SupportState.HiddenPropertyActive then return end
+					local root = getRootPart(LocalPlayer.Character)
+					if root then
+						applyHiddenToPart(root, root)
+					end
+				end)
+			end)
+		end)
+	end
+
+	local function startNetworkLoop()
+		pcall(function()
+			stopNetworkLoop()
+			if not SupportState.NetworkActive then return end
+			SupportState.NetworkConn = RunService.Heartbeat:Connect(function()
+				pcall(function()
+					if not SupportState.NetworkActive then return end
+					local root = getRootPart(LocalPlayer.Character)
+					if root then
+						applyNetworkToPart(root)
+					end
+				end)
+			end)
 		end)
 	end
 
@@ -18026,11 +18128,13 @@ pcall(function()
 			Title = "Support sethiddenproperty",
 			Default = SupportState.HiddenPropertyActive,
 			Callback = function(Value)
-				SupportState.HiddenPropertyActive = Value
-				SupportState.HiddenFailCount = 0
-				saveSupportState()
-				refreshStatusLabel()
-				if Value then startHiddenLoop() else stopHiddenLoop() end
+				pcall(function()
+					SupportState.HiddenPropertyActive = Value
+					SupportState.HiddenFailCount = 0
+					saveSupportState()
+					refreshStatusLabel()
+					if Value then startHiddenLoop() else stopHiddenLoop() end
+				end)
 			end,
 		})
 	end)
@@ -18040,11 +18144,13 @@ pcall(function()
 			Title = "Support Network",
 			Default = SupportState.NetworkActive,
 			Callback = function(Value)
-				SupportState.NetworkActive = Value
-				SupportState.NetworkFailCount = 0
-				saveSupportState()
-				refreshStatusLabel()
-				if Value then startNetworkLoop() else stopNetworkLoop() end
+				pcall(function()
+					SupportState.NetworkActive = Value
+					SupportState.NetworkFailCount = 0
+					saveSupportState()
+					refreshStatusLabel()
+					if Value then startNetworkLoop() else stopNetworkLoop() end
+				end)
 			end,
 		})
 	end)
@@ -18054,8 +18160,10 @@ pcall(function()
 			Title = "Auto Switch Method",
 			Default = SupportState.AutoSwitchEnabled,
 			Callback = function(Value)
-				SupportState.AutoSwitchEnabled = Value
-				saveSupportState()
+				pcall(function()
+					SupportState.AutoSwitchEnabled = Value
+					saveSupportState()
+				end)
 			end,
 		})
 	end)
@@ -18064,8 +18172,10 @@ pcall(function()
 		SupportTab:CreateButton({
 			Title = "Next Method Now",
 			Callback = function()
-				switchHiddenMethod("manual")
-				switchNetworkMethod("manual")
+				pcall(function()
+					switchHiddenMethod("manual")
+					switchNetworkMethod("manual")
+				end)
 			end,
 		})
 	end)
@@ -18074,18 +18184,20 @@ pcall(function()
 		SupportTab:CreateButton({
 			Title = "Reset Support State",
 			Callback = function()
-				SupportState.HiddenIndex = 1
-				SupportState.NetworkIndex = 1
-				SupportState.HiddenFailCount = 0
-				SupportState.NetworkFailCount = 0
-				SupportState.HiddenPropertyActive = true
-				SupportState.NetworkActive = true
-				SupportState.AutoSwitchEnabled = true
-				saveSupportState()
-				startHiddenLoop()
-				startNetworkLoop()
-				refreshStatusLabel()
-				notifySupport("Support Reset", "Restored default methods and active loops.", "success")
+				pcall(function()
+					SupportState.HiddenIndex = 1
+					SupportState.NetworkIndex = 1
+					SupportState.HiddenFailCount = 0
+					SupportState.NetworkFailCount = 0
+					SupportState.HiddenPropertyActive = true
+					SupportState.NetworkActive = true
+					SupportState.AutoSwitchEnabled = true
+					saveSupportState()
+					startHiddenLoop()
+					startNetworkLoop()
+					refreshStatusLabel()
+					notifySupport("Support Reset", "Restored default methods and active loops.", "success")
+				end)
 			end,
 		})
 	end)
@@ -18109,6 +18221,7 @@ pcall(function()
 		startNetworkLoop()
 	end
 end)
+
 
 pcall(function()
     local DeltaTab = Window:CreateTab("Delta Modded", "download")

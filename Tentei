@@ -1037,18 +1037,27 @@ local function Notify(title, desc, dur)
     Window:Notify({ Title = title, Description = desc, Duration = dur or 2, Type = "info" })
 end
 
-local function attach(Part, TargetPart)
-    if sethiddenproperty and InstanceHandle then
-        pcall(function()
-            sethiddenproperty(Part, "PhysicsRepRootPart", InstanceHandle.new(TargetPart or Part))
-        end)
+local function resolveTargetWithSupportTab(rootPart, fallbackTarget)
+    local resolved = fallbackTarget
+    if type(supporttab) == "function" then
+        local ok, result = pcall(supporttab, rootPart, fallbackTarget)
+        if ok and result ~= nil then
+            resolved = result
+        end
+    elseif type(supporttab) == "table" and type(supporttab.resolve) == "function" then
+        local ok, result = pcall(supporttab.resolve, rootPart, fallbackTarget)
+        if ok and result ~= nil then
+            resolved = result
+        end
     end
+    return resolved
 end
 
-local function detach(Part)
-    if sethiddenproperty then
+if sethiddenproperty and localRoot and localRoot:IsA("BasePart") then
+    local finalTarget = resolveTargetWithSupportTab(localRoot, targetRoot)
+    if finalTarget and typeof(finalTarget) == "Instance" and finalTarget:IsA("BasePart") then
         pcall(function()
-            sethiddenproperty(Part, "PhysicsRepRootPart", nil)
+            sethiddenproperty(localRoot, "PhysicsRepRootPart", finalTarget)
         end)
     end
 end

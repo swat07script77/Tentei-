@@ -1040,7 +1040,7 @@ end
 local function attach(Part, TargetPart)
     if sethiddenproperty and InstanceHandle then
         pcall(function()
-            sethiddenproperty(Part, "PhysicsRepRootRef", InstanceHandle.new(TargetPart or Part))
+            sethiddenproperty(Part, "PhysicsRepRootPart", InstanceHandle.new(TargetPart or Part))
         end)
     end
 end
@@ -1048,7 +1048,7 @@ end
 local function detach(Part)
     if sethiddenproperty then
         pcall(function()
-            sethiddenproperty(Part, "PhysicsRepRootRef", nil)
+            sethiddenproperty(Part, "PhysicsRepRootPart", nil)
         end)
     end
 end

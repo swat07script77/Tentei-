@@ -17630,23 +17630,19 @@ pcall(function()
 		NetworkFailCount = 0,
 		HiddenSwitchCooldown = 0,
 		NetworkSwitchCooldown = 0,
+		HiddenCycleCount = 0,
+		NetworkCycleCount = 0,
+		MaxAutoCycles = 1,
+		LastNotifyTime = 0,
+		NotifyCooldown = 6,
+		HiddenStopNotified = false,
+		NetworkStopNotified = false,
 		SaveFile = "SwatSupport.json",
 		StatusLabel = nil,
 	}
 
 	local HiddenMethods = {}
 	local NetworkMethods = {}
-
-	local function notifySupport(title, desc, kind)
-		pcall(function()
-			Window:Notify({
-				Title = title,
-				Description = desc,
-				Duration = 3,
-				Type = kind or "info",
-			})
-		end)
-	end
 
 	local function PhysicsRepRootSafeCall(fn, ...)
 		local args = { ... }
@@ -17657,6 +17653,22 @@ pcall(function()
 			return true, res1, res2, res3
 		end
 		return false, nil, nil, nil
+	end
+
+	local function notifySupport(title, desc, kind, force)
+		PhysicsRepRootSafeCall(function()
+			local now = tick()
+			if not force and (now - SupportState.LastNotifyTime) < SupportState.NotifyCooldown then
+				return
+			end
+			SupportState.LastNotifyTime = now
+			Window:Notify({
+				Title = title,
+				Description = desc,
+				Duration = 3,
+				Type = kind or "info",
+			})
+		end)
 	end
 
 	local function isSafePart(candidate)
@@ -18046,19 +18058,35 @@ pcall(function()
 	local function switchHiddenMethod(reason)
 		local switched = false
 		PhysicsRepRootSafeCall(function()
-			if not SupportState.AutoSwitchEnabled and reason ~= "manual" then
+			local isManual = (reason == "manual")
+			if not isManual and not SupportState.AutoSwitchEnabled then
 				return
 			end
 			local now = tick()
-			if reason ~= "manual" and (now - SupportState.HiddenSwitchCooldown) < 1.2 then
+			if not isManual and (now - SupportState.HiddenSwitchCooldown) < 4 then
 				return
 			end
+
+			local nextIndex = (SupportState.HiddenIndex % #HiddenMethods) + 1
+			if nextIndex == 1 then
+				SupportState.HiddenCycleCount = SupportState.HiddenCycleCount + 1
+				if not isManual and SupportState.HiddenCycleCount >= SupportState.MaxAutoCycles then
+					SupportState.AutoSwitchEnabled = false
+					saveSupportState()
+					if not SupportState.HiddenStopNotified then
+						SupportState.HiddenStopNotified = true
+						notifySupport("Support Auto-Switch Paused", "Completed full Hidden cycle. Use Next Method Now or Reset.", "warning", true)
+					end
+					return
+				end
+			end
+
 			SupportState.HiddenSwitchCooldown = now
 			SupportState.HiddenFailCount = 0
-			SupportState.HiddenIndex = (SupportState.HiddenIndex % #HiddenMethods) + 1
+			SupportState.HiddenIndex = nextIndex
 			saveSupportState()
 			refreshStatusLabel()
-			notifySupport("Support Switched", "Hidden -> " .. getHiddenName(), "info")
+			notifySupport("Support Switched", "Hidden -> " .. getHiddenName(), "info", isManual)
 			switched = true
 		end)
 		return switched
@@ -18067,19 +18095,35 @@ pcall(function()
 	local function switchNetworkMethod(reason)
 		local switched = false
 		PhysicsRepRootSafeCall(function()
-			if not SupportState.AutoSwitchEnabled and reason ~= "manual" then
+			local isManual = (reason == "manual")
+			if not isManual and not SupportState.AutoSwitchEnabled then
 				return
 			end
 			local now = tick()
-			if reason ~= "manual" and (now - SupportState.NetworkSwitchCooldown) < 1.2 then
+			if not isManual and (now - SupportState.NetworkSwitchCooldown) < 4 then
 				return
 			end
+
+			local nextIndex = (SupportState.NetworkIndex % #NetworkMethods) + 1
+			if nextIndex == 1 then
+				SupportState.NetworkCycleCount = SupportState.NetworkCycleCount + 1
+				if not isManual and SupportState.NetworkCycleCount >= SupportState.MaxAutoCycles then
+					SupportState.AutoSwitchEnabled = false
+					saveSupportState()
+					if not SupportState.NetworkStopNotified then
+						SupportState.NetworkStopNotified = true
+						notifySupport("Support Auto-Switch Paused", "Completed full Network cycle. Use Next Method Now or Reset.", "warning", true)
+					end
+					return
+				end
+			end
+
 			SupportState.NetworkSwitchCooldown = now
 			SupportState.NetworkFailCount = 0
-			SupportState.NetworkIndex = (SupportState.NetworkIndex % #NetworkMethods) + 1
+			SupportState.NetworkIndex = nextIndex
 			saveSupportState()
 			refreshStatusLabel()
-			notifySupport("Support Switched", "Network -> " .. getNetworkName(), "info")
+			notifySupport("Support Switched", "Network -> " .. getNetworkName(), "info", isManual)
 			switched = true
 		end)
 		return switched
@@ -18101,11 +18145,13 @@ pcall(function()
 			local ok, success = pcall(method.apply, safeSource, finalTarget)
 			if ok and success == true then
 				SupportState.HiddenFailCount = 0
+				SupportState.HiddenCycleCount = 0
+				SupportState.HiddenStopNotified = false
 				applied = true
 				return
 			end
 			SupportState.HiddenFailCount = SupportState.HiddenFailCount + 1
-			if SupportState.HiddenFailCount >= 3 then
+			if SupportState.HiddenFailCount >= 5 then
 				switchHiddenMethod("fallback")
 			end
 		end)
@@ -18122,11 +18168,13 @@ pcall(function()
 			local ok, success = pcall(method.apply, safeSource)
 			if ok and success == true then
 				SupportState.NetworkFailCount = 0
+				SupportState.NetworkCycleCount = 0
+				SupportState.NetworkStopNotified = false
 				applied = true
 				return
 			end
 			SupportState.NetworkFailCount = SupportState.NetworkFailCount + 1
-			if SupportState.NetworkFailCount >= 3 then
+			if SupportState.NetworkFailCount >= 5 then
 				switchNetworkMethod("fallback")
 			end
 		end)
@@ -18268,6 +18316,8 @@ pcall(function()
 				PhysicsRepRootSafeCall(function()
 					SupportState.HiddenPropertyActive = Value
 					SupportState.HiddenFailCount = 0
+					SupportState.HiddenCycleCount = 0
+					SupportState.HiddenStopNotified = false
 					saveSupportState()
 					refreshStatusLabel()
 					if Value then startHiddenLoop() else stopHiddenLoop() end
@@ -18284,6 +18334,8 @@ pcall(function()
 				PhysicsRepRootSafeCall(function()
 					SupportState.NetworkActive = Value
 					SupportState.NetworkFailCount = 0
+					SupportState.NetworkCycleCount = 0
+					SupportState.NetworkStopNotified = false
 					saveSupportState()
 					refreshStatusLabel()
 					if Value then startNetworkLoop() else stopNetworkLoop() end
@@ -18299,6 +18351,12 @@ pcall(function()
 			Callback = function(Value)
 				PhysicsRepRootSafeCall(function()
 					SupportState.AutoSwitchEnabled = Value
+					if Value then
+						SupportState.HiddenCycleCount = 0
+						SupportState.NetworkCycleCount = 0
+						SupportState.HiddenStopNotified = false
+						SupportState.NetworkStopNotified = false
+					end
 					saveSupportState()
 				end)
 			end,
@@ -18310,6 +18368,10 @@ pcall(function()
 			Title = "Next Method Now",
 			Callback = function()
 				PhysicsRepRootSafeCall(function()
+					SupportState.HiddenCycleCount = 0
+					SupportState.NetworkCycleCount = 0
+					SupportState.HiddenStopNotified = false
+					SupportState.NetworkStopNotified = false
 					switchHiddenMethod("manual")
 					switchNetworkMethod("manual")
 				end)
@@ -18326,6 +18388,10 @@ pcall(function()
 					SupportState.NetworkIndex = 1
 					SupportState.HiddenFailCount = 0
 					SupportState.NetworkFailCount = 0
+					SupportState.HiddenCycleCount = 0
+					SupportState.NetworkCycleCount = 0
+					SupportState.HiddenStopNotified = false
+					SupportState.NetworkStopNotified = false
 					SupportState.HiddenPropertyActive = true
 					SupportState.NetworkActive = true
 					SupportState.AutoSwitchEnabled = true
@@ -18333,7 +18399,7 @@ pcall(function()
 					startHiddenLoop()
 					startNetworkLoop()
 					refreshStatusLabel()
-					notifySupport("Support Reset", "Restored default methods and active loops.", "success")
+					notifySupport("Support Reset", "Restored default methods and active loops.", "success", true)
 				end)
 			end,
 		})
@@ -18358,7 +18424,6 @@ pcall(function()
 		startNetworkLoop()
 	end
 end)
-
 
 pcall(function()
     local DeltaTab = Window:CreateTab("Delta Modded", "download")
